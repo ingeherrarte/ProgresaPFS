@@ -58,6 +58,7 @@ class UsuariosView {
         <div class="barra">
             <span class="usuario">Usuario: <b><?= htmlspecialchars(Auth::nombreActual()) ?></b></span>
             <span>
+                <a href="inicio.php">Inicio</a>
                 <a href="recibospfs.php">Ingresar recibo</a>
                 <a href="usuarios.php?action=password">Cambiar contraseña</a>
                 <a href="login.php?action=logout">Cerrar sesión</a>

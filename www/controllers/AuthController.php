@@ -10,7 +10,7 @@ class AuthController {
         if ($destino && preg_match('/^[a-zA-Z0-9_\-]+\.php(\?[^ ]*)?$/', $destino)) {
             return $destino;
         }
-        return 'recibospfs.php';
+        return 'inicio.php';
     }
 
     public function handle($action) {

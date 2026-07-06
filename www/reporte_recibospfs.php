@@ -1,5 +1,8 @@
 <?php
 require_once __DIR__ . "/config/Conexion.php";
+require_once __DIR__ . "/helpers/Auth.php";
+
+Auth::requerirSesion();
 
 $anio_actual = (int)date('Y');
 $anio = isset($_GET['anio']) ? (int)$_GET['anio'] : $anio_actual;
@@ -98,6 +101,10 @@ $meses = [
     </style>
 </head>
 <body>
+
+<p style="text-align:right;margin-bottom:12px;">
+    <a href="inicio.php" style="color:#1a237e;text-decoration:none;font-size:13px;font-weight:bold;">← Inicio</a>
+</p>
 
 <h1>Reporte de Recibos PFS</h1>
 

@@ -1,7 +1,7 @@
 <?php
 class LoginView {
 
-    public static function mostrar(?string $error = null, string $destino = 'recibospfs.php') {
+    public static function mostrar(?string $error = null, string $destino = 'inicio.php') {
         ?>
         <!DOCTYPE html>
         <html lang="es">

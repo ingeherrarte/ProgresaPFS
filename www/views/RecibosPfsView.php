@@ -124,6 +124,7 @@ class RecibosPfsView {
             <div class="barra">
                 <span class="usuario">Usuario: <b><?= htmlspecialchars(Auth::nombreActual()) ?></b></span>
                 <span>
+                    <a href="inicio.php">Inicio</a>
                     <a href="estudiantespfs.php?action=form">Nuevo estudiante</a>
                     <a href="estudiantespfs.php">Buscar estudiante</a>
                     <a href="recibospfs.php?action=buscar">Buscar recibos</a>
@@ -490,6 +491,7 @@ class RecibosPfsView {
             <div class="barra">
                 <span class="usuario">Usuario: <b><?= htmlspecialchars(Auth::nombreActual()) ?></b></span>
                 <span>
+                    <a href="inicio.php">Inicio</a>
                     <a href="recibospfs.php">Nuevo recibo</a>
                     <a href="login.php?action=logout">Cerrar sesión</a>
                 </span>

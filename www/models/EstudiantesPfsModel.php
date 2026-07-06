@@ -125,5 +125,16 @@ class EstudiantesPfsModel {
 
         throw new RuntimeException("No se pudo generar un carné único.");
     }
+
+    public static function totalActivos(PDO $db): int {
+        return (int)$db->query("SELECT COUNT(*) FROM estudiantespfs WHERE activo = 1")->fetchColumn();
+    }
+
+    public static function nuevosEsteMes(PDO $db): int {
+        return (int)$db->query(
+            "SELECT COUNT(*) FROM estudiantespfs
+             WHERE YEAR(horaregistro) = YEAR(CURDATE()) AND MONTH(horaregistro) = MONTH(CURDATE())"
+        )->fetchColumn();
+    }
 }
 ?>
