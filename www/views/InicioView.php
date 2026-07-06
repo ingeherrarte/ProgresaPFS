@@ -63,14 +63,6 @@ class InicioView {
     private static function gridAccesos(): void {
         ?>
         <div class="accesos">
-            <a class="acceso" href="recibospfs.php">
-                <div class="icono">🧾</div>
-                <div class="titulo">Nuevo Recibo</div>
-            </a>
-            <a class="acceso" href="recibospfs.php?action=buscar">
-                <div class="icono">🔎</div>
-                <div class="titulo">Buscar Recibos</div>
-            </a>
             <a class="acceso" href="estudiantespfs.php?action=form">
                 <div class="icono">🧑‍🎓</div>
                 <div class="titulo">Nuevo Estudiante</div>
@@ -79,17 +71,25 @@ class InicioView {
                 <div class="icono">🔎</div>
                 <div class="titulo">Buscar Estudiante</div>
             </a>
+            <a class="acceso" href="recibospfs.php">
+                <div class="icono">🧾</div>
+                <div class="titulo">Nuevo Recibo</div>
+            </a>
+            <a class="acceso" href="recibospfs.php?action=buscar">
+                <div class="icono">🔎</div>
+                <div class="titulo">Buscar Recibos</div>
+            </a>
             <a class="acceso" href="cierres.php">
                 <div class="icono">📅</div>
                 <div class="titulo">Cierre del Día</div>
             </a>
+            <a class="acceso" href="reporte_recibospfs.php">
+                <div class="icono">📈</div>
+                <div class="titulo">Cierre del Mes</div>
+            </a>
             <a class="acceso" href="cierres.php?tipo=anio">
                 <div class="icono">📊</div>
                 <div class="titulo">Cierre de Año</div>
-            </a>
-            <a class="acceso" href="reporte_recibospfs.php">
-                <div class="icono">📈</div>
-                <div class="titulo">Reporte de Recibos</div>
             </a>
         </div>
         <?php
