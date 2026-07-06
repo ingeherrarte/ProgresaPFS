@@ -1,0 +1,14 @@
+# Código legacy y archivos que no se suben a GitHub
+/www-old/
+/www-old.zip
+/qa_guatecompras/
+/buscarecibopfs.php
+
+# Variables de entorno con credenciales
+www/.env
+
+# Datos y dependencias
+mysql-data/
+volumes/
+vendor/
+*.log
