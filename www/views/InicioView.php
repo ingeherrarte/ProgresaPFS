@@ -91,6 +91,10 @@ class InicioView {
                 <div class="icono">📊</div>
                 <div class="titulo">Cierre de Año</div>
             </a>
+            <a class="acceso" href="depositos.php">
+                <div class="icono">🏦</div>
+                <div class="titulo">Depósitos</div>
+            </a>
         </div>
         <?php
     }
