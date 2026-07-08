@@ -20,6 +20,7 @@ $sql  = "
     FROM recibospfs
     WHERE YEAR(horaregistro)  = :anio
       AND MONTH(horaregistro) = :mes
+      AND anulado = 0
     GROUP BY DATE(horaregistro)
     ORDER BY dia
 ";

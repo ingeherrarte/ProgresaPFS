@@ -31,7 +31,7 @@ class CierresController {
         }
 
         $resultado = RecibosPfsModel::cierreDia($db, $fecha);
-        CierresView::mostrarCierreDia($fecha, $resultado['detalle'], $resultado['resumen']);
+        CierresView::mostrarCierreDia($fecha, $resultado['detalle'], $resultado['resumen'], $resultado['anulados']);
     }
 
     private function cierreAnio(PDO $db) {
@@ -42,7 +42,8 @@ class CierresController {
         }
 
         $porMes = RecibosPfsModel::cierreAnioPorMes($db, $anio);
-        CierresView::mostrarCierreAnio($anio, $anioActual, $porMes, $this->meses);
+        $anulados = RecibosPfsModel::anuladosDelAnio($db, $anio);
+        CierresView::mostrarCierreAnio($anio, $anioActual, $porMes, $this->meses, $anulados);
     }
 }
 ?>

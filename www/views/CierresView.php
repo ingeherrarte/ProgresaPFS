@@ -38,6 +38,14 @@ class CierresView {
             tfoot td { border-color: #1a237e; }
             .sin-datos { color: #888; font-style: italic; padding: 20px 0; }
             h2 { font-size: 15px; color: #1a237e; margin: 0 0 12px; }
+            .fila-anulada td { color: #999; text-decoration: line-through; }
+            .fila-anulada td.estado { text-decoration: none; }
+            .estado-anulado { color: #b71c1c; font-weight: bold; text-decoration: none !important; }
+            .estado-activo { color: #2e7d32; }
+            .nota-anulados {
+                background: #fff8e1; color: #8d6e00; padding: 10px 14px; border-radius: 4px;
+                font-size: 13px; margin-top: 14px;
+            }
         </style>
         <?php
     }
@@ -54,7 +62,7 @@ class CierresView {
         <?php
     }
 
-    public static function mostrarCierreDia(string $fecha, array $detalle, array $resumen): void {
+    public static function mostrarCierreDia(string $fecha, array $detalle, array $resumen, array $anulados): void {
         ?>
         <!DOCTYPE html>
         <html lang="es">
@@ -96,11 +104,12 @@ class CierresView {
                                 <th>Fecha Dep.</th>
                                 <th>Banco</th>
                                 <th>Hora Registro</th>
+                                <th>Estado</th>
                             </tr>
                         </thead>
                         <tbody>
                             <?php foreach ($detalle as $r): ?>
-                                <tr>
+                                <tr class="<?= $r['anulado'] ? 'fila-anulada' : '' ?>" <?= $r['anulado'] ? 'title="Anulado: ' . htmlspecialchars($r['motivo_anulacion']) . '"' : '' ?>>
                                     <td class="num"><?= $r['numero'] ?>-<?= $r['aleatorio'] ?></td>
                                     <td><?= htmlspecialchars($r['carne']) ?></td>
                                     <td class="num">Q <?= number_format($r['efectivo'], 2) ?></td>
@@ -110,6 +119,13 @@ class CierresView {
                                     <td><?= htmlspecialchars($r['fechadep']) ?></td>
                                     <td><?= htmlspecialchars($r['banco']) ?></td>
                                     <td><?= date('d/m/Y H:i', strtotime($r['horaregistro'])) ?></td>
+                                    <td class="estado">
+                                        <?php if ($r['anulado']): ?>
+                                            <span class="estado-anulado">Anulado</span>
+                                        <?php else: ?>
+                                            <span class="estado-activo">Activo</span>
+                                        <?php endif; ?>
+                                    </td>
                                 </tr>
                             <?php endforeach; ?>
                         </tbody>
@@ -135,13 +151,21 @@ class CierresView {
                         <tr><td>TOTAL</td><td class="num">Q <?= number_format($resumen['total'], 2) ?></td></tr>
                     </tfoot>
                 </table>
+
+                <?php if ($anulados['cantidad'] > 0): ?>
+                    <div class="nota-anulados">
+                        ⚠ Este resumen no incluye <?= (int)$anulados['cantidad'] ?> recibo(s) anulado(s)
+                        por un total de Q <?= number_format($anulados['total'], 2) ?>
+                        (marcados como "Anulado" y tachados en el detalle de arriba).
+                    </div>
+                <?php endif; ?>
             </div>
         </body>
         </html>
         <?php
     }
 
-    public static function mostrarCierreAnio(int $anio, int $anioActual, array $porMes, array $meses): void {
+    public static function mostrarCierreAnio(int $anio, int $anioActual, array $porMes, array $meses, array $anulados): void {
         $totalEfectivo = array_sum(array_column($porMes, 'efectivo'));
         $totalDeposito = array_sum(array_column($porMes, 'deposito'));
         $totalCheque = array_sum(array_column($porMes, 'cheque'));
@@ -212,6 +236,13 @@ class CierresView {
                     Para el detalle día a día de un mes específico, usa
                     <a href="reporte_recibospfs.php">Reporte de Recibos</a>.
                 </p>
+
+                <?php if ($anulados['cantidad'] > 0): ?>
+                    <div class="nota-anulados">
+                        ⚠ Estos totales no incluyen <?= (int)$anulados['cantidad'] ?> recibo(s) anulado(s) en <?= $anio ?>
+                        por un total de Q <?= number_format($anulados['total'], 2) ?>.
+                    </div>
+                <?php endif; ?>
             </div>
         </body>
         </html>

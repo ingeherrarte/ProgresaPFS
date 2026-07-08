@@ -398,6 +398,12 @@ class RecibosPfsView {
                     text-align: center; font-size: 11px; color: #999; margin-top: 16px;
                     text-transform: uppercase; letter-spacing: 1px;
                 }
+                .banner-anulado {
+                    background: #b71c1c; color: #fff; text-align: center; font-weight: bold;
+                    font-size: 16px; padding: 10px; border-radius: 6px; margin-bottom: 10px;
+                    letter-spacing: 1px;
+                }
+                .banner-anulado .detalle-anulacion { font-size: 12px; font-weight: normal; margin-top: 4px; }
                 @media print {
                     .acciones { display: none; }
                     body { background: #fff; padding: 0; }
@@ -408,7 +414,12 @@ class RecibosPfsView {
         <body>
             <div class="acciones">
                 <a href="recibospfs.php">← Nuevo recibo</a>
-                <button onclick="window.print()">Imprimir</button>
+                <span>
+                    <?php if (!$recibo['anulado']): ?>
+                        <a href="admin.php?action=anular&numero=<?= $recibo['numero'] ?>" style="background:#b71c1c;">Anular recibo</a>
+                    <?php endif; ?>
+                    <button onclick="window.print()">Imprimir</button>
+                </span>
             </div>
 
             <?php
@@ -416,6 +427,16 @@ class RecibosPfsView {
             foreach ($etiquetas as $etiqueta):
             ?>
             <div class="copia">
+                <?php if ($recibo['anulado']): ?>
+                    <div class="banner-anulado">
+                        ⚠ RECIBO ANULADO
+                        <div class="detalle-anulacion">
+                            Motivo: <?= htmlspecialchars($recibo['motivo_anulacion']) ?><br>
+                            Anulado por <?= htmlspecialchars($recibo['anulado_por']) ?>
+                            el <?= date('d/m/Y H:i', strtotime($recibo['fecha_anulacion'])) ?>
+                        </div>
+                    </div>
+                <?php endif; ?>
                 <h2>CETECPRO</h2>
                 <div class="direccion">13 calle 3-52 zona 1 · Tels. 2221-2225, 4545-4396</div>
                 <div class="numero">
@@ -539,6 +560,7 @@ class RecibosPfsView {
                                     <th>Total</th>
                                     <th>Registrado por</th>
                                     <th>Fecha</th>
+                                    <th>Estado</th>
                                     <th></th>
                                 </tr>
                             </thead>
@@ -552,6 +574,13 @@ class RecibosPfsView {
                                         <td>Q <?= number_format($total, 2) ?></td>
                                         <td><?= htmlspecialchars($r['usuario']) ?></td>
                                         <td><?= date('d/m/Y H:i', strtotime($r['horaregistro'])) ?></td>
+                                        <td>
+                                            <?php if ($r['anulado']): ?>
+                                                <span style="color:#b71c1c;font-weight:bold;">Anulado</span>
+                                            <?php else: ?>
+                                                <span style="color:#2e7d32;">Activo</span>
+                                            <?php endif; ?>
+                                        </td>
                                         <td><a href="recibospfs.php?action=ver&numero=<?= $r['numero'] ?>">Ver</a></td>
                                     </tr>
                                 <?php endforeach; ?>

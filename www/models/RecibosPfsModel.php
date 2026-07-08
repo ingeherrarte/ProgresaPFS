@@ -85,7 +85,7 @@ class RecibosPfsModel {
     public static function estadisticasHoy(PDO $db): array {
         $stmt = $db->query(
             "SELECT COUNT(*) AS cantidad, COALESCE(SUM(efectivo + deposito + cheque), 0) AS total
-             FROM recibospfs WHERE DATE(horaregistro) = CURDATE()"
+             FROM recibospfs WHERE DATE(horaregistro) = CURDATE() AND anulado = 0"
         );
         return $stmt->fetch(PDO::FETCH_ASSOC);
     }
@@ -94,9 +94,21 @@ class RecibosPfsModel {
         $stmt = $db->query(
             "SELECT COUNT(*) AS cantidad, COALESCE(SUM(efectivo + deposito + cheque), 0) AS total
              FROM recibospfs
-             WHERE YEAR(horaregistro) = YEAR(CURDATE()) AND MONTH(horaregistro) = MONTH(CURDATE())"
+             WHERE YEAR(horaregistro) = YEAR(CURDATE()) AND MONTH(horaregistro) = MONTH(CURDATE()) AND anulado = 0"
         );
         return $stmt->fetch(PDO::FETCH_ASSOC);
+    }
+
+    // Marca un recibo como anulado (nunca se borra ni se altera el detalle
+    // original). Devuelve false si el número no existe o ya estaba anulado.
+    public static function anular(PDO $db, int $numero, string $motivo, string $usuario): bool {
+        $stmt = $db->prepare(
+            "UPDATE recibospfs
+             SET anulado = 1, motivo_anulacion = ?, anulado_por = ?, fecha_anulacion = NOW()
+             WHERE numero = ? AND anulado = 0"
+        );
+        $stmt->execute([$motivo, $usuario, $numero]);
+        return $stmt->rowCount() > 0;
     }
 
     // Detalle + resumen por concepto de un día específico (reemplazo de
@@ -108,6 +120,8 @@ class RecibosPfsModel {
         );
         $stmtDetalle->execute([$fecha]);
 
+        // Los recibos anulados se siguen mostrando en el detalle (para que
+        // quede visible qué pasó ese día), pero no cuentan en las sumas.
         $stmtResumen = $db->prepare(
             "SELECT
                 COALESCE(SUM(efectivo), 0) AS efectivo,
@@ -117,13 +131,22 @@ class RecibosPfsModel {
                 COALESCE(SUM(mensualidad), 0) AS mensualidad,
                 COALESCE(SUM(otro), 0) AS otro,
                 COALESCE(SUM(efectivo + deposito + cheque), 0) AS total
-             FROM recibospfs WHERE DATE(horaregistro) = ?"
+             FROM recibospfs WHERE DATE(horaregistro) = ? AND anulado = 0"
         );
         $stmtResumen->execute([$fecha]);
+
+        // Cuenta y monto de los anulados del día, para explicar en el
+        // resumen por qué el total no coincide con la suma cruda del detalle.
+        $stmtAnulados = $db->prepare(
+            "SELECT COUNT(*) AS cantidad, COALESCE(SUM(efectivo + deposito + cheque), 0) AS total
+             FROM recibospfs WHERE DATE(horaregistro) = ? AND anulado = 1"
+        );
+        $stmtAnulados->execute([$fecha]);
 
         return [
             'detalle' => $stmtDetalle->fetchAll(PDO::FETCH_ASSOC),
             'resumen' => $stmtResumen->fetch(PDO::FETCH_ASSOC),
+            'anulados' => $stmtAnulados->fetch(PDO::FETCH_ASSOC),
         ];
     }
 
@@ -137,7 +160,7 @@ class RecibosPfsModel {
                     COALESCE(SUM(deposito), 0) AS deposito,
                     COALESCE(SUM(cheque), 0) AS cheque
              FROM recibospfs
-             WHERE YEAR(horaregistro) = ?
+             WHERE YEAR(horaregistro) = ? AND anulado = 0
              GROUP BY MONTH(horaregistro)"
         );
         $stmt->execute([$anio]);
@@ -152,6 +175,15 @@ class RecibosPfsModel {
             $resultado[$m] = $porMes[$m] ?? ['efectivo' => 0, 'deposito' => 0, 'cheque' => 0];
         }
         return $resultado;
+    }
+
+    public static function anuladosDelAnio(PDO $db, int $anio): array {
+        $stmt = $db->prepare(
+            "SELECT COUNT(*) AS cantidad, COALESCE(SUM(efectivo + deposito + cheque), 0) AS total
+             FROM recibospfs WHERE YEAR(horaregistro) = ? AND anulado = 1"
+        );
+        $stmt->execute([$anio]);
+        return $stmt->fetch(PDO::FETCH_ASSOC);
     }
 }
 ?>

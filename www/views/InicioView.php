@@ -95,6 +95,10 @@ class InicioView {
                 <div class="icono">🏦</div>
                 <div class="titulo">Depósitos</div>
             </a>
+            <a class="acceso" href="admin.php">
+                <div class="icono">⚙️</div>
+                <div class="titulo">Administración</div>
+            </a>
         </div>
         <?php
     }
