@@ -5,6 +5,8 @@ require_once __DIR__ . "/../helpers/Auth.php";
 
 class UsuariosController {
 
+    private const ROLES_VALIDOS = [Auth::ROL_USUARIO, Auth::ROL_EDITOR, Auth::ROL_ADMINISTRADOR];
+
     private function validar(array $post): array {
         $errores = [];
 
@@ -15,6 +17,10 @@ class UsuariosController {
 
         if (trim($post['nombre_completo'] ?? '') === '') {
             $errores[] = "El nombre completo es obligatorio.";
+        }
+
+        if (!in_array($post['rol'] ?? '', self::ROLES_VALIDOS, true)) {
+            $errores[] = "Debe seleccionar un rol válido.";
         }
 
         $password = $post['password'] ?? '';
@@ -48,8 +54,24 @@ class UsuariosController {
         return $errores;
     }
 
-    // Solo un usuario ya autenticado puede registrar nuevos usuarios;
-    // no existe registro público en este sistema interno.
+    // El administrador resetea sin conocer la contraseña actual del usuario.
+    private function validarResetPassword(array $post): array {
+        $errores = [];
+
+        $nueva = $post['password_nueva'] ?? '';
+        if (strlen($nueva) < 8) {
+            $errores[] = "La nueva contraseña debe tener al menos 8 caracteres.";
+        }
+
+        if ($nueva !== ($post['confirmar_password_nueva'] ?? '')) {
+            $errores[] = "Las contraseñas nuevas no coinciden.";
+        }
+
+        return $errores;
+    }
+
+    // Cambiar la propia contraseña está disponible para cualquier rol;
+    // listar/crear usuarios ("gestionar usuarios") es exclusivo del administrador.
     public function handle($action) {
         Auth::requerirSesion();
 
@@ -88,6 +110,8 @@ class UsuariosController {
                 break;
 
             case 'crear':
+                Auth::requerirRol([Auth::ROL_ADMINISTRADOR]);
+
                 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
                     header("Location: usuarios.php");
                     exit;
@@ -99,7 +123,8 @@ class UsuariosController {
                     $resultado = UsuarioModel::crear(
                         trim($_POST['usuario']),
                         $_POST['password'],
-                        trim($_POST['nombre_completo'])
+                        trim($_POST['nombre_completo']),
+                        $_POST['rol']
                     );
 
                     if ($resultado === true) {
@@ -115,9 +140,51 @@ class UsuariosController {
                 UsuariosView::mostrar($errores, $_POST, UsuarioModel::obtenerTodos());
                 break;
 
+            case 'resetPassword':
+                Auth::requerirRol([Auth::ROL_ADMINISTRADOR]);
+
+                $cuenta = UsuarioModel::obtenerPorId((int)($_GET['id'] ?? 0));
+                if (!$cuenta) {
+                    header("Location: usuarios.php");
+                    exit;
+                }
+
+                UsuariosView::mostrarResetPassword($cuenta);
+                break;
+
+            case 'resetPasswordGuardar':
+                Auth::requerirRol([Auth::ROL_ADMINISTRADOR]);
+
+                if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+                    header("Location: usuarios.php");
+                    exit;
+                }
+
+                $id = (int)($_POST['id'] ?? 0);
+                $cuenta = UsuarioModel::obtenerPorId($id);
+                if (!$cuenta) {
+                    header("Location: usuarios.php");
+                    exit;
+                }
+
+                $errores = $this->validarResetPassword($_POST);
+                if (!empty($errores)) {
+                    UsuariosView::mostrarResetPassword($cuenta, $errores);
+                    break;
+                }
+
+                UsuarioModel::cambiarPassword($cuenta['id'], $_POST['password_nueva']);
+                header("Location: usuarios.php?msg=passwordReseteada");
+                exit;
+
             case 'listar':
             default:
-                $mensaje = ($_GET['msg'] ?? '') === 'creado' ? 'Usuario creado correctamente.' : null;
+                Auth::requerirRol([Auth::ROL_ADMINISTRADOR]);
+                $mensaje = match ($_GET['msg'] ?? '') {
+                    'creado' => 'Usuario creado correctamente.',
+                    'passwordReseteada' => 'Contraseña reseteada correctamente.',
+                    default => null,
+                };
                 UsuariosView::mostrar([], [], UsuarioModel::obtenerTodos(), $mensaje);
                 break;
         }

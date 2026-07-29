@@ -1,5 +1,6 @@
 <?php
 require_once "models/UsuarioModel.php";
+require_once "models/AccesoModel.php";
 require_once "views/LoginView.php";
 require_once __DIR__ . "/../helpers/Auth.php";
 
@@ -25,6 +26,7 @@ class AuthController {
                     $cuenta = UsuarioModel::verificar($usuario, $password);
                     if ($cuenta) {
                         Auth::iniciarSesion($cuenta);
+                        AccesoModel::registrar($cuenta['id'], $cuenta['usuario'], 'ingreso');
                         header("Location: $destino");
                         exit;
                     }
@@ -33,6 +35,9 @@ class AuthController {
                 break;
 
             case 'logout':
+                if (Auth::estaAutenticado()) {
+                    AccesoModel::registrar(Auth::usuarioId(), Auth::usuarioActual(), 'salida');
+                }
                 Auth::cerrarSesion();
                 header("Location: login.php");
                 exit;
@@ -42,7 +47,10 @@ class AuthController {
                     header("Location: " . $this->destinoSeguro($_GET['destino'] ?? null));
                     exit;
                 }
-                LoginView::mostrar(null, $this->destinoSeguro($_GET['destino'] ?? null));
+                $mensaje = ($_GET['motivo'] ?? '') === 'inactividad'
+                    ? 'Tu sesión expiró por inactividad. Vuelve a iniciar sesión.'
+                    : null;
+                LoginView::mostrar($mensaje, $this->destinoSeguro($_GET['destino'] ?? null));
                 break;
         }
     }

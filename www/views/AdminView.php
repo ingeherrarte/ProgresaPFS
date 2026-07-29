@@ -87,14 +87,26 @@ class AdminView {
 
             <div class="card">
                 <div class="accesos">
-                    <a class="acceso" href="admin.php?action=anular">
-                        <div class="icono">🚫</div>
-                        <div class="titulo">Anular Recibo</div>
-                    </a>
+                    <?php if (Auth::puedeAnularRecibos()): ?>
+                        <a class="acceso" href="admin.php?action=anular">
+                            <div class="icono">🚫</div>
+                            <div class="titulo">Anular Recibo</div>
+                        </a>
+                    <?php endif; ?>
                     <a class="acceso" href="usuarios.php?action=password">
                         <div class="icono">🔑</div>
                         <div class="titulo">Cambiar Contraseña</div>
                     </a>
+                    <?php if (Auth::esAdministrador()): ?>
+                        <a class="acceso" href="usuarios.php">
+                            <div class="icono">👥</div>
+                            <div class="titulo">Gestionar Usuarios</div>
+                        </a>
+                        <a class="acceso" href="accesos.php">
+                            <div class="icono">🕓</div>
+                            <div class="titulo">Registro de Accesos</div>
+                        </a>
+                    <?php endif; ?>
                 </div>
             </div>
         </body>

@@ -12,10 +12,12 @@ class AdminController {
 
         switch ($action) {
             case 'anular':
+                Auth::requerirRol([Auth::ROL_EDITOR, Auth::ROL_ADMINISTRADOR]);
                 $this->anularBuscar();
                 break;
 
             case 'anular_confirmar':
+                Auth::requerirRol([Auth::ROL_EDITOR, Auth::ROL_ADMINISTRADOR]);
                 $this->anularConfirmar();
                 break;
 

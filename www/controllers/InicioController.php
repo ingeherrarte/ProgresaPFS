@@ -22,7 +22,8 @@ class InicioController {
             return;
         }
 
-        InicioView::mostrarSimple();
+        $sinPermiso = ($_GET['error'] ?? '') === 'permiso';
+        InicioView::mostrarSimple($sinPermiso);
     }
 }
 ?>

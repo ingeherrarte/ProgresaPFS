@@ -415,7 +415,7 @@ class RecibosPfsView {
             <div class="acciones">
                 <a href="recibospfs.php">← Nuevo recibo</a>
                 <span>
-                    <?php if (!$recibo['anulado']): ?>
+                    <?php if (!$recibo['anulado'] && Auth::puedeAnularRecibos()): ?>
                         <a href="admin.php?action=anular&numero=<?= $recibo['numero'] ?>" style="background:#b71c1c;">Anular recibo</a>
                     <?php endif; ?>
                     <button onclick="window.print()">Imprimir</button>

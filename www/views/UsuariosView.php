@@ -29,6 +29,11 @@ class UsuariosView {
                 border: 1px solid #ccc; border-radius: 4px;
             }
             input:focus { outline: none; border-color: #1a237e; }
+            select {
+                width: 100%; padding: 8px 10px; font-size: 14px;
+                border: 1px solid #ccc; border-radius: 4px; background: #fff;
+            }
+            select:focus { outline: none; border-color: #1a237e; }
             button[type=submit] {
                 width: 100%; padding: 12px; font-size: 15px; font-weight: bold;
                 background: #1a237e; color: #fff; border: none; border-radius: 4px; cursor: pointer;
@@ -67,9 +72,18 @@ class UsuariosView {
         <?php
     }
 
+    private static function etiquetaRol(string $rol): string {
+        return match ($rol) {
+            Auth::ROL_ADMINISTRADOR => 'Administrador',
+            Auth::ROL_EDITOR => 'Editor',
+            default => 'Usuario',
+        };
+    }
+
     public static function mostrar(array $errores = [], array $data = [], array $usuarios = [], ?string $mensaje = null): void {
         $usuario = htmlspecialchars($data['usuario'] ?? '');
         $nombreCompleto = htmlspecialchars($data['nombre_completo'] ?? '');
+        $rolSeleccionado = $data['rol'] ?? Auth::ROL_EDITOR;
         ?>
         <!DOCTYPE html>
         <html lang="es">
@@ -122,6 +136,16 @@ class UsuariosView {
                                 <input type="password" id="confirmar_password" name="confirmar_password" minlength="8" required>
                             </div>
                         </div>
+                        <div class="fila">
+                            <div class="campo">
+                                <label for="rol">Rol</label>
+                                <select id="rol" name="rol" required>
+                                    <option value="<?= Auth::ROL_USUARIO ?>" <?= $rolSeleccionado === Auth::ROL_USUARIO ? 'selected' : '' ?>>Usuario (no puede anular recibos)</option>
+                                    <option value="<?= Auth::ROL_EDITOR ?>" <?= $rolSeleccionado === Auth::ROL_EDITOR ? 'selected' : '' ?>>Editor</option>
+                                    <option value="<?= Auth::ROL_ADMINISTRADOR ?>" <?= $rolSeleccionado === Auth::ROL_ADMINISTRADOR ? 'selected' : '' ?>>Administrador</option>
+                                </select>
+                            </div>
+                        </div>
                     </fieldset>
 
                     <button type="submit">Registrar usuario</button>
@@ -136,8 +160,10 @@ class UsuariosView {
                             <tr>
                                 <th>Usuario</th>
                                 <th>Nombre completo</th>
+                                <th>Rol</th>
                                 <th>Estado</th>
                                 <th>Creado</th>
+                                <th>Acciones</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -145,15 +171,67 @@ class UsuariosView {
                                 <tr>
                                     <td><?= htmlspecialchars($u['usuario']) ?></td>
                                     <td><?= htmlspecialchars($u['nombre_completo']) ?></td>
+                                    <td><?= self::etiquetaRol($u['rol']) ?></td>
                                     <td class="<?= $u['activo'] ? 'estado-activo' : 'estado-inactivo' ?>">
                                         <?= $u['activo'] ? 'Activo' : 'Inactivo' ?>
                                     </td>
                                     <td><?= date('d/m/Y H:i', strtotime($u['creado_en'])) ?></td>
+                                    <td><a href="usuarios.php?action=resetPassword&id=<?= $u['id'] ?>">Restablecer contraseña</a></td>
                                 </tr>
                             <?php endforeach; ?>
                         </tbody>
                     </table>
                 </fieldset>
+            </div>
+        </body>
+        </html>
+        <?php
+    }
+
+    public static function mostrarResetPassword(array $cuenta, array $errores = []): void {
+        ?>
+        <!DOCTYPE html>
+        <html lang="es">
+        <head>
+            <meta charset="UTF-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1">
+            <title>Restablecer contraseña — CETECPRO</title>
+            <?php self::estilos(); ?>
+        </head>
+        <body>
+            <?php self::barra(); ?>
+            <h1>Restablecer contraseña</h1>
+
+            <div class="card">
+                <?php if (!empty($errores)): ?>
+                    <div class="errores">
+                        ⚠️ Corrige lo siguiente:
+                        <ul>
+                            <?php foreach ($errores as $e): ?>
+                                <li><?= htmlspecialchars($e) ?></li>
+                            <?php endforeach; ?>
+                        </ul>
+                    </div>
+                <?php endif; ?>
+
+                <form method="POST" action="usuarios.php?action=resetPasswordGuardar">
+                    <input type="hidden" name="id" value="<?= $cuenta['id'] ?>">
+                    <fieldset>
+                        <legend>Usuario: <?= htmlspecialchars($cuenta['usuario']) ?> (<?= htmlspecialchars($cuenta['nombre_completo']) ?>)</legend>
+                        <div class="fila">
+                            <div class="campo">
+                                <label for="password_nueva">Nueva contraseña</label>
+                                <input type="password" id="password_nueva" name="password_nueva" minlength="8" required autofocus>
+                            </div>
+                            <div class="campo">
+                                <label for="confirmar_password_nueva">Confirmar nueva contraseña</label>
+                                <input type="password" id="confirmar_password_nueva" name="confirmar_password_nueva" minlength="8" required>
+                            </div>
+                        </div>
+                    </fieldset>
+
+                    <button type="submit">Restablecer contraseña</button>
+                </form>
             </div>
         </body>
         </html>

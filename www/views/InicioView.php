@@ -45,6 +45,11 @@ class InicioView {
                 font-size: 13px; color: #1a237e; text-decoration: none; font-weight: bold;
             }
             .cambiar-vista a:hover { text-decoration: underline; }
+            .errores {
+                background: #ffebee; border: 1px solid #e57373; color: #b71c1c;
+                padding: 10px 14px; border-radius: 4px; margin-bottom: 18px; font-size: 13px;
+                max-width: 900px; margin-left: auto; margin-right: auto;
+            }
         </style>
         <?php
     }
@@ -103,7 +108,7 @@ class InicioView {
         <?php
     }
 
-    public static function mostrarSimple(): void {
+    public static function mostrarSimple(bool $sinPermiso = false): void {
         ?>
         <!DOCTYPE html>
         <html lang="es">
@@ -117,6 +122,10 @@ class InicioView {
             <?php self::barra(); ?>
             <h1>CETECPRO</h1>
             <p class="subtitulo">¿Qué deseas hacer?</p>
+
+            <?php if ($sinPermiso): ?>
+                <div class="errores">⚠️ No tienes permiso para acceder a esa sección.</div>
+            <?php endif; ?>
 
             <div class="contenedor">
                 <?php self::gridAccesos(); ?>
