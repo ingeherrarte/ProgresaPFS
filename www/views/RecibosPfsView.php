@@ -381,6 +381,7 @@ class RecibosPfsView {
                 * { box-sizing: border-box; margin: 0; padding: 0; }
                 body { font-family: Arial, sans-serif; background: #f0f2f5; padding: 24px; color: #222; }
                 .acciones { max-width: 640px; margin: 0 auto 16px; display: flex; justify-content: space-between; }
+                .acciones span { display: flex; gap: 8px; }
                 .acciones a, .acciones button {
                     font-size: 13px; font-weight: bold; color: #fff; background: #1a237e;
                     border: none; border-radius: 4px; padding: 8px 16px; text-decoration: none; cursor: pointer;
@@ -419,7 +420,10 @@ class RecibosPfsView {
         </head>
         <body>
             <div class="acciones">
-                <a href="recibospfs.php">← Nuevo recibo</a>
+                <span>
+                    <a href="inicio.php">← Inicio</a>
+                    <a href="recibospfs.php">Nuevo recibo</a>
+                </span>
                 <span>
                     <?php if (!empty($recibo['foto_deposito'])): ?>
                         <a href="uploads/recibos/<?= urlencode($recibo['foto_deposito']) ?>" target="_blank" rel="noopener">Ver comprobante</a>

@@ -103,6 +103,7 @@ class CierresView {
                                 <th>No. Depósito</th>
                                 <th>Fecha Dep.</th>
                                 <th>Banco</th>
+                                <th>Comprobante</th>
                                 <th>Hora Registro</th>
                                 <th>Estado</th>
                             </tr>
@@ -118,6 +119,13 @@ class CierresView {
                                     <td><?= htmlspecialchars($r['nodeposito']) ?></td>
                                     <td><?= htmlspecialchars($r['fechadep']) ?></td>
                                     <td><?= htmlspecialchars($r['banco']) ?></td>
+                                    <td>
+                                        <?php if (!empty($r['foto_deposito'])): ?>
+                                            <a href="uploads/recibos/<?= urlencode($r['foto_deposito']) ?>" target="_blank" rel="noopener">Ver</a>
+                                        <?php else: ?>
+                                            —
+                                        <?php endif; ?>
+                                    </td>
                                     <td><?= date('d/m/Y H:i', strtotime($r['horaregistro'])) ?></td>
                                     <td class="estado">
                                         <?php if ($r['anulado']): ?>
