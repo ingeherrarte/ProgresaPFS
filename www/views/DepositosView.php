@@ -87,7 +87,7 @@ class DepositosView {
                     </div>
                 <?php endif; ?>
 
-                <form method="POST" action="depositos.php?action=guardar">
+                <form method="POST" action="depositos.php?action=guardar" enctype="multipart/form-data">
                     <fieldset>
                         <legend>Datos del depósito</legend>
                         <div class="fila">
@@ -135,6 +135,12 @@ class DepositosView {
                                 <input type="text" id="responsable" name="responsable" maxlength="30" value="<?= $v('responsable') ?>" required>
                             </div>
                         </div>
+                        <div class="fila">
+                            <div class="campo">
+                                <label for="foto_boleta">Foto de la boleta (opcional, máx. 2 MB)</label>
+                                <input type="file" id="foto_boleta" name="foto_boleta" accept="image/jpeg,image/png,image/webp">
+                            </div>
+                        </div>
                     </fieldset>
 
                     <button type="submit">Guardar depósito</button>
@@ -159,6 +165,7 @@ class DepositosView {
                                 <th>Ch. otro banco</th>
                                 <th>Responsable</th>
                                 <th>Registrado</th>
+                                <th>Boleta</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -174,6 +181,13 @@ class DepositosView {
                                     <td class="num">Q <?= number_format($d['chotrobanco'], 2) ?></td>
                                     <td><?= htmlspecialchars($d['responsable']) ?></td>
                                     <td><?= date('d/m/Y H:i', strtotime($d['horaregistro'])) ?></td>
+                                    <td>
+                                        <?php if (!empty($d['foto_boleta'])): ?>
+                                            <a href="uploads/depositos/<?= urlencode($d['foto_boleta']) ?>" target="_blank" rel="noopener">Ver foto</a>
+                                        <?php else: ?>
+                                            —
+                                        <?php endif; ?>
+                                    </td>
                                 </tr>
                             <?php endforeach; ?>
                         </tbody>

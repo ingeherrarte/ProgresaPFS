@@ -71,6 +71,47 @@ class DepositosController {
         return $errores;
     }
 
+    private const CARPETA_BOLETAS = __DIR__ . "/../uploads/depositos";
+
+    // Tipos de imagen aceptados. Se detectan con getimagesize() sobre el
+    // contenido real del archivo, no por la extensión ni el Content-Type que
+    // manda el navegador (ambos falsificables), y el nombre final se genera
+    // aquí en vez de reutilizar el nombre original subido.
+    private const TIPOS_IMAGEN = [
+        IMAGETYPE_JPEG => 'jpg',
+        IMAGETYPE_PNG => 'png',
+        IMAGETYPE_WEBP => 'webp',
+    ];
+
+    // La foto es opcional. Devuelve [nombreGuardado, error]: si no se
+    // adjuntó nada, ambos son null y el registro sigue sin foto.
+    private function procesarFoto(array $archivo, string $nodeposito): array {
+        if (($archivo['error'] ?? UPLOAD_ERR_NO_FILE) === UPLOAD_ERR_NO_FILE) {
+            return [null, null];
+        }
+        if ($archivo['error'] !== UPLOAD_ERR_OK) {
+            return [null, "No se pudo subir la foto de la boleta (máximo 2 MB)."];
+        }
+
+        $info = @getimagesize($archivo['tmp_name']);
+        if ($info === false || !isset(self::TIPOS_IMAGEN[$info[2]])) {
+            return [null, "La foto de la boleta debe ser una imagen JPG, PNG o WEBP."];
+        }
+
+        if (!is_dir(self::CARPETA_BOLETAS)) {
+            mkdir(self::CARPETA_BOLETAS, 0755, true);
+        }
+
+        $prefijo = preg_replace('/[^A-Za-z0-9_-]/', '', $nodeposito) ?: 'boleta';
+        $nombre = $prefijo . '_' . bin2hex(random_bytes(8)) . '.' . self::TIPOS_IMAGEN[$info[2]];
+
+        if (!move_uploaded_file($archivo['tmp_name'], self::CARPETA_BOLETAS . '/' . $nombre)) {
+            return [null, "No se pudo guardar la foto de la boleta. Intente de nuevo."];
+        }
+
+        return [$nombre, null];
+    }
+
     private function guardar() {
         if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
             header("Location: depositos.php");
@@ -79,7 +120,15 @@ class DepositosController {
 
         $errores = $this->validar($_POST);
 
+        [$fotoBoleta, $errorFoto] = $this->procesarFoto($_FILES['foto_boleta'] ?? [], trim($_POST['nodeposito'] ?? ''));
+        if ($errorFoto) {
+            $errores[] = $errorFoto;
+        }
+
         if (!empty($errores)) {
+            if ($fotoBoleta) {
+                @unlink(self::CARPETA_BOLETAS . '/' . $fotoBoleta);
+            }
             $this->form($errores, $_POST);
             return;
         }
@@ -96,10 +145,15 @@ class DepositosController {
             'chotrobanco' => (float)$_POST['chotrobanco'],
             'responsable' => trim($_POST['responsable']),
             'usuario' => Auth::usuarioActual(),
+            'foto_boleta' => $fotoBoleta,
         ];
 
         $db = Conexion::conectar();
         $resultado = DepositosModel::crear($db, $datos);
+
+        if ($resultado !== true && $fotoBoleta) {
+            @unlink(self::CARPETA_BOLETAS . '/' . $fotoBoleta);
+        }
 
         if ($resultado === 'duplicado') {
             $this->form(["Ya existe un depósito registrado con el número {$datos['nodeposito']}."], $_POST);

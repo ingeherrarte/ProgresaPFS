@@ -13,5 +13,8 @@ volumes/
 vendor/
 *.log
 
+# Fotos de boletas de depósito subidas por los usuarios
+www/uploads/
+
 # Config local de Claude Code
 www/.claude/

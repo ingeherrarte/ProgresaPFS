@@ -23,15 +23,15 @@ class DepositosModel {
     // Devuelve true, 'duplicado' (nodeposito ya existe) o false (error de BD).
     public static function crear(PDO $db, array $datos): bool|string {
         $sql = "INSERT INTO depositos
-            (nodeposito, fechadep, cuenta, banco, correspondiente, efectivo, chpropio, chotrobanco, responsable, usuario, horaregistro)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())";
+            (nodeposito, fechadep, cuenta, banco, correspondiente, efectivo, chpropio, chotrobanco, responsable, usuario, horaregistro, foto_boleta)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), ?)";
         $stmt = $db->prepare($sql);
 
         try {
             $stmt->execute([
                 $datos['nodeposito'], $datos['fechadep'], $datos['cuenta'], $datos['banco'],
                 $datos['correspondiente'], $datos['efectivo'], $datos['chpropio'], $datos['chotrobanco'],
-                $datos['responsable'], $datos['usuario'],
+                $datos['responsable'], $datos['usuario'], $datos['foto_boleta'],
             ]);
             return true;
         } catch (PDOException $e) {
