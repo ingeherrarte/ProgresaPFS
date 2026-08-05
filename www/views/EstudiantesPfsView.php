@@ -217,22 +217,6 @@ class EstudiantesPfsView {
     ];
 
     public static function mostrarFormularioAlta(array $errores, array $data, array $cursos, ?string $mensaje = null): void {
-        $v = fn($campo) => htmlspecialchars($data[$campo] ?? '');
-        $codcursoSel = (int)($data['codcurso'] ?? 0);
-        $planSel = (int)($data['plan'] ?? 0);
-        $jornadaSel = (int)($data['jornada'] ?? 0);
-
-        // Los datos de padre/madre solo se piden para menores de edad. Se
-        // calcula aquí para el render inicial (ej. al reabrir el formulario
-        // tras un error de validación); el JS lo recalcula al vuelo cuando
-        // el usuario cambia la fecha de nacimiento.
-        $esMenor = false;
-        $nacimiento = $data['nacimiento'] ?? '';
-        if (preg_match('/^\d{4}-\d{2}-\d{2}$/', $nacimiento)) {
-            $edad = (new DateTime($nacimiento))->diff(new DateTime())->y;
-            $esMenor = $edad < 18;
-        }
-        $enteradoSel = $data['enteradopor'] ?? '';
         ?>
         <!DOCTYPE html>
         <html lang="es">
@@ -309,6 +293,38 @@ class EstudiantesPfsView {
                 <?php endif; ?>
 
                 <form method="POST" action="estudiantespfs.php?action=guardar">
+                    <?php self::camposFormulario($data, $cursos); ?>
+
+                    <button type="submit">Registrar estudiante</button>
+                </form>
+            </div>
+
+            <?php self::scriptToggleMenor(); ?>
+        </body>
+        </html>
+        <?php
+    }
+
+    // Los fieldsets del alta y de la edición (Administración) son
+    // exactamente los mismos campos, así que se comparten desde aquí.
+    public static function camposFormulario(array $data, array $cursos): void {
+        $v = fn($campo) => htmlspecialchars($data[$campo] ?? '');
+        $codcursoSel = (int)($data['codcurso'] ?? 0);
+        $planSel = (int)($data['plan'] ?? 0);
+        $jornadaSel = (int)($data['jornada'] ?? 0);
+
+        // Los datos de padre/madre solo se piden para menores de edad. Se
+        // calcula aquí para el render inicial (ej. al reabrir el formulario
+        // tras un error de validación); el JS lo recalcula al vuelo cuando
+        // el usuario cambia la fecha de nacimiento.
+        $esMenor = false;
+        $nacimiento = $data['nacimiento'] ?? '';
+        if (preg_match('/^\d{4}-\d{2}-\d{2}$/', $nacimiento)) {
+            $edad = (new DateTime($nacimiento))->diff(new DateTime())->y;
+            $esMenor = $edad < 18;
+        }
+        $enteradoSel = $data['enteradopor'] ?? '';
+        ?>
                     <fieldset>
                         <legend>Datos del estudiante</legend>
                         <div class="fila">
@@ -501,11 +517,14 @@ class EstudiantesPfsView {
                         </div>
                     </fieldset>
 
-                    <button type="submit">Registrar estudiante</button>
-                </form>
-            </div>
+        <?php
+    }
 
-            <script>
+    // JS que muestra/oculta los fieldsets de padre/madre según la edad
+    // calculada a partir de la fecha de nacimiento ingresada.
+    public static function scriptToggleMenor(): void {
+        ?>
+<script>
                 const nacimientoInput = document.getElementById('nacimiento');
                 const fieldsetPadre = document.getElementById('fieldsetPadre');
                 const fieldsetMadre = document.getElementById('fieldsetMadre');
@@ -529,8 +548,6 @@ class EstudiantesPfsView {
                 nacimientoInput.addEventListener('change', actualizarDatosPadres);
                 nacimientoInput.addEventListener('input', actualizarDatosPadres);
             </script>
-        </body>
-        </html>
         <?php
     }
 }

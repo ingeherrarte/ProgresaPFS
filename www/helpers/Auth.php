@@ -117,5 +117,11 @@ class Auth {
     public static function puedeAnularRecibos(): bool {
         return self::rolActual() !== self::ROL_USUARIO;
     }
+
+    // Igual que la anulación de recibos: disponible para editor y
+    // administrador, no para el rol "usuario".
+    public static function puedeEditarEstudiantes(): bool {
+        return self::rolActual() !== self::ROL_USUARIO;
+    }
 }
 ?>

@@ -34,6 +34,13 @@ class EstudiantesPfsModel {
         return $stmt->fetchAll(PDO::FETCH_KEY_PAIR);
     }
 
+    public static function obtenerPorId(PDO $db, int $id): ?array {
+        $stmt = $db->prepare("SELECT * FROM estudiantespfs WHERE idestudiante = ?");
+        $stmt->execute([$id]);
+        $fila = $stmt->fetch(PDO::FETCH_ASSOC);
+        return $fila ?: null;
+    }
+
     public static function buscarPorCarnet(PDO $db, string $carnet): ?array {
         $sql = "SELECT e.idestudiante, e.nombre, e.apellidos, e.codcurso, e.activo,
                        d.nombre AS nombrecurso
@@ -124,6 +131,136 @@ class EstudiantesPfsModel {
         } while ($intentos < 5);
 
         throw new RuntimeException("No se pudo generar un carné único.");
+    }
+
+    // Actualiza los mismos campos editables del alta (todo menos carné,
+    // activo, fecha de inscripción y el usuario que registró originalmente).
+    // Se deja constancia de quién editó y cuándo, igual que en la anulación
+    // de recibos.
+    public static function actualizar(PDO $db, int $id, array $datos, string $usuario): void {
+        $sql = "UPDATE estudiantespfs SET
+            nombre = ?, apellidos = ?, nacimiento = ?, codcurso = ?, plan = ?, jornada = ?,
+            dpi = ?, cedula = ?, direccion = ?, email = ?, telefonomovil = ?, telefonocasa = ?, telefonotrabajo = ?,
+            ultimoanio = ?, establecimiento = ?,
+            pnombre = ?, papellidos = ?, pcedula = ?, ptelefono = ?, ptrabajo = ?, ptelefonotrabajo = ?, pdirecciont = ?,
+            mnombre = ?, mapellidos = ?, mcedula = ?, mtelefono = ?, mtrabajo = ?, mtelefonotrabajo = ?, mdirecciont = ?,
+            enteradopor = ?, observacion = ?,
+            editado_por = ?, fecha_edicion = NOW()
+            WHERE idestudiante = ?";
+
+        $stmt = $db->prepare($sql);
+        $stmt->execute([
+            $datos['nombre'], $datos['apellidos'], $datos['nacimiento'], $datos['codcurso'], $datos['plan'], $datos['jornada'],
+            $datos['dpi'], $datos['cedula'], $datos['direccion'], $datos['email'], $datos['telefonomovil'], $datos['telefonocasa'], $datos['telefonotrabajo'],
+            $datos['ultimoanio'], $datos['establecimiento'],
+            $datos['pnombre'], $datos['papellidos'], $datos['pcedula'], $datos['ptelefono'], $datos['ptrabajo'], $datos['ptelefonotrabajo'], $datos['pdirecciont'],
+            $datos['mnombre'], $datos['mapellidos'], $datos['mcedula'], $datos['mtelefono'], $datos['mtrabajo'], $datos['mtelefonotrabajo'], $datos['mdirecciont'],
+            $datos['enteradopor'], $datos['observacion'],
+            $usuario, $id,
+        ]);
+    }
+
+    // Toda la validación vive aquí (y no en el controlador) para que la
+    // compartan el alta y la edición de estudiantes. El <select> de curso
+    // viene de la tabla real (ver obtenerCursos), así que el valor recibido
+    // solo puede ser un id que ya existe en esa lista.
+    public static function validar(array $post, array $cursos): array {
+        $errores = [];
+
+        if (trim($post['nombre'] ?? '') === '') {
+            $errores[] = "El nombre es obligatorio.";
+        }
+        if (trim($post['apellidos'] ?? '') === '') {
+            $errores[] = "Los apellidos son obligatorios.";
+        }
+
+        $nacimiento = trim($post['nacimiento'] ?? '');
+        if (!preg_match('/^(\d{4})-(\d{2})-(\d{2})$/', $nacimiento, $m) || !checkdate((int)$m[2], (int)$m[3], (int)$m[1])) {
+            $errores[] = "La fecha de nacimiento no es válida.";
+        }
+
+        $codcurso = (int)($post['codcurso'] ?? 0);
+        if (!array_key_exists($codcurso, $cursos)) {
+            $errores[] = "Seleccione un curso válido.";
+        }
+
+        $plan = (int)($post['plan'] ?? 0);
+        if (!array_key_exists($plan, self::planes())) {
+            $errores[] = "Seleccione un plan/día válido.";
+        }
+
+        $jornada = (int)($post['jornada'] ?? 0);
+        if (!array_key_exists($jornada, self::jornadas())) {
+            $errores[] = "Seleccione una jornada válida.";
+        }
+
+        $dpi = trim($post['dpi'] ?? '');
+        if ($dpi !== '' && !preg_match('/^\d{13}$/', $dpi)) {
+            $errores[] = "El DPI debe tener 13 dígitos.";
+        }
+
+        $email = trim($post['email'] ?? '');
+        if ($email !== '' && !filter_var($email, FILTER_VALIDATE_EMAIL)) {
+            $errores[] = "El email no es válido.";
+        }
+
+        foreach (['telefonomovil', 'telefonocasa', 'telefonotrabajo', 'ptelefono', 'ptelefonotrabajo', 'mtelefono', 'mtelefonotrabajo'] as $campoTel) {
+            $valor = trim($post[$campoTel] ?? '');
+            if ($valor !== '' && !preg_match('/^\d{8}$/', $valor)) {
+                $errores[] = "El campo teléfono ($campoTel) debe tener 8 dígitos.";
+            }
+        }
+
+        $ultimoanio = trim($post['ultimoanio'] ?? '');
+        if ($ultimoanio !== '' && (!preg_match('/^\d{4}$/', $ultimoanio) || (int)$ultimoanio < 1980 || (int)$ultimoanio > (int)date('Y') + 1)) {
+            $errores[] = "El último año cursado no es válido.";
+        }
+
+        if (trim($post['enteradopor'] ?? '') === '') {
+            $errores[] = "Seleccione cómo se enteró del centro.";
+        }
+
+        return $errores;
+    }
+
+    // Arma el arreglo de columnas editables a partir de $_POST, compartido
+    // entre el alta (que añade 'usuario' aparte) y la edición.
+    public static function datosDesdePost(array $post): array {
+        $ultimoanio = trim($post['ultimoanio'] ?? '');
+
+        return [
+            'nombre' => trim($post['nombre']),
+            'apellidos' => trim($post['apellidos']),
+            'nacimiento' => $post['nacimiento'],
+            'codcurso' => (int)$post['codcurso'],
+            'plan' => (int)$post['plan'],
+            'jornada' => (int)$post['jornada'],
+            'dpi' => trim($post['dpi'] ?? ''),
+            'cedula' => trim($post['cedula'] ?? ''),
+            'direccion' => trim($post['direccion'] ?? ''),
+            'email' => trim($post['email'] ?? ''),
+            'telefonomovil' => trim($post['telefonomovil'] ?? ''),
+            'telefonocasa' => trim($post['telefonocasa'] ?? ''),
+            'telefonotrabajo' => trim($post['telefonotrabajo'] ?? ''),
+            'ultimoanio' => $ultimoanio !== '' ? $ultimoanio : '0000',
+            'establecimiento' => trim($post['establecimiento'] ?? ''),
+            'pnombre' => trim($post['pnombre'] ?? ''),
+            'papellidos' => trim($post['papellidos'] ?? ''),
+            'pcedula' => trim($post['pcedula'] ?? ''),
+            'ptelefono' => trim($post['ptelefono'] ?? ''),
+            'ptrabajo' => trim($post['ptrabajo'] ?? ''),
+            'ptelefonotrabajo' => trim($post['ptelefonotrabajo'] ?? ''),
+            'pdirecciont' => trim($post['pdirecciont'] ?? ''),
+            'mnombre' => trim($post['mnombre'] ?? ''),
+            'mapellidos' => trim($post['mapellidos'] ?? ''),
+            'mcedula' => trim($post['mcedula'] ?? ''),
+            'mtelefono' => trim($post['mtelefono'] ?? ''),
+            'mtrabajo' => trim($post['mtrabajo'] ?? ''),
+            'mtelefonotrabajo' => trim($post['mtelefonotrabajo'] ?? ''),
+            'mdirecciont' => trim($post['mdirecciont'] ?? ''),
+            'enteradopor' => trim($post['enteradopor']),
+            'observacion' => trim($post['observacion'] ?? ''),
+        ];
     }
 
     public static function totalActivos(PDO $db): int {

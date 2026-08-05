@@ -1,5 +1,6 @@
 <?php
 require_once __DIR__ . "/../helpers/Auth.php";
+require_once __DIR__ . "/../views/EstudiantesPfsView.php";
 
 class AdminView {
 
@@ -35,11 +36,11 @@ class AdminView {
             .fila { display: flex; gap: 16px; flex-wrap: wrap; align-items: flex-end; margin-bottom: 12px; }
             .campo { flex: 1; min-width: 160px; }
             label { display: block; font-size: 12px; font-weight: bold; color: #444; margin-bottom: 4px; }
-            input {
+            input, select {
                 width: 100%; padding: 8px 10px; font-size: 14px;
                 border: 1px solid #ccc; border-radius: 4px;
             }
-            input:focus { outline: none; border-color: #1a237e; }
+            input:focus, select:focus { outline: none; border-color: #1a237e; }
             button {
                 padding: 10px 20px; font-size: 14px; font-weight: bold;
                 background: #1a237e; color: #fff; border: none; border-radius: 4px; cursor: pointer;
@@ -51,6 +52,10 @@ class AdminView {
                 padding: 10px 14px; border-radius: 4px; margin-bottom: 18px; font-size: 13px;
             }
             .errores ul { margin: 6px 0 0 18px; }
+            .exito {
+                background: #e8f5e9; border: 1px solid #81c784; color: #2e7d32;
+                padding: 10px 14px; border-radius: 4px; margin-bottom: 18px; font-size: 13px;
+            }
             .resumen-recibo {
                 background: #f5f7ff; border-radius: 6px; padding: 14px 18px; margin-bottom: 18px; font-size: 13px;
             }
@@ -91,6 +96,12 @@ class AdminView {
                         <a class="acceso" href="admin.php?action=anular">
                             <div class="icono">🚫</div>
                             <div class="titulo">Anular Recibo</div>
+                        </a>
+                    <?php endif; ?>
+                    <?php if (Auth::puedeEditarEstudiantes()): ?>
+                        <a class="acceso" href="admin.php?action=editar_estudiante">
+                            <div class="icono">✏️</div>
+                            <div class="titulo">Editar Estudiante</div>
                         </a>
                     <?php endif; ?>
                     <a class="acceso" href="usuarios.php?action=password">
@@ -185,6 +196,71 @@ class AdminView {
                     </form>
                 <?php endif; ?>
             </div>
+        </body>
+        </html>
+        <?php
+    }
+
+    public static function mostrarEditarEstudiante(string $carnetBuscado, ?array $estudiante, array $cursos, array $errores, ?string $mensaje = null): void {
+        ?>
+        <!DOCTYPE html>
+        <html lang="es">
+        <head>
+            <meta charset="UTF-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1">
+            <title>Editar Estudiante — CETECPRO</title>
+            <?php self::estilos(); ?>
+        </head>
+        <body>
+            <?php self::barra(); ?>
+            <h1>Editar Estudiante</h1>
+
+            <div class="card">
+                <?php if ($mensaje): ?>
+                    <div class="exito">✅ <?= htmlspecialchars($mensaje) ?></div>
+                <?php endif; ?>
+
+                <?php if (!empty($errores)): ?>
+                    <div class="errores">
+                        ⚠️ <ul>
+                            <?php foreach ($errores as $e): ?>
+                                <li><?= htmlspecialchars($e) ?></li>
+                            <?php endforeach; ?>
+                        </ul>
+                    </div>
+                <?php endif; ?>
+
+                <form method="GET" action="admin.php">
+                    <input type="hidden" name="action" value="editar_estudiante">
+                    <div class="fila">
+                        <div class="campo">
+                            <label for="carnet">Carné del estudiante</label>
+                            <input type="text" id="carnet" name="carnet" inputmode="numeric" value="<?= htmlspecialchars($carnetBuscado) ?>" autofocus>
+                        </div>
+                        <div>
+                            <button type="submit">Buscar</button>
+                        </div>
+                    </div>
+                </form>
+
+                <?php if ($estudiante): ?>
+                    <form method="POST" action="admin.php?action=editar_estudiante_guardar">
+                        <input type="hidden" name="carnet" value="<?= (int)$estudiante['idestudiante'] ?>">
+                        <?php EstudiantesPfsView::camposFormulario($estudiante, $cursos); ?>
+                        <fieldset>
+                            <legend>Confirmar cambios</legend>
+                            <div class="fila">
+                                <div class="campo">
+                                    <label for="password_actual">Tu contraseña</label>
+                                    <input type="password" id="password_actual" name="password_actual" required>
+                                </div>
+                            </div>
+                        </fieldset>
+                        <button type="submit">Guardar cambios</button>
+                    </form>
+                <?php endif; ?>
+            </div>
+            <?php EstudiantesPfsView::scriptToggleMenor(); ?>
         </body>
         </html>
         <?php
