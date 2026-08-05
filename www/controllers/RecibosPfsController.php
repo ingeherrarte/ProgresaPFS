@@ -3,9 +3,13 @@ require_once "models/RecibosPfsModel.php";
 require_once "models/EstudiantesPfsModel.php";
 require_once "views/RecibosPfsView.php";
 require_once __DIR__ . "/../helpers/Auth.php";
+require_once __DIR__ . "/../helpers/SubidaImagen.php";
 require_once __DIR__ . "/../config/Conexion.php";
 
 class RecibosPfsController {
+
+    private const CARPETA_COMPROBANTES = __DIR__ . "/../uploads/recibos";
+    private const TAMANO_MAXIMO_COMPROBANTE = 2 * 1024 * 1024;
 
     private array $meses = [
         1 => 'enero', 2 => 'febrero', 3 => 'marzo', 4 => 'abril',
@@ -164,11 +168,30 @@ class RecibosPfsController {
             exit;
         }
 
+        if (SubidaImagen::postTruncado()) {
+            RecibosPfsView::mostrarFormulario(
+                ["El formulario supera el tamaño máximo permitido. Si adjuntó una foto del comprobante, verifique que pese menos de 2 MB."],
+                []
+            );
+            return;
+        }
+
         $db = Conexion::conectar();
         $estudiante = null;
         $errores = $this->validar($_POST, $db, $estudiante);
 
+        [$fotoDeposito, $errorFoto] = SubidaImagen::guardar(
+            $_FILES['foto_deposito'] ?? [],
+            self::CARPETA_COMPROBANTES,
+            trim($_POST['carnet'] ?? '') ?: 'comprobante',
+            self::TAMANO_MAXIMO_COMPROBANTE
+        );
+        if ($errorFoto) {
+            $errores[] = $errorFoto;
+        }
+
         if (!empty($errores)) {
+            SubidaImagen::eliminar(self::CARPETA_COMPROBANTES, $fotoDeposito);
             RecibosPfsView::mostrarFormulario($errores, $_POST);
             return;
         }
@@ -200,11 +223,13 @@ class RecibosPfsController {
             'nocheque' => (int)($_POST['nocheque'] ?? 0),
             'banco' => trim($_POST['banco'] ?? ''),
             'usuario' => Auth::usuarioActual(),
+            'foto_deposito' => $fotoDeposito,
         ];
 
         try {
             $resultado = RecibosPfsModel::insertar($db, $datos);
         } catch (Exception $e) {
+            SubidaImagen::eliminar(self::CARPETA_COMPROBANTES, $fotoDeposito);
             error_log("Error al guardar recibo PFS: " . $e->getMessage());
             RecibosPfsView::mostrarFormulario(
                 ["No se pudo guardar el recibo. Intente de nuevo."],

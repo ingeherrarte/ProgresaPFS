@@ -2,6 +2,7 @@
 require_once "models/DepositosModel.php";
 require_once "views/DepositosView.php";
 require_once __DIR__ . "/../helpers/Auth.php";
+require_once __DIR__ . "/../helpers/SubidaImagen.php";
 require_once __DIR__ . "/../config/Conexion.php";
 
 class DepositosController {
@@ -72,55 +73,7 @@ class DepositosController {
     }
 
     private const CARPETA_BOLETAS = __DIR__ . "/../uploads/depositos";
-
-    // Límite propio, independiente de upload_max_filesize/post_max_size del
-    // php.ini del servidor (que puede ser mayor o menor que esto).
     private const TAMANO_MAXIMO_BOLETA = 2 * 1024 * 1024;
-
-    // Tipos de imagen aceptados. Se detectan con getimagesize() sobre el
-    // contenido real del archivo, no por la extensión ni el Content-Type que
-    // manda el navegador (ambos falsificables), y el nombre final se genera
-    // aquí en vez de reutilizar el nombre original subido.
-    private const TIPOS_IMAGEN = [
-        IMAGETYPE_JPEG => 'jpg',
-        IMAGETYPE_PNG => 'png',
-        IMAGETYPE_WEBP => 'webp',
-    ];
-
-    // La foto es opcional. Devuelve [nombreGuardado, error]: si no se
-    // adjuntó nada, ambos son null y el registro sigue sin foto.
-    private function procesarFoto(array $archivo, string $nodeposito): array {
-        if (($archivo['error'] ?? UPLOAD_ERR_NO_FILE) === UPLOAD_ERR_NO_FILE) {
-            return [null, null];
-        }
-        if (in_array($archivo['error'], [UPLOAD_ERR_INI_SIZE, UPLOAD_ERR_FORM_SIZE], true)) {
-            return [null, "La foto de la boleta supera el tamaño máximo permitido (2 MB)."];
-        }
-        if ($archivo['error'] !== UPLOAD_ERR_OK) {
-            return [null, "No se pudo subir la foto de la boleta (máximo 2 MB)."];
-        }
-        if (($archivo['size'] ?? 0) > self::TAMANO_MAXIMO_BOLETA) {
-            return [null, "La foto de la boleta supera el tamaño máximo permitido (2 MB)."];
-        }
-
-        $info = @getimagesize($archivo['tmp_name']);
-        if ($info === false || !isset(self::TIPOS_IMAGEN[$info[2]])) {
-            return [null, "La foto de la boleta debe ser una imagen JPG, PNG o WEBP."];
-        }
-
-        if (!is_dir(self::CARPETA_BOLETAS)) {
-            mkdir(self::CARPETA_BOLETAS, 0755, true);
-        }
-
-        $prefijo = preg_replace('/[^A-Za-z0-9_-]/', '', $nodeposito) ?: 'boleta';
-        $nombre = $prefijo . '_' . bin2hex(random_bytes(8)) . '.' . self::TIPOS_IMAGEN[$info[2]];
-
-        if (!move_uploaded_file($archivo['tmp_name'], self::CARPETA_BOLETAS . '/' . $nombre)) {
-            return [null, "No se pudo guardar la foto de la boleta. Intente de nuevo."];
-        }
-
-        return [$nombre, null];
-    }
 
     private function guardar() {
         if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
@@ -128,27 +81,25 @@ class DepositosController {
             exit;
         }
 
-        // Si el POST completo supera post_max_size, PHP vacía $_POST y
-        // $_FILES sin marcar ningún error de archivo individual: sin este
-        // chequeo, procesarFoto() interpretaría eso como "no se adjuntó
-        // foto" y el depósito se guardaría descartando la boleta en
-        // silencio, sin avisar al usuario del motivo real.
-        if (empty($_POST) && empty($_FILES) && (int)($_SERVER['CONTENT_LENGTH'] ?? 0) > 0) {
+        if (SubidaImagen::postTruncado()) {
             $this->form(["El formulario supera el tamaño máximo permitido. Si adjuntó una foto, verifique que pese menos de 2 MB."], []);
             return;
         }
 
         $errores = $this->validar($_POST);
 
-        [$fotoBoleta, $errorFoto] = $this->procesarFoto($_FILES['foto_boleta'] ?? [], trim($_POST['nodeposito'] ?? ''));
+        [$fotoBoleta, $errorFoto] = SubidaImagen::guardar(
+            $_FILES['foto_boleta'] ?? [],
+            self::CARPETA_BOLETAS,
+            trim($_POST['nodeposito'] ?? '') ?: 'boleta',
+            self::TAMANO_MAXIMO_BOLETA
+        );
         if ($errorFoto) {
             $errores[] = $errorFoto;
         }
 
         if (!empty($errores)) {
-            if ($fotoBoleta) {
-                @unlink(self::CARPETA_BOLETAS . '/' . $fotoBoleta);
-            }
+            SubidaImagen::eliminar(self::CARPETA_BOLETAS, $fotoBoleta);
             $this->form($errores, $_POST);
             return;
         }
@@ -171,8 +122,8 @@ class DepositosController {
         $db = Conexion::conectar();
         $resultado = DepositosModel::crear($db, $datos);
 
-        if ($resultado !== true && $fotoBoleta) {
-            @unlink(self::CARPETA_BOLETAS . '/' . $fotoBoleta);
+        if ($resultado !== true) {
+            SubidaImagen::eliminar(self::CARPETA_BOLETAS, $fotoBoleta);
         }
 
         if ($resultado === 'duplicado') {

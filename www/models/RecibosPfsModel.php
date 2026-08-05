@@ -42,12 +42,12 @@ class RecibosPfsModel {
             (numero, carne, fechadelpago, primero, segundo, tercero, cuarto,
              mesquepaga, mensualidad, inscripcion, otro, detalle,
              efectivo, deposito, nodeposito, fechadep, cheque, nocheque, banco,
-             usuario, horaregistro, aleatorio)
+             usuario, horaregistro, aleatorio, foto_deposito)
             VALUES
             (?, ?, ?, 0, 0, 0, 0,
              ?, ?, ?, ?, ?,
              ?, ?, ?, ?, ?, ?, ?,
-             ?, NOW(), ?)";
+             ?, NOW(), ?, ?)";
 
         $intentos = 0;
         do {
@@ -61,7 +61,7 @@ class RecibosPfsModel {
                     $datos['mesquepaga'], $datos['mensualidad'], $datos['inscripcion'], $datos['otro'], $datos['detalle'],
                     $datos['efectivo'], $datos['deposito'], $datos['nodeposito'], $datos['fechadep'],
                     $datos['cheque'], $datos['nocheque'], $datos['banco'],
-                    $datos['usuario'], $aleatorio,
+                    $datos['usuario'], $aleatorio, $datos['foto_deposito'],
                 ]);
                 return ['numero' => $numero, 'aleatorio' => $aleatorio];
             } catch (PDOException $e) {

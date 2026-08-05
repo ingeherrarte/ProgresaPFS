@@ -145,7 +145,7 @@ class RecibosPfsView {
                     </div>
                 <?php endif; ?>
 
-                <form method="POST" action="recibospfs.php?action=guardar" id="formRecibo">
+                <form method="POST" action="recibospfs.php?action=guardar" id="formRecibo" enctype="multipart/form-data">
                     <fieldset>
                         <legend>Estudiante</legend>
                         <div class="fila">
@@ -253,6 +253,12 @@ class RecibosPfsView {
                                         <option value="<?= htmlspecialchars($b) ?>" <?= $b === $banco ? 'selected' : '' ?>><?= htmlspecialchars($b) ?></option>
                                     <?php endforeach; ?>
                                 </select>
+                            </div>
+                        </div>
+                        <div class="fila">
+                            <div class="campo">
+                                <label for="foto_deposito">Foto del depósito/transferencia (opcional, máx. 2 MB)</label>
+                                <input type="file" id="foto_deposito" name="foto_deposito" accept="image/jpeg,image/png,image/webp">
                             </div>
                         </div>
                     </fieldset>
@@ -415,6 +421,9 @@ class RecibosPfsView {
             <div class="acciones">
                 <a href="recibospfs.php">← Nuevo recibo</a>
                 <span>
+                    <?php if (!empty($recibo['foto_deposito'])): ?>
+                        <a href="uploads/recibos/<?= urlencode($recibo['foto_deposito']) ?>" target="_blank" rel="noopener">Ver comprobante</a>
+                    <?php endif; ?>
                     <?php if (!$recibo['anulado'] && Auth::puedeAnularRecibos()): ?>
                         <a href="admin.php?action=anular&numero=<?= $recibo['numero'] ?>" style="background:#b71c1c;">Anular recibo</a>
                     <?php endif; ?>
@@ -561,6 +570,7 @@ class RecibosPfsView {
                                     <th>Registrado por</th>
                                     <th>Fecha</th>
                                     <th>Estado</th>
+                                    <th>Comprobante</th>
                                     <th></th>
                                 </tr>
                             </thead>
@@ -579,6 +589,13 @@ class RecibosPfsView {
                                                 <span style="color:#b71c1c;font-weight:bold;">Anulado</span>
                                             <?php else: ?>
                                                 <span style="color:#2e7d32;">Activo</span>
+                                            <?php endif; ?>
+                                        </td>
+                                        <td>
+                                            <?php if (!empty($r['foto_deposito'])): ?>
+                                                <a href="uploads/recibos/<?= urlencode($r['foto_deposito']) ?>" target="_blank" rel="noopener">Ver</a>
+                                            <?php else: ?>
+                                                —
                                             <?php endif; ?>
                                         </td>
                                         <td><a href="recibospfs.php?action=ver&numero=<?= $r['numero'] ?>">Ver</a></td>
