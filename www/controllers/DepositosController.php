@@ -73,6 +73,10 @@ class DepositosController {
 
     private const CARPETA_BOLETAS = __DIR__ . "/../uploads/depositos";
 
+    // Límite propio, independiente de upload_max_filesize/post_max_size del
+    // php.ini del servidor (que puede ser mayor o menor que esto).
+    private const TAMANO_MAXIMO_BOLETA = 2 * 1024 * 1024;
+
     // Tipos de imagen aceptados. Se detectan con getimagesize() sobre el
     // contenido real del archivo, no por la extensión ni el Content-Type que
     // manda el navegador (ambos falsificables), y el nombre final se genera
@@ -89,8 +93,14 @@ class DepositosController {
         if (($archivo['error'] ?? UPLOAD_ERR_NO_FILE) === UPLOAD_ERR_NO_FILE) {
             return [null, null];
         }
+        if (in_array($archivo['error'], [UPLOAD_ERR_INI_SIZE, UPLOAD_ERR_FORM_SIZE], true)) {
+            return [null, "La foto de la boleta supera el tamaño máximo permitido (2 MB)."];
+        }
         if ($archivo['error'] !== UPLOAD_ERR_OK) {
             return [null, "No se pudo subir la foto de la boleta (máximo 2 MB)."];
+        }
+        if (($archivo['size'] ?? 0) > self::TAMANO_MAXIMO_BOLETA) {
+            return [null, "La foto de la boleta supera el tamaño máximo permitido (2 MB)."];
         }
 
         $info = @getimagesize($archivo['tmp_name']);
@@ -116,6 +126,16 @@ class DepositosController {
         if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
             header("Location: depositos.php");
             exit;
+        }
+
+        // Si el POST completo supera post_max_size, PHP vacía $_POST y
+        // $_FILES sin marcar ningún error de archivo individual: sin este
+        // chequeo, procesarFoto() interpretaría eso como "no se adjuntó
+        // foto" y el depósito se guardaría descartando la boleta en
+        // silencio, sin avisar al usuario del motivo real.
+        if (empty($_POST) && empty($_FILES) && (int)($_SERVER['CONTENT_LENGTH'] ?? 0) > 0) {
+            $this->form(["El formulario supera el tamaño máximo permitido. Si adjuntó una foto, verifique que pese menos de 2 MB."], []);
+            return;
         }
 
         $errores = $this->validar($_POST);
