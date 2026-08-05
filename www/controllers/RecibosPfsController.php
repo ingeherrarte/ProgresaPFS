@@ -184,14 +184,17 @@ class RecibosPfsController {
             $_FILES['foto_deposito'] ?? [],
             self::CARPETA_COMPROBANTES,
             trim($_POST['carnet'] ?? '') ?: 'comprobante',
-            self::TAMANO_MAXIMO_COMPROBANTE
+            self::TAMANO_MAXIMO_COMPROBANTE,
+            $db,
+            'recibos',
+            trim($_POST['nodeposito'] ?? '')
         );
         if ($errorFoto) {
             $errores[] = $errorFoto;
         }
 
         if (!empty($errores)) {
-            SubidaImagen::eliminar(self::CARPETA_COMPROBANTES, $fotoDeposito);
+            SubidaImagen::eliminar(self::CARPETA_COMPROBANTES, $fotoDeposito, $db);
             RecibosPfsView::mostrarFormulario($errores, $_POST);
             return;
         }
@@ -229,7 +232,7 @@ class RecibosPfsController {
         try {
             $resultado = RecibosPfsModel::insertar($db, $datos);
         } catch (Exception $e) {
-            SubidaImagen::eliminar(self::CARPETA_COMPROBANTES, $fotoDeposito);
+            SubidaImagen::eliminar(self::CARPETA_COMPROBANTES, $fotoDeposito, $db);
             error_log("Error al guardar recibo PFS: " . $e->getMessage());
             RecibosPfsView::mostrarFormulario(
                 ["No se pudo guardar el recibo. Intente de nuevo."],

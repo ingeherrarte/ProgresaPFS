@@ -88,18 +88,22 @@ class DepositosController {
 
         $errores = $this->validar($_POST);
 
+        $db = Conexion::conectar();
         [$fotoBoleta, $errorFoto] = SubidaImagen::guardar(
             $_FILES['foto_boleta'] ?? [],
             self::CARPETA_BOLETAS,
             trim($_POST['nodeposito'] ?? '') ?: 'boleta',
-            self::TAMANO_MAXIMO_BOLETA
+            self::TAMANO_MAXIMO_BOLETA,
+            $db,
+            'depositos',
+            trim($_POST['nodeposito'] ?? '')
         );
         if ($errorFoto) {
             $errores[] = $errorFoto;
         }
 
         if (!empty($errores)) {
-            SubidaImagen::eliminar(self::CARPETA_BOLETAS, $fotoBoleta);
+            SubidaImagen::eliminar(self::CARPETA_BOLETAS, $fotoBoleta, $db);
             $this->form($errores, $_POST);
             return;
         }
@@ -119,11 +123,10 @@ class DepositosController {
             'foto_boleta' => $fotoBoleta,
         ];
 
-        $db = Conexion::conectar();
         $resultado = DepositosModel::crear($db, $datos);
 
         if ($resultado !== true) {
-            SubidaImagen::eliminar(self::CARPETA_BOLETAS, $fotoBoleta);
+            SubidaImagen::eliminar(self::CARPETA_BOLETAS, $fotoBoleta, $db);
         }
 
         if ($resultado === 'duplicado') {
