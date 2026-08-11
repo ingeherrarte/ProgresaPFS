@@ -76,7 +76,7 @@ class EstudiantesPfsView {
                 <form method="GET" action="estudiantespfs.php" id="formBuscar">
                     <div class="fila">
                         <div class="campo">
-                            <label for="q">Nombre o apellidos</label>
+                            <label for="q">Nombre, apellidos o carné</label>
                             <input type="text" id="q" name="q" value="<?= htmlspecialchars($termino) ?>" autofocus autocomplete="off">
                         </div>
                         <div>

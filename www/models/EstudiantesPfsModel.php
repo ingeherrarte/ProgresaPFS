@@ -53,16 +53,18 @@ class EstudiantesPfsModel {
         return $fila ?: null;
     }
 
-    // Búsqueda server-side por nombre/apellidos, paginada. Devuelve
-    // ['total' => N, 'filas' => [...]] para que el controlador arme la
-    // paginación sin tener que traer todo el resultado a memoria.
+    // Búsqueda server-side por nombre/apellidos o carné (idestudiante),
+    // paginada. Devuelve ['total' => N, 'filas' => [...]] para que el
+    // controlador arme la paginación sin tener que traer todo el resultado
+    // a memoria.
     public static function buscarPorNombre(PDO $db, string $termino, int $pagina, int $porPagina): array {
         $comodin = '%' . $termino . '%';
 
         $stmtTotal = $db->prepare(
-            "SELECT COUNT(*) FROM estudiantespfs WHERE CONCAT(nombre, ' ', apellidos) LIKE ?"
+            "SELECT COUNT(*) FROM estudiantespfs
+             WHERE CONCAT(nombre, ' ', apellidos) LIKE ? OR idestudiante LIKE ?"
         );
-        $stmtTotal->execute([$comodin]);
+        $stmtTotal->execute([$comodin, $comodin]);
         $total = (int)$stmtTotal->fetchColumn();
 
         $offset = max(0, ($pagina - 1) * $porPagina);
@@ -70,13 +72,14 @@ class EstudiantesPfsModel {
                        e.telefonomovil, e.activo, d.nombre AS nombrecurso
                 FROM estudiantespfs e
                 LEFT JOIN `diplomado-curso` d ON d.id = e.codcurso
-                WHERE CONCAT(e.nombre, ' ', e.apellidos) LIKE ?
+                WHERE CONCAT(e.nombre, ' ', e.apellidos) LIKE ? OR e.idestudiante LIKE ?
                 ORDER BY e.idestudiante DESC
                 LIMIT ? OFFSET ?";
         $stmt = $db->prepare($sql);
         $stmt->bindValue(1, $comodin, PDO::PARAM_STR);
-        $stmt->bindValue(2, $porPagina, PDO::PARAM_INT);
-        $stmt->bindValue(3, $offset, PDO::PARAM_INT);
+        $stmt->bindValue(2, $comodin, PDO::PARAM_STR);
+        $stmt->bindValue(3, $porPagina, PDO::PARAM_INT);
+        $stmt->bindValue(4, $offset, PDO::PARAM_INT);
         $stmt->execute();
 
         return ['total' => $total, 'filas' => $stmt->fetchAll(PDO::FETCH_ASSOC)];
