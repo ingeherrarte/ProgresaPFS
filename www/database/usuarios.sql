@@ -3,11 +3,12 @@
 -- el campo `recibospfs.usuario` se llenaba con un valor fijo ('eduardo').
 CREATE TABLE IF NOT EXISTS usuarios (
   id INT AUTO_INCREMENT PRIMARY KEY,
-  usuario VARCHAR(30) NOT NULL UNIQUE,
+  usuario VARCHAR(100) NOT NULL UNIQUE,
   password_hash VARCHAR(255) NOT NULL,
-  nombre_completo VARCHAR(60) NOT NULL,
+  nombre_completo VARCHAR(255) NOT NULL,
   activo TINYINT(1) NOT NULL DEFAULT 1,
-  creado_en DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+  creado_en DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  rol ENUM('usuario','editor','administrador') NOT NULL DEFAULT 'editor'
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 -- Ejemplo para crear un usuario nuevo (generar el hash con password_hash() en PHP):
