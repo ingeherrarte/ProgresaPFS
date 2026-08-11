@@ -13,6 +13,9 @@ volumes/
 vendor/
 *.log
 
+# Backups de BD (contienen datos reales, ej. hashes de contraseñas)
+*_backup.sql
+
 # Fotos de boletas de depósito subidas por los usuarios
 www/uploads/
 
