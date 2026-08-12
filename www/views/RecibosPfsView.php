@@ -128,6 +128,7 @@ class RecibosPfsView {
                     <a href="estudiantespfs.php?action=form">Nuevo estudiante</a>
                     <a href="estudiantespfs.php">Buscar estudiante</a>
                     <a href="recibospfs.php?action=buscar">Buscar recibos</a>
+                    <a href="recibospfs.php?action=pagos">Consultar pagos</a>
                     <a href="login.php?action=logout">Cerrar sesión</a>
                 </span>
             </div>
@@ -527,6 +528,7 @@ class RecibosPfsView {
                 <span>
                     <a href="inicio.php">Inicio</a>
                     <a href="recibospfs.php">Nuevo recibo</a>
+                    <a href="recibospfs.php?action=pagos">Consultar pagos</a>
                     <a href="login.php?action=logout">Cerrar sesión</a>
                 </span>
             </div>
@@ -600,6 +602,102 @@ class RecibosPfsView {
                                                 <a href="uploads/recibos/<?= urlencode($r['foto_deposito']) ?>" target="_blank" rel="noopener">Ver</a>
                                             <?php else: ?>
                                                 —
+                                            <?php endif; ?>
+                                        </td>
+                                        <td><a href="recibospfs.php?action=ver&numero=<?= $r['numero'] ?>">Ver</a></td>
+                                    </tr>
+                                <?php endforeach; ?>
+                            </tbody>
+                        </table>
+                    <?php endif; ?>
+                </div>
+            <?php endif; ?>
+        </body>
+        </html>
+        <?php
+    }
+
+    // Consulta de pagos por estudiante (carné, nombre o apellido), sin
+    // restricción de rol: cualquier usuario autenticado puede ver el
+    // historial completo de pagos de un estudiante.
+    public static function mostrarPagos(string $termino, array $resultados): void {
+        $totalPagado = 0.0;
+        foreach ($resultados as $r) {
+            if (!$r['anulado']) {
+                $totalPagado += $r['mensualidad'] + $r['inscripcion'] + $r['otro'];
+            }
+        }
+        ?>
+        <!DOCTYPE html>
+        <html lang="es">
+        <head>
+            <meta charset="UTF-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1">
+            <title>Consultar Pagos — CETECPRO</title>
+            <?php self::estilos(); ?>
+        </head>
+        <body>
+            <div class="barra">
+                <span class="usuario">Usuario: <b><?= htmlspecialchars(Auth::nombreActual()) ?></b></span>
+                <span>
+                    <a href="inicio.php">Inicio</a>
+                    <a href="recibospfs.php">Nuevo recibo</a>
+                    <a href="recibospfs.php?action=buscar">Buscar recibos</a>
+                    <a href="login.php?action=logout">Cerrar sesión</a>
+                </span>
+            </div>
+            <h1>Consultar Pagos de Estudiante</h1>
+
+            <div class="card ancho">
+                <form method="GET" action="recibospfs.php">
+                    <input type="hidden" name="action" value="pagos">
+                    <div class="fila">
+                        <div class="campo">
+                            <label for="q">Carné, nombre o apellido</label>
+                            <input type="text" id="q" name="q" value="<?= htmlspecialchars($termino) ?>" autofocus autocomplete="off">
+                        </div>
+                    </div>
+                    <button type="submit">Buscar</button>
+                </form>
+            </div>
+
+            <?php if ($termino !== ''): ?>
+                <div class="card ancho">
+                    <?php if (empty($resultados)): ?>
+                        <p class="sin-resultados">No se encontraron pagos para "<?= htmlspecialchars($termino) ?>".</p>
+                    <?php else: ?>
+                        <div class="totales">
+                            <span><?= count($resultados) ?> recibo(s) encontrado(s)</span>
+                            <span>Total pagado (sin anulados): Q <?= number_format($totalPagado, 2) ?></span>
+                        </div>
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Carné</th>
+                                    <th>Estudiante</th>
+                                    <th>Número</th>
+                                    <th>Detalle</th>
+                                    <th>Total</th>
+                                    <th>Fecha</th>
+                                    <th>Estado</th>
+                                    <th></th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <?php foreach ($resultados as $r): ?>
+                                    <?php $total = $r['mensualidad'] + $r['inscripcion'] + $r['otro']; ?>
+                                    <tr>
+                                        <td><?= htmlspecialchars($r['idestudiante']) ?></td>
+                                        <td><?= htmlspecialchars(trim($r['nombre'] . ' ' . $r['apellidos'])) ?></td>
+                                        <td><?= $r['numero'] ?>-<?= $r['aleatorio'] ?></td>
+                                        <td><?= htmlspecialchars($r['detalle']) ?></td>
+                                        <td>Q <?= number_format($total, 2) ?></td>
+                                        <td><?= date('d/m/Y H:i', strtotime($r['horaregistro'])) ?></td>
+                                        <td>
+                                            <?php if ($r['anulado']): ?>
+                                                <span style="color:#b71c1c;font-weight:bold;">Anulado</span>
+                                            <?php else: ?>
+                                                <span style="color:#2e7d32;">Activo</span>
                                             <?php endif; ?>
                                         </td>
                                         <td><a href="recibospfs.php?action=ver&numero=<?= $r['numero'] ?>">Ver</a></td>

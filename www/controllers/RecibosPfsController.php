@@ -39,6 +39,11 @@ class RecibosPfsController {
                 $this->buscar();
                 break;
 
+            case 'pagos':
+                Auth::requerirSesion();
+                $this->pagos();
+                break;
+
             case 'form':
             default:
                 Auth::requerirSesion();
@@ -279,6 +284,20 @@ class RecibosPfsController {
         }
 
         RecibosPfsView::mostrarBuscar($columnas, $campo, $palabra, $resultados, $error);
+    }
+
+    // Disponible para todos los roles: consulta de los pagos de un
+    // estudiante buscando por carné, nombre o apellido.
+    private function pagos() {
+        $termino = trim($_GET['q'] ?? '');
+        $resultados = [];
+
+        if ($termino !== '') {
+            $db = Conexion::conectar();
+            $resultados = RecibosPfsModel::buscarPorEstudiante($db, $termino);
+        }
+
+        RecibosPfsView::mostrarPagos($termino, $resultados);
     }
 }
 ?>

@@ -30,6 +30,26 @@ class RecibosPfsModel {
         return $stmt->fetchAll(PDO::FETCH_ASSOC);
     }
 
+    // Consulta de pagos por estudiante: busca por carné, nombre o apellido
+    // (contra estudiantespfs, que es donde vive esa información) y devuelve
+    // todos los recibos asociados a los estudiantes que hagan match. Une con
+    // estudiantespfs (INNER JOIN) porque la vista necesita mostrar a quién
+    // pertenece cada pago, así que un recibo sin estudiante asociado no
+    // aplica a esta consulta.
+    public static function buscarPorEstudiante(PDO $db, string $termino): array {
+        $comodin = '%' . $termino . '%';
+        $sql = "SELECT r.*, e.idestudiante, e.nombre, e.apellidos
+                FROM recibospfs r
+                INNER JOIN estudiantespfs e ON e.idestudiante = r.carne
+                WHERE e.idestudiante LIKE ? OR e.nombre LIKE ? OR e.apellidos LIKE ?
+                   OR CONCAT(e.nombre, ' ', e.apellidos) LIKE ?
+                ORDER BY e.apellidos, e.nombre, r.horaregistro DESC
+                LIMIT 300";
+        $stmt = $db->prepare($sql);
+        $stmt->execute([$comodin, $comodin, $comodin, $comodin]);
+        return $stmt->fetchAll(PDO::FETCH_ASSOC);
+    }
+
     private static function siguienteNumero(PDO $db): int {
         return (int)$db->query("SELECT COALESCE(MAX(numero),0)+1 FROM recibospfs")->fetchColumn();
     }
