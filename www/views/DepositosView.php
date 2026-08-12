@@ -137,7 +137,7 @@ class DepositosView {
                         </div>
                         <div class="fila">
                             <div class="campo">
-                                <label for="foto_boleta">Foto de la boleta (opcional, máx. 2 MB)</label>
+                                <label for="foto_boleta">Foto de la boleta (opcional, máx. 6 MB)</label>
                                 <input type="file" id="foto_boleta" name="foto_boleta" accept="image/jpeg,image/png,image/webp">
                             </div>
                         </div>

@@ -73,7 +73,7 @@ class DepositosController {
     }
 
     private const CARPETA_BOLETAS = __DIR__ . "/../uploads/depositos";
-    private const TAMANO_MAXIMO_BOLETA = 2 * 1024 * 1024;
+    private const TAMANO_MAXIMO_BOLETA = 6 * 1024 * 1024;
 
     private function guardar() {
         if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
@@ -82,7 +82,7 @@ class DepositosController {
         }
 
         if (SubidaImagen::postTruncado()) {
-            $this->form(["El formulario supera el tamaño máximo permitido. Si adjuntó una foto, verifique que pese menos de 2 MB."], []);
+            $this->form(["El formulario supera el tamaño máximo permitido. Si adjuntó una foto, verifique que pese menos de 6 MB."], []);
             return;
         }
 

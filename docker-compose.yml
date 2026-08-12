@@ -29,6 +29,7 @@ services:
     restart: always
     volumes:
       - ./www:/var/www/html
+      - ./php-config/uploads.ini:/usr/local/etc/php/conf.d/uploads.ini
     ports:
       - "80:80"
     depends_on:
