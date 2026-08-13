@@ -335,6 +335,7 @@ class ConsultaPagosView {
                                 <th>Fecha</th>
                                 <th>Monto</th>
                                 <th>Forma de pago</th>
+                                <th>Mes que paga</th>
                                 <th>Descripción</th>
                             </tr>
                         </thead>
@@ -370,9 +371,9 @@ class ConsultaPagosView {
                                     <td><?= self::fechaHora($p['horaregistro']) ?></td>
                                     <td class="money"><b>Q <?= number_format($total, 2) ?></b></td>
                                     <td><?= implode('<br>', $formas) ?: '—' ?></td>
+                                    <td><?= htmlspecialchars(ConsultaPagosModel::nombreMes($p['mesquepaga'])) ?></td>
                                     <td>
                                         <?= htmlspecialchars($p['detalle']) ?>
-                                        <span style="font-size:11px;color:#999"> (<?= htmlspecialchars(ConsultaPagosModel::nombreMes($p['mesquepaga'])) ?>)</span>
                                         <?php if ($anulado && trim((string)$p['motivo_anulacion']) !== ''): ?>
                                             <br><span style="font-size:11px;color:#b71c1c">Motivo: <?= htmlspecialchars($p['motivo_anulacion']) ?></span>
                                         <?php endif; ?>
