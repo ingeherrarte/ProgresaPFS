@@ -70,7 +70,8 @@ class ConsultaPagosModel {
     // excluir los anulados al sumar totales.
     public static function historialPagos(PDO $db, string $carnet): array {
         $sql = "SELECT numero, fechadelpago, horaregistro, efectivo, deposito, cheque,
-                       nodeposito, fechadep, banco, mesquepaga, detalle, anulado, motivo_anulacion
+                       nodeposito, fechadep, banco, mesquepaga, detalle, anulado, motivo_anulacion,
+                       foto_deposito
                 FROM recibospfs
                 WHERE carne = ?
                 ORDER BY horaregistro DESC";

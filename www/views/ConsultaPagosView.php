@@ -370,6 +370,9 @@ class ConsultaPagosView {
                                         <?php if ($deposito > 0): ?>
                                             Q <?= number_format($deposito, 2) ?>
                                             <br><span style="font-size:11px;color:#777"><?= $detalleDeposito ?></span>
+                                            <?php if (!empty($p['foto_deposito'])): ?>
+                                                <br><a href="uploads/recibos/<?= urlencode($p['foto_deposito']) ?>" target="_blank" rel="noopener" style="font-size:11px">Ver boleta</a>
+                                            <?php endif; ?>
                                         <?php else: ?>
                                             —
                                         <?php endif; ?>
