@@ -333,8 +333,10 @@ class ConsultaPagosView {
                             <tr>
                                 <th>Recibo #</th>
                                 <th>Fecha</th>
-                                <th>Monto</th>
-                                <th>Forma de pago</th>
+                                <th>Efectivo</th>
+                                <th>Depósito</th>
+                                <th>Cheque</th>
+                                <th>Total</th>
                                 <th>Mes que paga</th>
                                 <th>Descripción</th>
                             </tr>
@@ -342,24 +344,18 @@ class ConsultaPagosView {
                         <tbody>
                             <?php foreach ($pagos as $p): ?>
                                 <?php
-                                $total = (float)$p['efectivo'] + (float)$p['deposito'] + (float)$p['cheque'];
+                                $efectivo = (float)$p['efectivo'];
+                                $deposito = (float)$p['deposito'];
+                                $cheque = (float)$p['cheque'];
+                                $total = $efectivo + $deposito + $cheque;
                                 $anulado = (int)$p['anulado'] === 1;
 
-                                // Un recibo casi siempre usa una sola forma de pago, pero
-                                // puede combinarlas (ej. parte efectivo + parte depósito),
-                                // así que se listan todas las que tengan monto > 0.
-                                $formas = [];
-                                if ((float)$p['efectivo'] > 0) {
-                                    $formas[] = 'Efectivo';
-                                }
-                                if ((float)$p['deposito'] > 0) {
-                                    $extra = htmlspecialchars($p['banco'] ?: 'banco no indicado') . ' · No. ' . htmlspecialchars($p['nodeposito']);
-                                    $formas[] = 'Depósito/Transferencia<br><span style="font-size:11px;color:#777">' . $extra . '</span>';
-                                }
-                                if ((float)$p['cheque'] > 0) {
-                                    $extra = 'No. ' . htmlspecialchars($p['nocheque']) . ($p['banco'] ? ' · ' . htmlspecialchars($p['banco']) : '');
-                                    $formas[] = 'Cheque<br><span style="font-size:11px;color:#777">' . $extra . '</span>';
-                                }
+                                $detalleDeposito = $deposito > 0
+                                    ? htmlspecialchars($p['banco'] ?: 'banco no indicado') . ' · No. ' . htmlspecialchars($p['nodeposito'])
+                                    : null;
+                                $detalleCheque = $cheque > 0
+                                    ? 'No. ' . htmlspecialchars($p['nocheque']) . ($p['banco'] ? ' · ' . htmlspecialchars($p['banco']) : '')
+                                    : null;
                                 ?>
                                 <tr<?= $anulado ? ' style="opacity:.55"' : '' ?>>
                                     <td>
@@ -369,8 +365,24 @@ class ConsultaPagosView {
                                         <?php endif; ?>
                                     </td>
                                     <td><?= self::fechaHora($p['horaregistro']) ?></td>
+                                    <td class="money"><?= $efectivo > 0 ? 'Q ' . number_format($efectivo, 2) : '—' ?></td>
+                                    <td class="money">
+                                        <?php if ($deposito > 0): ?>
+                                            Q <?= number_format($deposito, 2) ?>
+                                            <br><span style="font-size:11px;color:#777"><?= $detalleDeposito ?></span>
+                                        <?php else: ?>
+                                            —
+                                        <?php endif; ?>
+                                    </td>
+                                    <td class="money">
+                                        <?php if ($cheque > 0): ?>
+                                            Q <?= number_format($cheque, 2) ?>
+                                            <br><span style="font-size:11px;color:#777"><?= $detalleCheque ?></span>
+                                        <?php else: ?>
+                                            —
+                                        <?php endif; ?>
+                                    </td>
                                     <td class="money"><b>Q <?= number_format($total, 2) ?></b></td>
-                                    <td><?= implode('<br>', $formas) ?: '—' ?></td>
                                     <td><?= htmlspecialchars(ConsultaPagosModel::nombreMes($p['mesquepaga'])) ?></td>
                                     <td>
                                         <?= htmlspecialchars($p['detalle']) ?>
