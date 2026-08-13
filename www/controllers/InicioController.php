@@ -10,7 +10,7 @@ class InicioController {
     public function handle(string $vista) {
         Auth::requerirSesion();
 
-        if ($vista === 'dashboard') {
+        if ($vista === 'dashboard' || $vista === 'moderno') {
             $db = Conexion::conectar();
             $stats = [
                 'recibosHoy' => RecibosPfsModel::estadisticasHoy($db),
@@ -18,7 +18,12 @@ class InicioController {
                 'estudiantesActivos' => EstudiantesPfsModel::totalActivos($db),
                 'estudiantesNuevosMes' => EstudiantesPfsModel::nuevosEsteMes($db),
             ];
-            InicioView::mostrarDashboard($stats);
+
+            if ($vista === 'moderno') {
+                InicioView::mostrarModerno($stats);
+            } else {
+                InicioView::mostrarDashboard($stats);
+            }
             return;
         }
 
