@@ -84,10 +84,6 @@ class InicioView {
                 <div class="icono">🔎</div>
                 <div class="titulo">Buscar Recibos</div>
             </a>
-            <a class="acceso" href="consulta_pagos.php">
-                <div class="icono">💳</div>
-                <div class="titulo">Consulta de Pagos</div>
-            </a>
             <a class="acceso" href="cierres.php">
                 <div class="icono">📅</div>
                 <div class="titulo">Cierre del Día</div>
@@ -154,7 +150,6 @@ class InicioView {
         ['icono' => '🔎', 'titulo' => 'Buscar Estudiante', 'href' => 'estudiantespfs.php'],
         ['icono' => '🧾', 'titulo' => 'Nuevo Recibo', 'href' => 'recibospfs.php'],
         ['icono' => '🔎', 'titulo' => 'Buscar Recibos', 'href' => 'recibospfs.php?action=buscar'],
-        ['icono' => '💳', 'titulo' => 'Consulta de Pagos', 'href' => 'consulta_pagos.php'],
         ['icono' => '📅', 'titulo' => 'Cierre del Día', 'href' => 'cierres.php'],
         ['icono' => '📈', 'titulo' => 'Cierre del Mes', 'href' => 'reporte_recibospfs.php'],
         ['icono' => '📊', 'titulo' => 'Cierre de Año', 'href' => 'cierres.php?tipo=anio'],
