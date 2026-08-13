@@ -84,10 +84,6 @@ class InicioView {
                 <div class="icono">🔎</div>
                 <div class="titulo">Buscar Recibos</div>
             </a>
-            <a class="acceso" href="recibospfs.php?action=pagos">
-                <div class="icono">💳</div>
-                <div class="titulo">Consultar Pagos</div>
-            </a>
             <a class="acceso" href="cierres.php">
                 <div class="icono">📅</div>
                 <div class="titulo">Cierre del Día</div>
