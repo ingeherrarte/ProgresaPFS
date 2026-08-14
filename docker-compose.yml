@@ -36,6 +36,19 @@ services:
     depends_on:
       - mysql
 
+  php_qa:
+    build:
+      context: ./php-config
+    container_name: php_qa
+    restart: always
+    volumes:
+      - /home/eherrarte/mi-stack-qa/www:/var/www/html
+      - ./php-config/uploads.ini:/usr/local/etc/php/conf.d/uploads.ini
+    ports:
+      - "8090:80"
+    depends_on:
+      - mysql
+
   portainer:
     image: portainer/portainer-ce:latest
     container_name: portainer
