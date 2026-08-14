@@ -30,9 +30,17 @@ Patrón MVC simple, sin framework:
 - Antes de cualquier operación destructiva sobre datos reales (TRUNCATE, DROP, sobrescritura masiva), saca un `mysqldump` de respaldo primero y verifica con una query de "qué se perdería" (LEFT JOIN buscando huérfanos) antes de ejecutar.
 - Passwords/collations reales del proyecto: ver `www/.env` (gitignored) para las credenciales activas; no asumas los valores por defecto de `docker-compose.yml` sin confirmar cuál `.env` está en uso.
 
+## Entorno de QA
+
+- Rama `qa` en git, servida por un **git worktree separado** en `/home/eherrarte/mi-stack-qa` (creado con `git worktree add /home/eherrarte/mi-stack-qa qa`) — no es una copia, es un checkout independiente del mismo repo, así que un `git status`/commit ahí no afecta a `master` en `/home/eherrarte/mi-stack`.
+- Contenedor `php_qa` (definido en el `docker-compose.yml` de `master`, puerto **8090**), monta `/home/eherrarte/mi-stack-qa/www` — mismo `php-config/Dockerfile` que producción (mismas extensiones).
+- Base de datos `cetecpro_qa` en el mismo contenedor `mysql`, poblada con un `mysqldump` de `cetecpro` (copia puntual, no sincronizada automáticamente — si necesitas datos frescos, hay que repetir el dump/import a mano).
+- `/home/eherrarte/mi-stack-qa/www/.env` (gitignored, como el de producción) apunta a `DB_NAME=cetecpro_qa`.
+- Para probar un módulo nuevo: trabaja en `/home/eherrarte/mi-stack-qa` sobre la rama `qa` (o una rama derivada de ella), commitea/push ahí, y los cambios se reflejan de inmediato en `http://localhost:8090` (bind mount, sin rebuild). Cuando esté validado, se fusiona a `master` y se despliega en `/home/eherrarte/mi-stack` (producción, puerto 80).
+
 ## Flujo de trabajo esperado
 
 1. Antes de cambiar algo, lee el archivo real (controller + model + view) en vez de asumir estructura — cada módulo tiene sus particularidades (ver comentarios explicativos en el código, suelen documentar bugs legacy que ya se corrigieron y por qué se hizo algo de cierta forma).
-2. `docker exec php php -l archivo.php` después de cualquier edición PHP, antes de dar por terminado.
+2. `docker exec php php -l archivo.php` después de cualquier edición PHP, antes de dar por terminado (usa `php_qa` en vez de `php` si estás trabajando en el worktree de QA).
 3. Si el cambio toca subida de archivos o límites, recuerda que hay DOS capas de límite: `upload_max_filesize`/`post_max_size` de PHP (a nivel de contenedor) y la constante `TAMANO_MAXIMO_*` de la app — deben ir sincronizados o el más bajo gana en silencio.
-4. Commits en español, formato imperativo breve ("Agrega...", "Corrige...", "Permite..."), con el cuerpo explicando el *por qué* cuando no sea obvio. Push directo a `master` (no hay ramas de feature en este repo).
+4. Commits en español, formato imperativo breve ("Agrega...", "Corrige...", "Permite..."), con el cuerpo explicando el *por qué* cuando no sea obvio. Push directo a `master` (no hay ramas de feature en este repo, salvo `qa` para el entorno de pruebas descrito arriba).
