@@ -37,6 +37,7 @@ Patrón MVC simple, sin framework:
 - Base de datos `cetecpro_qa` en el mismo contenedor `mysql`, poblada con un `mysqldump` de `cetecpro` (copia puntual, no sincronizada automáticamente — si necesitas datos frescos, hay que repetir el dump/import a mano).
 - `/home/eherrarte/mi-stack-qa/www/.env` (gitignored, como el de producción) apunta a `DB_NAME=cetecpro_qa`.
 - Para probar un módulo nuevo: trabaja en `/home/eherrarte/mi-stack-qa` sobre la rama `qa` (o una rama derivada de ella), commitea/push ahí, y los cambios se reflejan de inmediato en `http://localhost:8090` (bind mount, sin rebuild). Cuando esté validado, se fusiona a `master` y se despliega en `/home/eherrarte/mi-stack` (producción, puerto 80).
+- `uploads/` está gitignorado, así que un `git worktree add` nuevo NO lo trae — hay que crearlo a mano (`mkdir -p www/uploads/depositos www/uploads/recibos` + `chown www-data:www-data` dentro del contenedor) o cualquier subida de foto falla con "Permission denied" en `SubidaImagen.php` (pasó la primera vez que se probó depósitos en QA). Producción tiene `www/` completo en `777`; en el worktree de QA el dueño es `eherrarte` con `775`, así que `www-data` (uid del contenedor) no puede crear directorios ahí por su cuenta.
 
 ## Flujo de trabajo esperado
 
