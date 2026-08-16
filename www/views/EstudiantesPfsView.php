@@ -58,6 +58,12 @@ class EstudiantesPfsView {
                     background: #2e7d32; color: #fff; text-decoration: none; border-radius: 4px;
                 }
                 .usar-btn:hover { background: #256428; }
+                .ficha-btn {
+                    display: inline-block; padding: 5px 8px; font-size: 13px;
+                    text-decoration: none; border-radius: 4px; margin-left: 4px;
+                    background: #eef2ff; line-height: 1;
+                }
+                .ficha-btn:hover { background: #dde3ff; }
             </style>
         </head>
         <body>
@@ -120,6 +126,7 @@ class EstudiantesPfsView {
                                     <td><?= htmlspecialchars($f['telefonomovil']) ?></td>
                                     <td>
                                         <a class="usar-btn" href="recibospfs.php?carnet=<?= urlencode($f['idestudiante']) ?>">Usar en recibo</a>
+                                        <a class="ficha-btn" href="estudiantespfs.php?action=ficha&carnet=<?= urlencode($f['idestudiante']) ?>" target="_blank" rel="noopener" title="Ver ficha completa para imprimir">🖨️</a>
                                     </td>
                                 </tr>
                             <?php endforeach; ?>
@@ -166,7 +173,10 @@ class EstudiantesPfsView {
                             <td>${escapeHtml(f.planNombre)}</td>
                             <td>${escapeHtml(f.jornadaNombre)}</td>
                             <td>${escapeHtml(f.telefonomovil)}</td>
-                            <td><a class="usar-btn" href="recibospfs.php?carnet=${encodeURIComponent(f.idestudiante)}">Usar en recibo</a></td>
+                            <td>
+                                <a class="usar-btn" href="recibospfs.php?carnet=${encodeURIComponent(f.idestudiante)}">Usar en recibo</a>
+                                <a class="ficha-btn" href="estudiantespfs.php?action=ficha&carnet=${encodeURIComponent(f.idestudiante)}" target="_blank" rel="noopener" title="Ver ficha completa para imprimir">🖨️</a>
+                            </td>
                         </tr>`;
                     }).join('');
                 }
@@ -205,6 +215,164 @@ class EstudiantesPfsView {
                     temporizadorBusqueda = setTimeout(() => buscarEnVivo(termino), 300);
                 });
             </script>
+        </body>
+        </html>
+        <?php
+    }
+
+    // Ficha completa del estudiante, pensada para imprimir (botón "Imprimir"
+    // + CSS de @media print que oculta la barra y el botón al imprimir).
+    public static function mostrarFicha(array $e, string $nombreCurso, ?string $mensaje = null): void {
+        $dato = fn($valor) => $valor !== null && trim((string)$valor) !== '' ? htmlspecialchars($valor) : '—';
+        $fecha = fn($valor) => $valor && $valor !== '0000-00-00' ? date('d/m/Y', strtotime($valor)) : '—';
+        ?>
+        <!DOCTYPE html>
+        <html lang="es">
+        <head>
+            <meta charset="UTF-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1">
+            <title>Ficha de Estudiante — <?= htmlspecialchars(trim($e['nombre'] . ' ' . $e['apellidos'])) ?></title>
+            <style>
+                * { box-sizing: border-box; margin: 0; padding: 0; }
+                body { font-family: Arial, sans-serif; background: #f0f2f5; padding: 24px; color: #222; }
+                .barra {
+                    display: flex; justify-content: space-between; align-items: center;
+                    max-width: 800px; margin: 0 auto 16px;
+                }
+                .barra a { color: #1a237e; text-decoration: none; font-size: 13px; font-weight: bold; margin-right: 12px; }
+                .barra button {
+                    padding: 7px 16px; font-size: 13px; font-weight: bold; cursor: pointer;
+                    background: #1a237e; color: #fff; border: none; border-radius: 4px;
+                }
+                .ficha {
+                    background: #fff; max-width: 800px; margin: 0 auto;
+                    border-radius: 6px; padding: 28px 32px; box-shadow: 0 1px 4px rgba(0,0,0,.1);
+                }
+                .encabezado { text-align: center; margin-bottom: 14px; }
+                .encabezado h1 { font-size: 18px; color: #1a237e; }
+                .encabezado .subtitulo { font-size: 11px; color: #777; margin-top: 4px; }
+                .identificacion {
+                    text-align: center; border-top: 2px solid #1a237e; border-bottom: 2px solid #1a237e;
+                    padding: 14px 8px; margin-bottom: 20px;
+                }
+                .identificacion .nombre { font-size: 28px; font-weight: bold; color: #111; line-height: 1.2; }
+                .identificacion .renglon {
+                    display: flex; justify-content: center; flex-wrap: wrap; gap: 8px 28px; margin-top: 10px;
+                }
+                .identificacion .campo-grande { font-size: 17px; font-weight: bold; color: #1a237e; }
+                .identificacion .campo-grande span {
+                    display: block; font-size: 10px; color: #777; font-weight: bold;
+                    text-transform: uppercase; letter-spacing: .4px;
+                }
+                .estado-inactivo { color: #b71c1c; font-weight: bold; }
+                .seccion { margin-bottom: 18px; }
+                .seccion h2 {
+                    font-size: 13px; color: #1a237e; text-transform: uppercase; letter-spacing: .4px;
+                    border-bottom: 1px solid #ddd; padding-bottom: 4px; margin-bottom: 10px;
+                }
+                .grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px 24px; }
+                .dato { font-size: 13px; padding: 3px 0; }
+                .dato b { display: block; font-size: 11px; color: #777; font-weight: bold; text-transform: uppercase; }
+                .observacion { font-size: 13px; white-space: pre-wrap; }
+                @page { size: letter; margin: 1.5cm; }
+                @media print {
+                    body { background: #fff; padding: 0; }
+                    .barra { display: none; }
+                    .exito { display: none; }
+                    .ficha { box-shadow: none; max-width: 100%; padding: 0; }
+                }
+                .exito {
+                    background: #e8f5e9; border: 1px solid #81c784; color: #2e7d32;
+                    padding: 10px 14px; border-radius: 4px; margin: 0 auto 16px; max-width: 800px; font-size: 13px;
+                }
+            </style>
+        </head>
+        <body>
+            <?php if ($mensaje): ?>
+                <div class="exito">✅ <?= htmlspecialchars($mensaje) ?></div>
+            <?php endif; ?>
+
+            <div class="barra">
+                <span>
+                    <a href="estudiantespfs.php">← Volver a la búsqueda</a>
+                </span>
+                <button onclick="window.print()">🖨️ Imprimir</button>
+            </div>
+
+            <div class="ficha">
+                <div class="encabezado">
+                    <h1>Ficha de Datos del Estudiante</h1>
+                    <div class="subtitulo">CETECPRO · Impreso el <?= date('d/m/Y H:i') ?></div>
+                </div>
+
+                <div class="identificacion">
+                    <div class="nombre"><?= htmlspecialchars(trim($e['nombre'] . ' ' . $e['apellidos'])) ?></div>
+                    <div class="renglon">
+                        <div class="campo-grande"><span>Carné</span><?= htmlspecialchars($e['idestudiante']) ?></div>
+                        <div class="campo-grande"><span>Curso</span><?= htmlspecialchars($nombreCurso) ?></div>
+                        <div class="campo-grande"><span>Plan</span><?= htmlspecialchars(EstudiantesPfsModel::nombrePlan($e['plan'])) ?></div>
+                        <div class="campo-grande"><span>Jornada</span><?= htmlspecialchars(EstudiantesPfsModel::nombreJornada($e['jornada'])) ?></div>
+                    </div>
+                </div>
+
+                <div class="seccion">
+                    <h2>Datos generales</h2>
+                    <div class="grid">
+                        <div class="dato"><b>Fecha de nacimiento</b><?= $fecha($e['nacimiento']) ?></div>
+                        <div class="dato"><b>Estado</b><?= (int)$e['activo'] === 1 ? 'Activo' : '<span class="estado-inactivo">Inactivo</span>' ?></div>
+                        <div class="dato"><b>Fecha de inscripción</b><?= $fecha($e['fechainscripcion']) ?></div>
+                        <div class="dato"><b>Último año cursado</b><?= $dato($e['ultimoanio']) ?></div>
+                        <div class="dato"><b>Establecimiento</b><?= $dato($e['establecimiento']) ?></div>
+                    </div>
+                </div>
+
+                <div class="seccion">
+                    <h2>Contacto</h2>
+                    <div class="grid">
+                        <div class="dato"><b>DPI</b><?= $dato($e['dpi']) ?></div>
+                        <div class="dato"><b>Cédula</b><?= $dato($e['cedula']) ?></div>
+                        <div class="dato"><b>Dirección</b><?= $dato($e['direccion']) ?></div>
+                        <div class="dato"><b>Email</b><?= $dato($e['email']) ?></div>
+                        <div class="dato"><b>Teléfono móvil</b><?= $dato($e['telefonomovil']) ?></div>
+                        <div class="dato"><b>Teléfono casa</b><?= $dato($e['telefonocasa']) ?></div>
+                        <div class="dato"><b>Teléfono trabajo</b><?= $dato($e['telefonotrabajo']) ?></div>
+                    </div>
+                </div>
+
+                <div class="seccion">
+                    <h2>Datos del padre</h2>
+                    <div class="grid">
+                        <div class="dato"><b>Nombre</b><?= $dato(trim(($e['pnombre'] ?? '') . ' ' . ($e['papellidos'] ?? ''))) ?></div>
+                        <div class="dato"><b>Cédula</b><?= $dato($e['pcedula']) ?></div>
+                        <div class="dato"><b>Teléfono</b><?= $dato($e['ptelefono']) ?></div>
+                        <div class="dato"><b>Trabajo</b><?= $dato($e['ptrabajo']) ?></div>
+                        <div class="dato"><b>Teléfono trabajo</b><?= $dato($e['ptelefonotrabajo']) ?></div>
+                        <div class="dato"><b>Dirección trabajo</b><?= $dato($e['pdirecciont']) ?></div>
+                    </div>
+                </div>
+
+                <div class="seccion">
+                    <h2>Datos de la madre</h2>
+                    <div class="grid">
+                        <div class="dato"><b>Nombre</b><?= $dato(trim(($e['mnombre'] ?? '') . ' ' . ($e['mapellidos'] ?? ''))) ?></div>
+                        <div class="dato"><b>Cédula</b><?= $dato($e['mcedula']) ?></div>
+                        <div class="dato"><b>Teléfono</b><?= $dato($e['mtelefono']) ?></div>
+                        <div class="dato"><b>Trabajo</b><?= $dato($e['mtrabajo']) ?></div>
+                        <div class="dato"><b>Teléfono trabajo</b><?= $dato($e['mtelefonotrabajo']) ?></div>
+                        <div class="dato"><b>Dirección trabajo</b><?= $dato($e['mdirecciont']) ?></div>
+                    </div>
+                </div>
+
+                <div class="seccion">
+                    <h2>Otros</h2>
+                    <div class="grid">
+                        <div class="dato"><b>Cómo se enteró</b><?= $dato($e['enteradopor']) ?></div>
+                    </div>
+                    <?php if (trim((string)($e['observacion'] ?? '')) !== ''): ?>
+                        <div class="dato" style="margin-top:8px"><b>Observación</b><span class="observacion"><?= htmlspecialchars($e['observacion']) ?></span></div>
+                    <?php endif; ?>
+                </div>
+            </div>
         </body>
         </html>
         <?php

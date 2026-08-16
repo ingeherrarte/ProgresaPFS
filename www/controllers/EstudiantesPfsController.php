@@ -25,6 +25,11 @@ class EstudiantesPfsController {
                 $this->guardar();
                 break;
 
+            case 'ficha':
+                Auth::requerirSesion();
+                $this->ficha();
+                break;
+
             case 'buscar':
             default:
                 Auth::requerirSesion();
@@ -35,11 +40,7 @@ class EstudiantesPfsController {
 
     private function form() {
         $db = Conexion::conectar();
-        $mensaje = null;
-        if (($_GET['msg'] ?? '') === 'creado' && !empty($_GET['carnet'])) {
-            $mensaje = "Estudiante registrado con carné " . (int)$_GET['carnet'] . ".";
-        }
-        EstudiantesPfsView::mostrarFormularioAlta([], [], EstudiantesPfsModel::obtenerCursos($db), $mensaje);
+        EstudiantesPfsView::mostrarFormularioAlta([], [], EstudiantesPfsModel::obtenerCursos($db));
     }
 
     private function guardar() {
@@ -73,7 +74,9 @@ class EstudiantesPfsController {
         }
 
         // Post/Redirect/Get: evita duplicar el alta si el cajero recarga la página.
-        header("Location: estudiantespfs.php?action=form&msg=creado&carnet=$id");
+        // Redirige directo a la ficha imprimible del estudiante recién
+        // inscrito, para que quede listo para imprimir y archivar.
+        header("Location: estudiantespfs.php?action=ficha&carnet=$id&msg=creado");
         exit;
     }
 
@@ -90,6 +93,32 @@ class EstudiantesPfsController {
         $totalPaginas = $resultado['total'] > 0 ? (int)ceil($resultado['total'] / self::POR_PAGINA) : 0;
 
         EstudiantesPfsView::mostrarBuscar($termino, $resultado['filas'], $pagina, $totalPaginas, $resultado['total']);
+    }
+
+    // Ficha completa de un estudiante, pensada para imprimir (vínculo "Ficha"
+    // en Buscar Estudiante, junto a "Usar en recibo").
+    private function ficha() {
+        $carnet = $_GET['carnet'] ?? '';
+        if (!ctype_digit($carnet)) {
+            header("Location: estudiantespfs.php");
+            exit;
+        }
+
+        $db = Conexion::conectar();
+        $estudiante = EstudiantesPfsModel::obtenerPorId($db, (int)$carnet);
+        if (!$estudiante) {
+            header("Location: estudiantespfs.php");
+            exit;
+        }
+
+        $cursos = EstudiantesPfsModel::obtenerCursos($db);
+        $nombreCurso = $cursos[$estudiante['codcurso']] ?? 'No asignado';
+
+        $mensaje = ($_GET['msg'] ?? '') === 'creado'
+            ? 'Estudiante registrado correctamente. Esta es su ficha para imprimir y archivar.'
+            : null;
+
+        EstudiantesPfsView::mostrarFicha($estudiante, $nombreCurso, $mensaje);
     }
 
     // Usado por la búsqueda en vivo (JS) mientras el usuario escribe: siempre
