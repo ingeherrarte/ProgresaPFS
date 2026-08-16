@@ -30,19 +30,28 @@ class DepositosView {
                 }
                 fieldset { border: 1px solid #e0e0e0; border-radius: 6px; padding: 14px 18px; margin-bottom: 18px; }
                 legend { font-size: 13px; font-weight: bold; color: #1a237e; padding: 0 6px; }
-                .fila { display: flex; gap: 16px; flex-wrap: wrap; margin-bottom: 12px; }
-                .campo { flex: 1; min-width: 180px; }
-                label { display: block; font-size: 12px; font-weight: bold; color: #444; margin-bottom: 4px; }
+                /* Mobile-first: un campo por renglón, más fácil de llenar con el
+                   pulgar; a partir de 640px se acomodan varios por fila. */
+                .fila { display: flex; flex-direction: column; gap: 14px; margin-bottom: 14px; }
+                .campo { flex: 1; min-width: 0; }
+                label { display: block; font-size: 13px; font-weight: bold; color: #444; margin-bottom: 5px; }
                 input, select {
-                    width: 100%; padding: 8px 10px; font-size: 14px;
+                    width: 100%; padding: 12px 10px; font-size: 16px;
                     border: 1px solid #ccc; border-radius: 4px;
                 }
+                /* font-size 16px en inputs evita que Safari/Chrome en iPhone
+                   hagan zoom automático al enfocar el campo. */
                 input:focus, select:focus { outline: none; border-color: #1a237e; }
+                input[type=file] { padding: 10px 8px; }
                 button[type=submit] {
-                    width: 100%; padding: 12px; font-size: 15px; font-weight: bold;
+                    width: 100%; padding: 15px; font-size: 16px; font-weight: bold;
                     background: #1a237e; color: #fff; border: none; border-radius: 4px; cursor: pointer;
                 }
                 button[type=submit]:hover { background: #283593; }
+                .tabla-scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+                @media (min-width: 640px) {
+                    .fila { flex-direction: row; flex-wrap: wrap; }
+                }
                 .errores {
                     background: #ffebee; border: 1px solid #e57373; color: #b71c1c;
                     padding: 10px 14px; border-radius: 4px; margin-bottom: 18px; font-size: 13px;
@@ -93,11 +102,11 @@ class DepositosView {
                         <div class="fila">
                             <div class="campo">
                                 <label for="nodeposito">No. de depósito</label>
-                                <input type="text" id="nodeposito" name="nodeposito" maxlength="11" value="<?= $v('nodeposito') ?>" required>
+                                <input type="text" id="nodeposito" name="nodeposito" inputmode="numeric" maxlength="11" value="<?= $v('nodeposito') ?>" required>
                             </div>
                             <div class="campo">
                                 <label for="fechadep">Fecha de depósito</label>
-                                <input type="date" id="fechadep" name="fechadep" value="<?= $v('fechadep') ?>" required>
+                                <input type="date" id="fechadep" name="fechadep" value="<?= $v('fechadep', date('Y-m-d')) ?>" required>
                             </div>
                             <div class="campo">
                                 <label for="cuenta">Cuenta</label>
@@ -114,21 +123,21 @@ class DepositosView {
                         <div class="fila">
                             <div class="campo">
                                 <label for="efectivo">Efectivo</label>
-                                <input type="number" id="efectivo" name="efectivo" step="0.01" min="0" value="<?= $v('efectivo', '0.00') ?>">
+                                <input type="number" id="efectivo" name="efectivo" inputmode="decimal" step="0.01" min="0" value="<?= $v('efectivo', '0.00') ?>">
                             </div>
                             <div class="campo">
                                 <label for="chpropio">Cheque propio banco</label>
-                                <input type="number" id="chpropio" name="chpropio" step="0.01" min="0" value="<?= $v('chpropio', '0.00') ?>">
+                                <input type="number" id="chpropio" name="chpropio" inputmode="decimal" step="0.01" min="0" value="<?= $v('chpropio', '0.00') ?>">
                             </div>
                             <div class="campo">
                                 <label for="chotrobanco">Cheque otros bancos</label>
-                                <input type="number" id="chotrobanco" name="chotrobanco" step="0.01" min="0" value="<?= $v('chotrobanco', '0.00') ?>">
+                                <input type="number" id="chotrobanco" name="chotrobanco" inputmode="decimal" step="0.01" min="0" value="<?= $v('chotrobanco', '0.00') ?>">
                             </div>
                         </div>
                         <div class="fila">
                             <div class="campo">
                                 <label for="correspondiente">Correspondiente a</label>
-                                <input type="date" id="correspondiente" name="correspondiente" value="<?= $v('correspondiente') ?>" required>
+                                <input type="date" id="correspondiente" name="correspondiente" value="<?= $v('correspondiente', date('Y-m-d')) ?>" required>
                             </div>
                             <div class="campo">
                                 <label for="responsable">Responsable</label>
@@ -138,7 +147,7 @@ class DepositosView {
                         <div class="fila">
                             <div class="campo">
                                 <label for="foto_boleta">Foto de la boleta (opcional, máx. 6 MB)</label>
-                                <input type="file" id="foto_boleta" name="foto_boleta" accept="image/jpeg,image/png,image/webp">
+                                <input type="file" id="foto_boleta" name="foto_boleta" accept="image/jpeg,image/png,image/webp" capture="environment">
                             </div>
                         </div>
                     </fieldset>
@@ -152,6 +161,7 @@ class DepositosView {
                 <?php if (empty($recientes)): ?>
                     <p class="sin-datos">No hay depósitos registrados.</p>
                 <?php else: ?>
+                    <div class="tabla-scroll">
                     <table>
                         <thead>
                             <tr>
@@ -192,6 +202,7 @@ class DepositosView {
                             <?php endforeach; ?>
                         </tbody>
                     </table>
+                    </div>
                 <?php endif; ?>
             </div>
         </body>
