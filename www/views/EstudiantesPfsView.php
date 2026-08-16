@@ -222,7 +222,7 @@ class EstudiantesPfsView {
 
     // Ficha completa del estudiante, pensada para imprimir (botón "Imprimir"
     // + CSS de @media print que oculta la barra y el botón al imprimir).
-    public static function mostrarFicha(array $e, string $nombreCurso): void {
+    public static function mostrarFicha(array $e, string $nombreCurso, ?string $mensaje = null): void {
         $dato = fn($valor) => $valor !== null && trim((string)$valor) !== '' ? htmlspecialchars($valor) : '—';
         $fecha = fn($valor) => $valor && $valor !== '0000-00-00' ? date('d/m/Y', strtotime($valor)) : '—';
         ?>
@@ -278,11 +278,20 @@ class EstudiantesPfsView {
                 @media print {
                     body { background: #fff; padding: 0; }
                     .barra { display: none; }
+                    .exito { display: none; }
                     .ficha { box-shadow: none; max-width: 100%; padding: 0; }
+                }
+                .exito {
+                    background: #e8f5e9; border: 1px solid #81c784; color: #2e7d32;
+                    padding: 10px 14px; border-radius: 4px; margin: 0 auto 16px; max-width: 800px; font-size: 13px;
                 }
             </style>
         </head>
         <body>
+            <?php if ($mensaje): ?>
+                <div class="exito">✅ <?= htmlspecialchars($mensaje) ?></div>
+            <?php endif; ?>
+
             <div class="barra">
                 <span>
                     <a href="estudiantespfs.php">← Volver a la búsqueda</a>

@@ -40,11 +40,7 @@ class EstudiantesPfsController {
 
     private function form() {
         $db = Conexion::conectar();
-        $mensaje = null;
-        if (($_GET['msg'] ?? '') === 'creado' && !empty($_GET['carnet'])) {
-            $mensaje = "Estudiante registrado con carné " . (int)$_GET['carnet'] . ".";
-        }
-        EstudiantesPfsView::mostrarFormularioAlta([], [], EstudiantesPfsModel::obtenerCursos($db), $mensaje);
+        EstudiantesPfsView::mostrarFormularioAlta([], [], EstudiantesPfsModel::obtenerCursos($db));
     }
 
     private function guardar() {
@@ -78,7 +74,9 @@ class EstudiantesPfsController {
         }
 
         // Post/Redirect/Get: evita duplicar el alta si el cajero recarga la página.
-        header("Location: estudiantespfs.php?action=form&msg=creado&carnet=$id");
+        // Redirige directo a la ficha imprimible del estudiante recién
+        // inscrito, para que quede listo para imprimir y archivar.
+        header("Location: estudiantespfs.php?action=ficha&carnet=$id&msg=creado");
         exit;
     }
 
@@ -116,7 +114,11 @@ class EstudiantesPfsController {
         $cursos = EstudiantesPfsModel::obtenerCursos($db);
         $nombreCurso = $cursos[$estudiante['codcurso']] ?? 'No asignado';
 
-        EstudiantesPfsView::mostrarFicha($estudiante, $nombreCurso);
+        $mensaje = ($_GET['msg'] ?? '') === 'creado'
+            ? 'Estudiante registrado correctamente. Esta es su ficha para imprimir y archivar.'
+            : null;
+
+        EstudiantesPfsView::mostrarFicha($estudiante, $nombreCurso, $mensaje);
     }
 
     // Usado por la búsqueda en vivo (JS) mientras el usuario escribe: siempre
