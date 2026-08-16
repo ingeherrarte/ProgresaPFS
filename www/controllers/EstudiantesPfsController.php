@@ -25,6 +25,11 @@ class EstudiantesPfsController {
                 $this->guardar();
                 break;
 
+            case 'ficha':
+                Auth::requerirSesion();
+                $this->ficha();
+                break;
+
             case 'buscar':
             default:
                 Auth::requerirSesion();
@@ -90,6 +95,28 @@ class EstudiantesPfsController {
         $totalPaginas = $resultado['total'] > 0 ? (int)ceil($resultado['total'] / self::POR_PAGINA) : 0;
 
         EstudiantesPfsView::mostrarBuscar($termino, $resultado['filas'], $pagina, $totalPaginas, $resultado['total']);
+    }
+
+    // Ficha completa de un estudiante, pensada para imprimir (vínculo "Ficha"
+    // en Buscar Estudiante, junto a "Usar en recibo").
+    private function ficha() {
+        $carnet = $_GET['carnet'] ?? '';
+        if (!ctype_digit($carnet)) {
+            header("Location: estudiantespfs.php");
+            exit;
+        }
+
+        $db = Conexion::conectar();
+        $estudiante = EstudiantesPfsModel::obtenerPorId($db, (int)$carnet);
+        if (!$estudiante) {
+            header("Location: estudiantespfs.php");
+            exit;
+        }
+
+        $cursos = EstudiantesPfsModel::obtenerCursos($db);
+        $nombreCurso = $cursos[$estudiante['codcurso']] ?? 'No asignado';
+
+        EstudiantesPfsView::mostrarFicha($estudiante, $nombreCurso);
     }
 
     // Usado por la búsqueda en vivo (JS) mientras el usuario escribe: siempre
