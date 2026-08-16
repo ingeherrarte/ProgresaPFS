@@ -1,0 +1,16 @@
+{
+  "name": "CETECPRO",
+  "short_name": "CETECPRO",
+  "description": "Ingreso de Boletas de Depósito - CETECPRO",
+  "start_url": "/login.php?destino=depositos.php",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#f0f2f5",
+  "theme_color": "#1a237e",
+  "orientation": "portrait",
+  "icons": [
+    { "src": "pwa-icons/icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "pwa-icons/icon-512.png", "sizes": "512x512", "type": "image/png" },
+    { "src": "pwa-icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}

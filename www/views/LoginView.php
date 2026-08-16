@@ -9,6 +9,12 @@ class LoginView {
             <meta charset="UTF-8">
             <meta name="viewport" content="width=device-width, initial-scale=1">
             <title>Iniciar sesión — CETECPRO</title>
+            <link rel="manifest" href="manifest.json">
+            <meta name="theme-color" content="#1a237e">
+            <link rel="apple-touch-icon" href="pwa-icons/apple-touch-icon.png">
+            <meta name="apple-mobile-web-app-capable" content="yes">
+            <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+            <meta name="apple-mobile-web-app-title" content="CETECPRO">
             <style>
                 * { box-sizing: border-box; margin: 0; padding: 0; }
                 body {
@@ -102,6 +108,11 @@ class LoginView {
                     <button type="submit">Ingresar</button>
                 </form>
             </div>
+            <script>
+                if ('serviceWorker' in navigator) {
+                    window.addEventListener('load', () => navigator.serviceWorker.register('sw.js'));
+                }
+            </script>
         </body>
         </html>
         <?php

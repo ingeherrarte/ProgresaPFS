@@ -14,6 +14,12 @@ class DepositosView {
             <meta charset="UTF-8">
             <meta name="viewport" content="width=device-width, initial-scale=1">
             <title>Depósitos — CETECPRO</title>
+            <link rel="manifest" href="manifest.json">
+            <meta name="theme-color" content="#1a237e">
+            <link rel="apple-touch-icon" href="pwa-icons/apple-touch-icon.png">
+            <meta name="apple-mobile-web-app-capable" content="yes">
+            <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+            <meta name="apple-mobile-web-app-title" content="CETECPRO">
             <style>
                 * { box-sizing: border-box; margin: 0; padding: 0; }
                 body { font-family: Arial, sans-serif; background: #f0f2f5; padding: 24px; color: #333; }
@@ -205,6 +211,11 @@ class DepositosView {
                     </div>
                 <?php endif; ?>
             </div>
+            <script>
+                if ('serviceWorker' in navigator) {
+                    window.addEventListener('load', () => navigator.serviceWorker.register('sw.js'));
+                }
+            </script>
         </body>
         </html>
         <?php
