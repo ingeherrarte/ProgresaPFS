@@ -248,9 +248,22 @@ class EstudiantesPfsView {
                     background: #fff; max-width: 800px; margin: 0 auto;
                     border-radius: 6px; padding: 28px 32px; box-shadow: 0 1px 4px rgba(0,0,0,.1);
                 }
-                .encabezado { text-align: center; margin-bottom: 20px; border-bottom: 2px solid #1a237e; padding-bottom: 14px; }
-                .encabezado h1 { font-size: 20px; color: #1a237e; }
-                .encabezado .subtitulo { font-size: 12px; color: #777; margin-top: 4px; }
+                .encabezado { text-align: center; margin-bottom: 14px; }
+                .encabezado h1 { font-size: 18px; color: #1a237e; }
+                .encabezado .subtitulo { font-size: 11px; color: #777; margin-top: 4px; }
+                .identificacion {
+                    text-align: center; border-top: 2px solid #1a237e; border-bottom: 2px solid #1a237e;
+                    padding: 14px 8px; margin-bottom: 20px;
+                }
+                .identificacion .nombre { font-size: 28px; font-weight: bold; color: #111; line-height: 1.2; }
+                .identificacion .renglon {
+                    display: flex; justify-content: center; flex-wrap: wrap; gap: 8px 28px; margin-top: 10px;
+                }
+                .identificacion .campo-grande { font-size: 17px; font-weight: bold; color: #1a237e; }
+                .identificacion .campo-grande span {
+                    display: block; font-size: 10px; color: #777; font-weight: bold;
+                    text-transform: uppercase; letter-spacing: .4px;
+                }
                 .estado-inactivo { color: #b71c1c; font-weight: bold; }
                 .seccion { margin-bottom: 18px; }
                 .seccion h2 {
@@ -261,10 +274,11 @@ class EstudiantesPfsView {
                 .dato { font-size: 13px; padding: 3px 0; }
                 .dato b { display: block; font-size: 11px; color: #777; font-weight: bold; text-transform: uppercase; }
                 .observacion { font-size: 13px; white-space: pre-wrap; }
+                @page { size: letter; margin: 1.5cm; }
                 @media print {
                     body { background: #fff; padding: 0; }
                     .barra { display: none; }
-                    .ficha { box-shadow: none; max-width: 100%; }
+                    .ficha { box-shadow: none; max-width: 100%; padding: 0; }
                 }
             </style>
         </head>
@@ -279,18 +293,23 @@ class EstudiantesPfsView {
             <div class="ficha">
                 <div class="encabezado">
                     <h1>Ficha de Datos del Estudiante</h1>
-                    <div class="subtitulo">CETECPRO · Carné <?= htmlspecialchars($e['idestudiante']) ?> · Impreso el <?= date('d/m/Y H:i') ?></div>
+                    <div class="subtitulo">CETECPRO · Impreso el <?= date('d/m/Y H:i') ?></div>
+                </div>
+
+                <div class="identificacion">
+                    <div class="nombre"><?= htmlspecialchars(trim($e['nombre'] . ' ' . $e['apellidos'])) ?></div>
+                    <div class="renglon">
+                        <div class="campo-grande"><span>Carné</span><?= htmlspecialchars($e['idestudiante']) ?></div>
+                        <div class="campo-grande"><span>Curso</span><?= htmlspecialchars($nombreCurso) ?></div>
+                        <div class="campo-grande"><span>Plan</span><?= htmlspecialchars(EstudiantesPfsModel::nombrePlan($e['plan'])) ?></div>
+                        <div class="campo-grande"><span>Jornada</span><?= htmlspecialchars(EstudiantesPfsModel::nombreJornada($e['jornada'])) ?></div>
+                    </div>
                 </div>
 
                 <div class="seccion">
                     <h2>Datos generales</h2>
                     <div class="grid">
-                        <div class="dato"><b>Carné</b><?= htmlspecialchars($e['idestudiante']) ?></div>
-                        <div class="dato"><b>Nombre completo</b><?= htmlspecialchars(trim($e['nombre'] . ' ' . $e['apellidos'])) ?></div>
                         <div class="dato"><b>Fecha de nacimiento</b><?= $fecha($e['nacimiento']) ?></div>
-                        <div class="dato"><b>Curso</b><?= htmlspecialchars($nombreCurso) ?></div>
-                        <div class="dato"><b>Plan</b><?= htmlspecialchars(EstudiantesPfsModel::nombrePlan($e['plan'])) ?></div>
-                        <div class="dato"><b>Jornada</b><?= htmlspecialchars(EstudiantesPfsModel::nombreJornada($e['jornada'])) ?></div>
                         <div class="dato"><b>Estado</b><?= (int)$e['activo'] === 1 ? 'Activo' : '<span class="estado-inactivo">Inactivo</span>' ?></div>
                         <div class="dato"><b>Fecha de inscripción</b><?= $fecha($e['fechainscripcion']) ?></div>
                         <div class="dato"><b>Último año cursado</b><?= $dato($e['ultimoanio']) ?></div>
