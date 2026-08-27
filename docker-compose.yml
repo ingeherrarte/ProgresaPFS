@@ -4,7 +4,7 @@ services:
     container_name: mysql
     restart: always
     environment:
-      MYSQL_ROOT_PASSWORD: root123
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
       MYSQL_DATABASE: mi_base
     volumes:
       - mysql_data:/var/lib/mysql
@@ -42,7 +42,7 @@ services:
     container_name: php_qa
     restart: always
     volumes:
-      - /home/eherrarte/mi-stack-qa/www:/var/www/html
+      - /srv/mi-stack-qa/www:/var/www/html
       - ./php-config/uploads.ini:/usr/local/etc/php/conf.d/uploads.ini
     ports:
       - "8090:80"

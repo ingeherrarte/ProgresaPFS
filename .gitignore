@@ -6,6 +6,7 @@
 
 # Variables de entorno con credenciales
 www/.env
+/.env
 
 # Datos y dependencias
 mysql-data/
