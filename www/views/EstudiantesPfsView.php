@@ -64,6 +64,12 @@ class EstudiantesPfsView {
                     background: #eef2ff; line-height: 1;
                 }
                 .ficha-btn:hover { background: #dde3ff; }
+                .historial-btn {
+                    display: inline-block; padding: 5px 8px; font-size: 13px;
+                    text-decoration: none; border-radius: 4px; margin-left: 4px;
+                    background: #eef2ff; line-height: 1;
+                }
+                .historial-btn:hover { background: #dde3ff; }
             </style>
         </head>
         <body>
@@ -127,6 +133,7 @@ class EstudiantesPfsView {
                                     <td>
                                         <a class="usar-btn" href="recibospfs.php?carnet=<?= urlencode($f['idestudiante']) ?>">Usar en recibo</a>
                                         <a class="ficha-btn" href="estudiantespfs.php?action=ficha&carnet=<?= urlencode($f['idestudiante']) ?>" target="_blank" rel="noopener" title="Ver ficha completa para imprimir">🖨️</a>
+                                        <a class="historial-btn" href="consulta_pagos.php?action=detalle&carnet=<?= urlencode($f['idestudiante']) ?>" title="Ver historial de pagos">💵</a>
                                     </td>
                                 </tr>
                             <?php endforeach; ?>
@@ -176,6 +183,7 @@ class EstudiantesPfsView {
                             <td>
                                 <a class="usar-btn" href="recibospfs.php?carnet=${encodeURIComponent(f.idestudiante)}">Usar en recibo</a>
                                 <a class="ficha-btn" href="estudiantespfs.php?action=ficha&carnet=${encodeURIComponent(f.idestudiante)}" target="_blank" rel="noopener" title="Ver ficha completa para imprimir">🖨️</a>
+                                <a class="historial-btn" href="consulta_pagos.php?action=detalle&carnet=${encodeURIComponent(f.idestudiante)}" title="Ver historial de pagos">💵</a>
                             </td>
                         </tr>`;
                     }).join('');
