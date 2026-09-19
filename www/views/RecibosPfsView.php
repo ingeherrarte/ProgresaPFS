@@ -25,6 +25,17 @@ class RecibosPfsView {
         'Otro',
     ];
 
+    // Expuestos para que el formulario de Editar Recibo del panel de
+    // Administración (AdminView) ofrezca exactamente las mismas opciones que
+    // el formulario de creación, sin duplicar las listas.
+    public static function meses(): array {
+        return self::$meses;
+    }
+
+    public static function bancos(): array {
+        return self::$bancosGuatemala;
+    }
+
     private static function estilos(): void {
         ?>
         <style>
@@ -359,10 +370,19 @@ class RecibosPfsView {
         $nombreCurso = $estudiante['nombrecurso'] ?? '';
         $mesNombre = ucfirst(self::$meses[$recibo['mesquepaga'] - 1] ?? '');
 
+        // El histórico anterior al 12/08/2026 nunca tuvo esta fecha registrada
+        // (fechadelpago = '0000-00-00', ver recibospfs_ediciones.sql). No basta
+        // con strtotime() === false para detectarlo: PHP interpreta
+        // '0000-00-00' como una fecha real (año -1) en vez de fallar, así que
+        // sin esta guarda "Día de pago" mostraba siempre "30" y la mora
+        // siempre Q66.00 — un dato inventado, no el pago real.
+        $fechaPagoValida = $recibo['fechadelpago'] && $recibo['fechadelpago'] !== '0000-00-00';
+        $diaPago = $fechaPagoValida ? date('d', strtotime($recibo['fechadelpago'])) : null;
+
         $mora = null;
         // La mora original solo tenía sentido cuando el mes de pago coincidía con
         // el mes que se está pagando (pago del mes en curso), igual que el legacy.
-        if ((int)date('n', strtotime($recibo['horaregistro'])) === (int)$recibo['mesquepaga']) {
+        if ($fechaPagoValida && (int)date('n', strtotime($recibo['horaregistro'])) === (int)$recibo['mesquepaga']) {
             $dia = (int)date('j', strtotime($recibo['fechadelpago']));
             $calculo = ($dia - 8) * 3;
             $mora = $calculo > 0 ? $calculo : 0;
@@ -462,7 +482,7 @@ class RecibosPfsView {
                 <?php if ($nombreCurso): ?>
                     <div class="datos">Curso: <b><?= htmlspecialchars($nombreCurso) ?></b></div>
                 <?php endif; ?>
-                <div class="datos">Día de pago: <b><?= date('d', strtotime($recibo['fechadelpago'])) ?></b>
+                <div class="datos">Día de pago: <b><?= $diaPago ?? 'No registrado' ?></b>
                     &nbsp; Mes que paga: <b><?= $mesNombre ?></b></div>
 
                 <?php if ($mora !== null): ?>

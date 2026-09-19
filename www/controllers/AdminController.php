@@ -8,6 +8,36 @@ require_once __DIR__ . "/../config/Conexion.php";
 
 class AdminController {
 
+    // Mismo listado y misma conversión que RecibosPfsController::mesNumero():
+    // el formulario de Editar Recibo reutiliza los selects de Día/Mes del
+    // pago del formulario de creación, así que necesita la misma lógica para
+    // recomponer la fecha completa.
+    private array $meses = [
+        1 => 'enero', 2 => 'febrero', 3 => 'marzo', 4 => 'abril',
+        5 => 'mayo', 6 => 'junio', 7 => 'julio', 8 => 'agosto',
+        9 => 'septiembre', 10 => 'octubre', 11 => 'noviembre', 12 => 'diciembre',
+    ];
+
+    private function mesNumero(string $nombre): int|false {
+        return array_search(strtolower(trim($nombre)), $this->meses, true);
+    }
+
+    // A diferencia de RecibosPfsController::guardar() (que siempre asume el
+    // año actual, correcto para un recibo nuevo), aquí el año es explícito:
+    // se está editando un recibo que pudo haberse pagado en cualquier año
+    // anterior, y asumir el año actual corrompería silenciosamente la fecha
+    // de cualquier recibo histórico que no sea de este año.
+    private function componerFechaPago(array $post): ?string {
+        $dia = (int)($post['diapago'] ?? 0);
+        $anio = (int)($post['anio_pago'] ?? 0);
+        $mesNum = $this->mesNumero($post['mespago'] ?? '');
+
+        if ($mesNum === false || $anio < 1900 || $anio > 2999 || !checkdate($mesNum, $dia, $anio)) {
+            return null;
+        }
+        return sprintf('%04d-%02d-%02d', $anio, $mesNum, $dia);
+    }
+
     public function handle(string $action) {
         Auth::requerirSesion();
 
@@ -30,6 +60,19 @@ class AdminController {
             case 'editar_estudiante_guardar':
                 Auth::requerirRol([Auth::ROL_EDITOR, Auth::ROL_ADMINISTRADOR]);
                 $this->editarEstudianteGuardar();
+                break;
+
+            // Editar un recibo altera un documento financiero ya impreso y
+            // entregado, así que a diferencia de anular/editar estudiante
+            // queda restringido al rol administrador.
+            case 'editar_recibo':
+                Auth::requerirRol([Auth::ROL_ADMINISTRADOR]);
+                $this->editarReciboBuscar();
+                break;
+
+            case 'editar_recibo_guardar':
+                Auth::requerirRol([Auth::ROL_ADMINISTRADOR]);
+                $this->editarReciboGuardar();
                 break;
 
             case 'form':
@@ -163,6 +206,106 @@ class AdminController {
         EstudiantesPfsModel::actualizar($db, $carnet, EstudiantesPfsModel::datosDesdePost($_POST), Auth::usuarioActual());
 
         header("Location: admin.php?action=editar_estudiante&carnet=$carnet&msg=actualizado");
+        exit;
+    }
+
+    private function editarReciboBuscar() {
+        $numero = trim($_GET['numero'] ?? '');
+        $db = Conexion::conectar();
+        $recibo = null;
+        $historial = [];
+        $errores = [];
+
+        if ($numero !== '') {
+            if (!ctype_digit($numero)) {
+                $errores[] = "Número de recibo inválido.";
+            } else {
+                $recibo = RecibosPfsModel::obtenerPorNumero($db, (int)$numero);
+                if (!$recibo) {
+                    $errores[] = "No existe ningún recibo con ese número.";
+                } else {
+                    $historial = RecibosPfsModel::historialEdiciones($db, (int)$numero);
+                    // Un recibo anulado ya no representa un cobro vigente:
+                    // editarlo solo confundiría los cierres de caja.
+                    if ($recibo['anulado']) {
+                        $errores[] = "Este recibo está anulado y no puede editarse.";
+                    }
+                }
+            }
+        }
+
+        $mensaje = null;
+        if ($recibo) {
+            if (($_GET['msg'] ?? '') === 'actualizado') {
+                $cambios = max(1, (int)($_GET['cambios'] ?? 1));
+                $mensaje = "El recibo se actualizó correctamente ($cambios campo(s) modificado(s)).";
+            } elseif (($_GET['msg'] ?? '') === 'sin_cambios') {
+                $mensaje = "No se modificó ningún campo: los datos enviados son idénticos a los guardados.";
+            }
+        }
+
+        AdminView::mostrarEditarRecibo($numero, $recibo, $historial, $errores, $mensaje);
+    }
+
+    // Igual que anularConfirmar() y editarEstudianteGuardar(): la contraseña
+    // se vuelve a pedir para que editar un recibo no sea posible con solo
+    // dejar la sesión abierta. El motivo es obligatorio y queda en la
+    // bitácora junto al valor anterior de cada campo modificado.
+    private function editarReciboGuardar() {
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+            header("Location: admin.php?action=editar_recibo");
+            exit;
+        }
+
+        $numero = (int)($_POST['numero'] ?? 0);
+        $password = $_POST['password_actual'] ?? '';
+
+        $db = Conexion::conectar();
+        $recibo = RecibosPfsModel::obtenerPorNumero($db, $numero);
+
+        if (!$recibo) {
+            header("Location: admin.php?action=editar_recibo");
+            exit;
+        }
+
+        // El formulario reutiliza los selects de Día/Mes del pago del
+        // formulario de creación (más un Año explícito, ver
+        // componerFechaPago), en vez de un único <input type="date">. Se
+        // compone aquí una copia de $_POST para validar/guardar sin tocar el
+        // $_POST original: si hay errores, se vuelve a mostrar el formulario
+        // con exactamente lo que el usuario tecleó en esos tres selects.
+        $post = $_POST;
+        $post['fechadelpago'] = $this->componerFechaPago($_POST) ?? '';
+
+        if ($recibo['anulado']) {
+            $errores = ["Este recibo está anulado y no puede editarse."];
+        } else {
+            $errores = RecibosPfsModel::validarEdicion($post, $db);
+        }
+        if (!UsuarioModel::verificar(Auth::usuarioActual(), $password)) {
+            $errores[] = "La contraseña no es correcta.";
+        }
+
+        if (!empty($errores)) {
+            AdminView::mostrarEditarRecibo(
+                (string)$numero,
+                array_merge($recibo, $_POST),
+                RecibosPfsModel::historialEdiciones($db, $numero),
+                $errores
+            );
+            return;
+        }
+
+        $cambios = RecibosPfsModel::actualizar(
+            $db,
+            $numero,
+            RecibosPfsModel::datosEdicionDesdePost($post),
+            trim($_POST['motivo']),
+            Auth::usuarioActual()
+        );
+
+        $msg = empty($cambios) ? 'sin_cambios' : 'actualizado';
+        header("Location: admin.php?action=editar_recibo&numero=$numero&msg=$msg&cambios=" . count($cambios));
         exit;
     }
 }

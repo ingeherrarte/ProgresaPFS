@@ -1,5 +1,6 @@
 <?php
 require_once __DIR__ . "/../config/Conexion.php";
+require_once __DIR__ . "/EstudiantesPfsModel.php";
 
 class RecibosPfsModel {
 
@@ -109,6 +110,220 @@ class RecibosPfsModel {
         );
         $stmt->execute([$motivo, $usuario, $numero]);
         return $stmt->rowCount() > 0;
+    }
+
+    // Campos que el formulario de Editar Recibo (panel de Administración)
+    // puede modificar. Quedan fuera a propósito: `numero` y `aleatorio`
+    // (identifican al recibo ya impreso y entregado), `usuario` y
+    // `horaregistro` (son el rastro de quién cobró y cuándo, no un dato
+    // corregible) y las columnas de anulación, que tienen su propio flujo.
+    private static array $camposEditables = [
+        'carne'        => 'Carné',
+        'fechadelpago' => 'Fecha del pago',
+        'mesquepaga'   => 'Mes que paga',
+        'mensualidad'  => 'Mensualidad',
+        'inscripcion'  => 'Inscripción',
+        'otro'         => 'Otro',
+        'detalle'      => 'Detalle',
+        'efectivo'     => 'Efectivo',
+        'deposito'     => 'Depósito',
+        'nodeposito'   => 'No. de depósito',
+        'fechadep'     => 'Fecha de depósito',
+        'cheque'       => 'Cheque',
+        'nocheque'     => 'No. de cheque',
+        'banco'        => 'Banco',
+    ];
+
+    private const CAMPOS_MONTO = ['mensualidad', 'inscripcion', 'otro', 'efectivo', 'deposito', 'cheque'];
+    private const CAMPOS_ENTEROS = ['mesquepaga', 'nodeposito', 'nocheque'];
+
+    public static function camposEditables(): array {
+        return self::$camposEditables;
+    }
+
+    public static function etiquetaCampo(string $campo): string {
+        return self::$camposEditables[$campo] ?? $campo;
+    }
+
+    // Normaliza un valor para compararlo y para guardarlo en la bitácora: la
+    // BD devuelve los montos como "900" y el formulario los manda como
+    // "900.00". Son el mismo valor y no deben quedar registrados como cambio.
+    private static function normalizar(string $campo, $valor): string {
+        if (in_array($campo, self::CAMPOS_MONTO, true)) {
+            return number_format((float)$valor, 2, '.', '');
+        }
+        if (in_array($campo, self::CAMPOS_ENTEROS, true)) {
+            return (string)(int)$valor;
+        }
+        return trim((string)$valor);
+    }
+
+    private static function esFechaValida(string $fecha): bool {
+        $d = DateTime::createFromFormat('Y-m-d', $fecha);
+        return $d !== false && $d->format('Y-m-d') === $fecha;
+    }
+
+    public static function datosEdicionDesdePost(array $post): array {
+        $deposito = (float)($post['deposito'] ?? 0);
+        $fechadelpago = trim($post['fechadelpago'] ?? '');
+
+        return [
+            'carne'        => trim($post['carne'] ?? ''),
+            'fechadelpago' => $fechadelpago,
+            'mesquepaga'   => (int)($post['mesquepaga'] ?? 0),
+            'mensualidad'  => (float)($post['mensualidad'] ?? 0),
+            'inscripcion'  => (float)($post['inscripcion'] ?? 0),
+            'otro'         => (float)($post['otro'] ?? 0),
+            'detalle'      => trim($post['detalle'] ?? ''),
+            'efectivo'     => (float)($post['efectivo'] ?? 0),
+            'deposito'     => $deposito,
+            'nodeposito'   => (int)($post['nodeposito'] ?? 0),
+            // Sin depósito no hay fecha de depósito real que guardar, pero la
+            // columna es NOT NULL: se replica la fecha del pago, igual que al
+            // crear el recibo (ver RecibosPfsController::guardar).
+            'fechadep'     => ($deposito > 0 && trim($post['fechadep'] ?? '') !== '')
+                ? trim($post['fechadep'])
+                : $fechadelpago,
+            'cheque'       => (float)($post['cheque'] ?? 0),
+            'nocheque'     => (int)($post['nocheque'] ?? 0),
+            'banco'        => trim($post['banco'] ?? ''),
+        ];
+    }
+
+    // Mismas reglas de negocio que al crear un recibo
+    // (RecibosPfsController::validar), adaptadas al formulario de edición:
+    // aquí las fechas llegan como <input type="date"> en vez de día y mes
+    // por nombre.
+    public static function validarEdicion(array $post, PDO $db): array {
+        $errores = [];
+
+        $carne = trim($post['carne'] ?? '');
+        if (!ctype_digit($carne)) {
+            $errores[] = "El carné es obligatorio y debe ser numérico.";
+        } elseif (!EstudiantesPfsModel::buscarPorCarnet($db, $carne)) {
+            $errores[] = "No existe ningún estudiante registrado con el carné $carne.";
+        }
+
+        if (!self::esFechaValida(trim($post['fechadelpago'] ?? ''))) {
+            $errores[] = "La fecha del pago no es una fecha válida.";
+        }
+
+        $mesquepaga = (int)($post['mesquepaga'] ?? 0);
+        if ($mesquepaga < 1 || $mesquepaga > 12) {
+            $errores[] = "El mes que paga no es válido.";
+        }
+
+        foreach (self::CAMPOS_MONTO as $campo) {
+            $valor = $post[$campo] ?? '0';
+            if ($valor === '' || !is_numeric($valor) || (float)$valor < 0) {
+                $errores[] = "El campo '$campo' debe ser un monto numérico válido.";
+            }
+        }
+
+        $totalCargos = round((float)($post['mensualidad'] ?? 0)
+            + (float)($post['inscripcion'] ?? 0) + (float)($post['otro'] ?? 0), 2);
+        $totalPagado = round((float)($post['efectivo'] ?? 0)
+            + (float)($post['deposito'] ?? 0) + (float)($post['cheque'] ?? 0), 2);
+
+        if ($totalCargos <= 0) {
+            $errores[] = "Debe ingresar al menos un monto en mensualidad, inscripción u otro.";
+        }
+        if (abs($totalCargos - $totalPagado) > 0.01) {
+            $errores[] = "El total a cobrar (Q " . number_format($totalCargos, 2)
+                . ") no coincide con el total pagado (Q " . number_format($totalPagado, 2) . ").";
+        }
+
+        if (trim($post['detalle'] ?? '') === '') {
+            $errores[] = "El detalle del pago es obligatorio.";
+        }
+
+        $deposito = (float)($post['deposito'] ?? 0);
+        $cheque = (float)($post['cheque'] ?? 0);
+
+        if ($deposito > 0 && trim($post['nodeposito'] ?? '') === '') {
+            $errores[] = "Debe indicar el número de depósito.";
+        }
+        if ($deposito > 0 && !self::esFechaValida(trim($post['fechadep'] ?? ''))) {
+            $errores[] = "Debe indicar una fecha de depósito válida.";
+        }
+        if ($cheque > 0 && trim($post['nocheque'] ?? '') === '') {
+            $errores[] = "Debe indicar el número de cheque.";
+        }
+        if (($deposito > 0 || $cheque > 0) && trim($post['banco'] ?? '') === '') {
+            $errores[] = "Debe indicar el banco de origen.";
+        }
+
+        if (trim($post['motivo'] ?? '') === '') {
+            $errores[] = "Debe indicar el motivo de la edición.";
+        }
+
+        return $errores;
+    }
+
+    // Aplica los cambios y deja una fila por campo modificado en
+    // recibospfs_ediciones. Devuelve la lista de cambios registrados, o []
+    // si no hubo ninguno (o si el recibo fue anulado entre que se cargó el
+    // formulario y se guardó).
+    //
+    // No hay transacción que cubra ambas escrituras: recibospfs es MyISAM
+    // (legacy) y MyISAM no soporta transacciones. Se actualiza el recibo
+    // primero y solo después se escribe la bitácora, para no dejar
+    // registrado un cambio que la BD rechazó.
+    public static function actualizar(PDO $db, int $numero, array $datos, string $motivo, string $usuario): array {
+        $actual = self::obtenerPorNumero($db, $numero);
+        if (!$actual || $actual['anulado']) {
+            return [];
+        }
+
+        $cambios = [];
+        foreach (array_keys(self::$camposEditables) as $campo) {
+            $antes = self::normalizar($campo, $actual[$campo]);
+            $despues = self::normalizar($campo, $datos[$campo]);
+            if ($antes !== $despues) {
+                $cambios[] = ['campo' => $campo, 'anterior' => $antes, 'nuevo' => $despues];
+            }
+        }
+
+        if (empty($cambios)) {
+            return [];
+        }
+
+        $asignaciones = [];
+        $valores = [];
+        foreach (array_keys(self::$camposEditables) as $campo) {
+            $asignaciones[] = "`$campo` = ?";
+            $valores[] = $datos[$campo];
+        }
+        $valores[] = $numero;
+
+        $stmt = $db->prepare(
+            "UPDATE recibospfs SET " . implode(', ', $asignaciones) . " WHERE numero = ? AND anulado = 0"
+        );
+        $stmt->execute($valores);
+
+        if ($stmt->rowCount() === 0) {
+            return [];
+        }
+
+        $log = $db->prepare(
+            "INSERT INTO recibospfs_ediciones
+                (numero, campo, valor_anterior, valor_nuevo, motivo, usuario)
+             VALUES (?, ?, ?, ?, ?, ?)"
+        );
+        foreach ($cambios as $c) {
+            $log->execute([$numero, $c['campo'], $c['anterior'], $c['nuevo'], $motivo, $usuario]);
+        }
+
+        return $cambios;
+    }
+
+    public static function historialEdiciones(PDO $db, int $numero): array {
+        $stmt = $db->prepare(
+            "SELECT campo, valor_anterior, valor_nuevo, motivo, usuario, fecha
+             FROM recibospfs_ediciones WHERE numero = ? ORDER BY fecha DESC, id DESC"
+        );
+        $stmt->execute([$numero]);
+        return $stmt->fetchAll(PDO::FETCH_ASSOC);
     }
 
     // Detalle + resumen por concepto de un día específico (reemplazo de
