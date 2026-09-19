@@ -25,6 +25,17 @@ class RecibosPfsView {
         'Otro',
     ];
 
+    // Expuestos para que el formulario de Editar Recibo del panel de
+    // Administración (AdminView) ofrezca exactamente las mismas opciones que
+    // el formulario de creación, sin duplicar las listas.
+    public static function meses(): array {
+        return self::$meses;
+    }
+
+    public static function bancos(): array {
+        return self::$bancosGuatemala;
+    }
+
     private static function estilos(): void {
         ?>
         <style>
