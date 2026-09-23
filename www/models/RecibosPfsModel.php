@@ -132,6 +132,7 @@ class RecibosPfsModel {
         'cheque'       => 'Cheque',
         'nocheque'     => 'No. de cheque',
         'banco'        => 'Banco',
+        'foto_deposito' => 'Foto del comprobante',
     ];
 
     private const CAMPOS_MONTO = ['mensualidad', 'inscripcion', 'otro', 'efectivo', 'deposito', 'cheque'];
@@ -187,6 +188,10 @@ class RecibosPfsModel {
             'cheque'       => (float)($post['cheque'] ?? 0),
             'nocheque'     => (int)($post['nocheque'] ?? 0),
             'banco'        => trim($post['banco'] ?? ''),
+            // Resuelto por el controlador antes de llegar aquí (ver
+            // AdminController::editarReciboGuardar): el nombre nuevo si se
+            // subió una foto, o el que ya tenía el recibo si no.
+            'foto_deposito' => trim($post['foto_deposito'] ?? '') ?: null,
         ];
     }
 

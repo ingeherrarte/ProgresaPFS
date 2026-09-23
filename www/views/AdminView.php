@@ -126,6 +126,10 @@ class AdminView {
                         <div class="icono">🔑</div>
                         <div class="titulo">Cambiar Contraseña</div>
                     </a>
+                    <a class="acceso" href="admin.php?action=backup">
+                        <div class="icono">💾</div>
+                        <div class="titulo">Respaldo de Base de Datos</div>
+                    </a>
                     <?php if (Auth::esAdministrador()): ?>
                         <a class="acceso" href="admin.php?action=editar_recibo">
                             <div class="icono">🧾</div>
@@ -374,7 +378,7 @@ class AdminView {
                 <?php endif; ?>
 
                 <?php if ($editable): ?>
-                    <form method="POST" action="admin.php?action=editar_recibo_guardar">
+                    <form method="POST" action="admin.php?action=editar_recibo_guardar" enctype="multipart/form-data">
                         <input type="hidden" name="numero" value="<?= (int)$recibo['numero'] ?>">
 
                         <fieldset>
@@ -495,6 +499,18 @@ class AdminView {
                                     </select>
                                 </div>
                             </div>
+                            <div class="fila">
+                                <div class="campo">
+                                    <label for="foto_deposito">Foto del depósito/transferencia (opcional, máx. 2 MB)</label>
+                                    <?php if (!empty($recibo['foto_deposito'])): ?>
+                                        <div style="font-size:12px; margin-bottom:6px;">
+                                            <a href="uploads/recibos/<?= urlencode($recibo['foto_deposito']) ?>" target="_blank" rel="noopener">Ver comprobante actual</a>
+                                            — si no seleccionas un archivo nuevo, se conserva este.
+                                        </div>
+                                    <?php endif; ?>
+                                    <input type="file" id="foto_deposito" name="foto_deposito" accept="image/jpeg,image/png,image/webp">
+                                </div>
+                            </div>
                         </fieldset>
 
                         <div class="totales">
@@ -575,6 +591,43 @@ class AdminView {
                     recalcularTotales();
                 </script>
             <?php endif; ?>
+        </body>
+        </html>
+        <?php
+    }
+
+    public static function mostrarBackup(?string $error = null, ?string $mensaje = null): void {
+        ?>
+        <!DOCTYPE html>
+        <html lang="es">
+        <head>
+            <meta charset="UTF-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1">
+            <title>Respaldo de Base de Datos — CETECPRO</title>
+            <?php self::estilos(); ?>
+        </head>
+        <body>
+            <?php self::barra(); ?>
+            <h1>Respaldo de Base de Datos</h1>
+
+            <div class="card">
+                <?php if ($mensaje): ?>
+                    <div class="exito">✅ <?= htmlspecialchars($mensaje) ?></div>
+                <?php endif; ?>
+
+                <?php if ($error): ?>
+                    <div class="errores">⚠️ <?= htmlspecialchars($error) ?></div>
+                <?php endif; ?>
+
+                <p style="font-size:13px; color:#555; margin-bottom:18px;">
+                    Genera una copia completa de la base de datos en este momento y la sube
+                    a la nube, sin descargar ningún archivo en este equipo.
+                </p>
+
+                <form method="POST" action="admin.php?action=backup_generar">
+                    <button type="submit">Generar backup</button>
+                </form>
+            </div>
         </body>
         </html>
         <?php
