@@ -6,6 +6,13 @@ services:
     environment:
       MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
       MYSQL_DATABASE: mi_base
+      TZ: America/Guatemala
+    # Offset fijo (Guatemala no tiene horario de verano) en vez de nombre de
+    # zona, para no depender de que las tablas de zonas horarias de MySQL
+    # estén cargadas (mysql_tzinfo_to_sql). Sin esto, NOW()/CURRENT_TIMESTAMP
+    # quedaban en UTC y todo lo registrado entre 6PM-medianoche hora local
+    # caía bajo la fecha del día siguiente (afectaba cierre de caja).
+    command: --default-time-zone=-06:00
     volumes:
       - mysql_data:/var/lib/mysql
     ports:
@@ -31,6 +38,14 @@ services:
     volumes:
       - ./www:/var/www/html
       - ./php-config/uploads.ini:/usr/local/etc/php/conf.d/uploads.ini
+      # Respaldos generados por BackupModel (fuera de ./www a propósito: esa
+      # carpeta es servida directo por Apache, y un backup ahí sería
+      # descargable por cualquiera con el link, sin pasar por sesión).
+      - ./backups:/var/backups/cetecpro
+      # Config de rclone con el token OAuth de Dropbox ya autorizado (ver
+      # BackupModel::subirANube). Solo lectura: el contenedor nunca necesita
+      # reescribirla.
+      - ./rclone/rclone.conf:/etc/rclone/rclone.conf:ro
     ports:
       - "80:80"
     depends_on:
@@ -38,12 +53,14 @@ services:
 
   php_qa:
     build:
-      context: ./php-config
+      context: ./php-config-qa
     container_name: php_qa
     restart: always
     volumes:
       - /srv/mi-stack-qa/www:/var/www/html
-      - ./php-config/uploads.ini:/usr/local/etc/php/conf.d/uploads.ini
+      - ./php-config-qa/uploads.ini:/usr/local/etc/php/conf.d/uploads.ini
+      - ./backups-qa:/var/backups/cetecpro
+      - ./rclone/rclone.conf:/etc/rclone/rclone.conf:ro
     ports:
       - "8090:80"
     depends_on:

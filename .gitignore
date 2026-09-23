@@ -16,6 +16,11 @@ vendor/
 
 # Backups de BD (contienen datos reales, ej. hashes de contraseñas)
 *_backup.sql
+/backups/
+/backups-qa/
+
+# Config de rclone (incluye el token OAuth de Dropbox)
+/rclone/
 
 # Fotos de boletas de depósito subidas por los usuarios
 www/uploads/
