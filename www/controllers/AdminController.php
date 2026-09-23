@@ -2,11 +2,19 @@
 require_once "models/RecibosPfsModel.php";
 require_once "models/UsuarioModel.php";
 require_once "models/EstudiantesPfsModel.php";
+require_once "models/BackupModel.php";
 require_once "views/AdminView.php";
 require_once __DIR__ . "/../helpers/Auth.php";
+require_once __DIR__ . "/../helpers/SubidaImagen.php";
 require_once __DIR__ . "/../config/Conexion.php";
 
 class AdminController {
+
+    // Mismos límites y misma carpeta que RecibosPfsController::guardar():
+    // la foto del comprobante de un recibo vive en un solo lugar sin
+    // importar si se adjuntó al crearlo o al editarlo después.
+    private const CARPETA_COMPROBANTES = __DIR__ . "/../uploads/recibos";
+    private const TAMANO_MAXIMO_COMPROBANTE = 2 * 1024 * 1024;
 
     // Mismo listado y misma conversión que RecibosPfsController::mesNumero():
     // el formulario de Editar Recibo reutiliza los selects de Día/Mes del
@@ -73,6 +81,19 @@ class AdminController {
             case 'editar_recibo_guardar':
                 Auth::requerirRol([Auth::ROL_ADMINISTRADOR]);
                 $this->editarReciboGuardar();
+                break;
+
+            // Sin requerirRol(): disponible para cualquier usuario con
+            // sesión, a diferencia del resto de acciones de este panel. Es
+            // de solo lectura (nunca modifica datos), y se decidió así
+            // deliberadamente para que un respaldo no dependa de que un
+            // administrador en particular esté disponible para generarlo.
+            case 'backup':
+                AdminView::mostrarBackup();
+                break;
+
+            case 'backup_generar':
+                $this->generarBackup();
                 break;
 
             case 'form':
@@ -257,6 +278,16 @@ class AdminController {
             exit;
         }
 
+        // Igual que RecibosPfsController::guardar(): si el POST completo
+        // supera post_max_size (comprobante demasiado pesado sumado al
+        // resto del formulario), PHP vacía $_POST/$_FILES sin marcar ningún
+        // error individual. En ese caso ni siquiera se recupera el número
+        // de recibo que se estaba editando, así que se vuelve a la búsqueda.
+        if (SubidaImagen::postTruncado()) {
+            header("Location: admin.php?action=editar_recibo");
+            exit;
+        }
+
         $numero = (int)($_POST['numero'] ?? 0);
         $password = $_POST['password_actual'] ?? '';
 
@@ -277,16 +308,38 @@ class AdminController {
         $post = $_POST;
         $post['fechadelpago'] = $this->componerFechaPago($_POST) ?? '';
 
+        // La foto es opcional al editar: si no se adjunta una nueva, se
+        // conserva la que el recibo ya tenía (guardar() devuelve [null,null]
+        // cuando no llega archivo). Solo se valida/descarta aquí; a qué
+        // nombre final apunta el registro se decide más abajo, ya con el
+        // resultado de la validación del resto de campos.
+        [$fotoNueva, $errorFoto] = SubidaImagen::guardar(
+            $_FILES['foto_deposito'] ?? [],
+            self::CARPETA_COMPROBANTES,
+            trim($post['carne'] ?? '') ?: 'comprobante',
+            self::TAMANO_MAXIMO_COMPROBANTE,
+            $db,
+            'recibos',
+            trim($post['nodeposito'] ?? '')
+        );
+        $post['foto_deposito'] = $fotoNueva ?? $recibo['foto_deposito'];
+
         if ($recibo['anulado']) {
             $errores = ["Este recibo está anulado y no puede editarse."];
         } else {
             $errores = RecibosPfsModel::validarEdicion($post, $db);
+        }
+        if ($errorFoto) {
+            $errores[] = $errorFoto;
         }
         if (!UsuarioModel::verificar(Auth::usuarioActual(), $password)) {
             $errores[] = "La contraseña no es correcta.";
         }
 
         if (!empty($errores)) {
+            if ($fotoNueva) {
+                SubidaImagen::eliminar(self::CARPETA_COMPROBANTES, $fotoNueva, $db);
+            }
             AdminView::mostrarEditarRecibo(
                 (string)$numero,
                 array_merge($recibo, $_POST),
@@ -304,9 +357,39 @@ class AdminController {
             Auth::usuarioActual()
         );
 
+        // La foto vieja solo se descarta si de verdad se reemplazó por una
+        // distinta: si no se subió nada nuevo, $fotoNueva es null y no hay
+        // nada que borrar aquí.
+        if ($fotoNueva && $recibo['foto_deposito'] && $recibo['foto_deposito'] !== $fotoNueva) {
+            SubidaImagen::eliminar(self::CARPETA_COMPROBANTES, $recibo['foto_deposito'], $db);
+        }
+
         $msg = empty($cambios) ? 'sin_cambios' : 'actualizado';
         header("Location: admin.php?action=editar_recibo&numero=$numero&msg=$msg&cambios=" . count($cambios));
         exit;
+    }
+
+    private function generarBackup() {
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+            header("Location: admin.php?action=backup");
+            exit;
+        }
+
+        $resultado = BackupModel::generar();
+
+        if (!$resultado['ok']) {
+            AdminView::mostrarBackup($resultado['error']);
+            return;
+        }
+
+        $subida = BackupModel::subirANube($resultado['archivo']);
+
+        if (!$subida['ok']) {
+            AdminView::mostrarBackup($subida['error']);
+            return;
+        }
+
+        AdminView::mostrarBackup(null, "Respaldo generado y subido a la nube correctamente.");
     }
 }
 ?>
