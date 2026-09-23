@@ -19,7 +19,7 @@ CREATE TABLE IF NOT EXISTS recibospfs_ediciones (
   valor_anterior VARCHAR(250) NOT NULL DEFAULT '',
   valor_nuevo VARCHAR(250) NOT NULL DEFAULT '',
   motivo VARCHAR(200) NOT NULL,
-  usuario VARCHAR(12) NOT NULL,
+  usuario VARCHAR(30) NOT NULL,
   fecha DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   KEY idx_numero_fecha (numero, fecha)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;

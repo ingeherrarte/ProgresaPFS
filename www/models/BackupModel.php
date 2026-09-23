@@ -12,10 +12,18 @@ class BackupModel {
     // MyISAM legacy (recibospfs, estudiantespfs) sin reinventar su manejo
     // de tipos y collation.
     public static function generar(): array {
+        // Credenciales propias (BACKUP_DB_*), no las de la app (DB_*): el
+        // usuario de la app solo tiene SELECT/INSERT/UPDATE/DELETE, pero
+        // mysqldump necesita además LOCK TABLES y SHOW VIEW para volcar las
+        // tablas MyISAM y las vistas de forma consistente.
         $host = getenv('DB_HOST') ?: 'mysql';
-        $usuario = getenv('DB_USER') ?: 'root';
-        $password = getenv('DB_PASS');
+        $usuario = getenv('BACKUP_DB_USER');
+        $password = getenv('BACKUP_DB_PASS');
         $baseDatos = getenv('DB_NAME') ?: 'cetecpro';
+
+        if (!$usuario || $password === false) {
+            return ['ok' => false, 'error' => 'Falta configurar las credenciales de respaldo (BACKUP_DB_USER/BACKUP_DB_PASS).'];
+        }
 
         if (!is_dir(self::CARPETA_DESTINO) && !mkdir(self::CARPETA_DESTINO, 0770, true) && !is_dir(self::CARPETA_DESTINO)) {
             return ['ok' => false, 'error' => 'No se pudo crear la carpeta de respaldos en el servidor.'];
