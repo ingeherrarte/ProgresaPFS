@@ -596,7 +596,7 @@ class AdminView {
         <?php
     }
 
-    public static function mostrarBackup(?string $error = null, ?string $mensaje = null): void {
+    public static function mostrarBackup(?string $error = null, ?string $mensaje = null, array $historial = []): void {
         ?>
         <!DOCTYPE html>
         <html lang="es">
@@ -605,6 +605,10 @@ class AdminView {
             <meta name="viewport" content="width=device-width, initial-scale=1">
             <title>Respaldo de Base de Datos — CETECPRO</title>
             <?php self::estilos(); ?>
+            <style>
+                .ok { color: #2e7d32; }
+                .fallo { color: #b71c1c; }
+            </style>
         </head>
         <body>
             <?php self::barra(); ?>
@@ -628,6 +632,36 @@ class AdminView {
                     <button type="submit">Generar backup</button>
                 </form>
             </div>
+
+            <?php if (!empty($historial)): ?>
+                <div class="card">
+                    <fieldset>
+                        <legend>Historial de respaldos</legend>
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Fecha</th>
+                                    <th>Origen</th>
+                                    <th>Usuario</th>
+                                    <th>💾 Disco</th>
+                                    <th>☁️ Nube</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <?php foreach ($historial as $h): ?>
+                                    <tr title="<?= htmlspecialchars($h['detalle_error'] ?? '') ?>">
+                                        <td><?= date('d/m/Y H:i', strtotime($h['fecha'])) ?></td>
+                                        <td><?= $h['origen'] === 'automatico' ? '⏰ Automático' : '🖱️ Manual' ?></td>
+                                        <td><?= htmlspecialchars($h['usuario'] ?? 'Sistema') ?></td>
+                                        <td class="<?= $h['disco_local'] ? 'ok' : 'fallo' ?>"><?= $h['disco_local'] ? '✅' : '❌' ?></td>
+                                        <td class="<?= $h['nube'] ? 'ok' : 'fallo' ?>"><?= $h['nube'] ? '✅' : '❌' ?></td>
+                                    </tr>
+                                <?php endforeach; ?>
+                            </tbody>
+                        </table>
+                    </fieldset>
+                </div>
+            <?php endif; ?>
         </body>
         </html>
         <?php

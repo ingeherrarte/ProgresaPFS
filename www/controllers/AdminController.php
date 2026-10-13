@@ -89,7 +89,7 @@ class AdminController {
             // deliberadamente para que un respaldo no dependa de que un
             // administrador en particular esté disponible para generarlo.
             case 'backup':
-                AdminView::mostrarBackup();
+                AdminView::mostrarBackup(null, null, BackupModel::historial());
                 break;
 
             case 'backup_generar':
@@ -375,21 +375,10 @@ class AdminController {
             exit;
         }
 
-        $resultado = BackupModel::generar();
+        $resultado = BackupModel::ejecutar('manual', Auth::usuarioActual());
 
-        if (!$resultado['ok']) {
-            AdminView::mostrarBackup($resultado['error']);
-            return;
-        }
-
-        $subida = BackupModel::subirANube($resultado['archivo']);
-
-        if (!$subida['ok']) {
-            AdminView::mostrarBackup($subida['error']);
-            return;
-        }
-
-        AdminView::mostrarBackup(null, "Respaldo generado y subido a la nube correctamente.");
+        $mensaje = $resultado['ok'] ? "Respaldo generado y subido a la nube correctamente." : null;
+        AdminView::mostrarBackup($resultado['ok'] ? null : $resultado['error'], $mensaje, BackupModel::historial());
     }
 }
 ?>
