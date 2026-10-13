@@ -1,4 +1,5 @@
 <?php
+require_once __DIR__ . "/../config/Conexion.php";
 
 class BackupModel {
 
@@ -106,6 +107,47 @@ class BackupModel {
         }
 
         return ['ok' => true];
+    }
+
+    // Genera, sube a la nube y deja constancia en backups_realizados,
+    // todo en un solo paso: lo usan tanto el botón manual del panel como
+    // el cron del backup automático, para no duplicar esta secuencia en
+    // dos lugares. $usuario es null para los automáticos (no los dispara
+    // nadie con sesión).
+    public static function ejecutar(string $origen, ?string $usuario): array {
+        $resultado = self::generar();
+
+        if (!$resultado['ok']) {
+            self::registrar(null, false, false, $origen, $usuario, $resultado['error']);
+            return $resultado;
+        }
+
+        $nombreArchivo = basename($resultado['archivo']);
+        $subida = self::subirANube($resultado['archivo']);
+
+        self::registrar($nombreArchivo, true, $subida['ok'], $origen, $usuario, $subida['ok'] ? null : $subida['error']);
+
+        return $subida['ok'] ? ['ok' => true] : ['ok' => false, 'error' => $subida['error']];
+    }
+
+    private static function registrar(?string $archivo, bool $discoLocal, bool $nube, string $origen, ?string $usuario, ?string $error): void {
+        $db = Conexion::conectar();
+        $stmt = $db->prepare(
+            "INSERT INTO backups_realizados (archivo, origen, usuario, disco_local, nube, detalle_error)
+             VALUES (?, ?, ?, ?, ?, ?)"
+        );
+        $stmt->execute([$archivo, $origen, $usuario, $discoLocal ? 1 : 0, $nube ? 1 : 0, $error]);
+    }
+
+    public static function historial(int $limite = 20): array {
+        $db = Conexion::conectar();
+        $stmt = $db->prepare(
+            "SELECT archivo, origen, usuario, disco_local, nube, detalle_error, fecha
+             FROM backups_realizados ORDER BY fecha DESC, id DESC LIMIT ?"
+        );
+        $stmt->bindValue(1, $limite, PDO::PARAM_INT);
+        $stmt->execute();
+        return $stmt->fetchAll(PDO::FETCH_ASSOC);
     }
 }
 ?>
