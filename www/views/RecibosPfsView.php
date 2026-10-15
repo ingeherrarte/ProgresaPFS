@@ -1,5 +1,6 @@
 <?php
 require_once __DIR__ . "/../helpers/Auth.php";
+require_once __DIR__ . "/../models/DepositosModel.php";
 
 class RecibosPfsView {
 
@@ -122,6 +123,9 @@ class RecibosPfsView {
         $cheque = htmlspecialchars($data['cheque'] ?? '0.00');
         $nocheque = htmlspecialchars($data['nocheque'] ?? '');
         $banco = $data['banco'] ?? '';
+        // BANRURAL preseleccionada: es la cuenta a la que entra casi toda
+        // transferencia; BANTRAB es la excepción ocasional.
+        $cuentaDestino = $data['cuenta_destino'] ?? '3099203897';
         ?>
         <!DOCTYPE html>
         <html lang="es">
@@ -250,6 +254,15 @@ class RecibosPfsView {
                                 <label for="fechadep">Fecha de depósito</label>
                                 <input type="date" id="fechadep" name="fechadep" value="<?= $fechadep ?>">
                             </div>
+                            <div class="campo destacado">
+                                <label for="cuenta_destino">Cuenta que recibió la transferencia</label>
+                                <select id="cuenta_destino" name="cuenta_destino">
+                                    <option value="">-- Seleccione la cuenta --</option>
+                                    <?php foreach (DepositosModel::cuentas() as $numero => $bancoCuenta): ?>
+                                        <option value="<?= htmlspecialchars($numero) ?>" <?= (string)$numero === $cuentaDestino ? 'selected' : '' ?>><?= htmlspecialchars($bancoCuenta) ?> — <?= htmlspecialchars($numero) ?></option>
+                                    <?php endforeach; ?>
+                                </select>
+                            </div>
                         </div>
                         <div class="fila">
                             <div class="campo">
@@ -347,6 +360,7 @@ class RecibosPfsView {
                 const bancoSelect = document.getElementById('banco');
                 const nodepositoInput = document.getElementById('nodeposito');
                 const fechadepInput = document.getElementById('fechadep');
+                const cuentaDestinoSelect = document.getElementById('cuenta_destino');
 
                 function actualizarCamposRequeridos() {
                     const hayDeposito = (parseFloat(depositoInput.value) || 0) > 0;
@@ -355,6 +369,7 @@ class RecibosPfsView {
                     bancoSelect.required = hayDeposito || hayCheque;
                     nodepositoInput.required = hayDeposito;
                     fechadepInput.required = hayDeposito;
+                    cuentaDestinoSelect.required = hayDeposito;
                 }
 
                 [depositoInput, chequeInput].forEach(el => el.addEventListener('input', actualizarCamposRequeridos));
@@ -504,6 +519,9 @@ class RecibosPfsView {
                         — No. <?= htmlspecialchars($recibo['nodeposito']) ?>
                         — Fecha: <?= date('d/m/Y', strtotime($recibo['fechadep'])) ?>
                         — Banco: <?= htmlspecialchars($recibo['banco']) ?></b></div>
+                    <?php if (!empty($recibo['cuenta_destino'])): ?>
+                        <div class="datos">Entró a cuenta: <?= htmlspecialchars(DepositosModel::bancoDeCuenta($recibo['cuenta_destino']) ?? $recibo['cuenta_destino']) ?> — <?= htmlspecialchars($recibo['cuenta_destino']) ?></div>
+                    <?php endif; ?>
                 <?php endif; ?>
                 <?php if ($recibo['cheque'] > 0): ?>
                     <div class="datos">Cheque: Q <?= number_format($recibo['cheque'], 2) ?>

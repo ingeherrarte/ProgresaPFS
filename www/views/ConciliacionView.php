@@ -143,6 +143,7 @@ class ConciliacionView {
                             <tr>
                                 <th>Fecha depósito</th>
                                 <th>Monto</th>
+                                <th>Cuenta destino</th>
                                 <th>Recibos pendientes</th>
                                 <th>Líneas disponibles en estado de cuenta</th>
                                 <th>Estado</th>
@@ -154,6 +155,13 @@ class ConciliacionView {
                                 <tr>
                                     <td><?= date('d/m/Y', strtotime($g['fecha'])) ?></td>
                                     <td class="num">Q <?= number_format($g['monto'], 2) ?></td>
+                                    <td>
+                                        <?php if ($g['cuenta_destino']): ?>
+                                            <?= htmlspecialchars(DepositosModel::bancoDeCuenta($g['cuenta_destino']) ?? $g['cuenta_destino']) ?>
+                                        <?php else: ?>
+                                            <span style="color:#999;">(sin dato)</span>
+                                        <?php endif; ?>
+                                    </td>
                                     <td>
                                         <?= (int)$g['cantidad'] ?>
                                         <div class="numeros">recibos: <?= htmlspecialchars($g['numeros']) ?></div>
@@ -171,6 +179,7 @@ class ConciliacionView {
                                             <form method="POST" action="conciliacion.php?action=verificar" onsubmit="return confirm('¿Confirmas que estas <?= (int)$g['cantidad'] ?> transferencia(s) del <?= date('d/m/Y', strtotime($g['fecha'])) ?> por Q <?= number_format($g['monto'], 2) ?> están en el estado de cuenta?');">
                                                 <input type="hidden" name="fecha" value="<?= htmlspecialchars($g['fecha']) ?>">
                                                 <input type="hidden" name="monto" value="<?= htmlspecialchars($g['monto']) ?>">
+                                                <input type="hidden" name="cuenta" value="<?= htmlspecialchars($g['cuenta_destino'] ?? '') ?>">
                                                 <input type="hidden" name="desde" value="<?= htmlspecialchars($desde) ?>">
                                                 <button type="submit" class="chico">Verificar</button>
                                             </form>

@@ -372,13 +372,14 @@ class ConciliacionController {
 
         $fecha = $_POST['fecha'] ?? '';
         $monto = (float)($_POST['monto'] ?? 0);
+        $cuenta = trim($_POST['cuenta'] ?? '') ?: null;
         if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $fecha) || $monto <= 0) {
             $this->form(null, "Datos de verificación inválidos.", $desde);
             return;
         }
 
         $db = Conexion::conectar();
-        $resultado = ConciliacionModel::verificarGrupo($db, $fecha, $monto, Auth::usuarioActual());
+        $resultado = ConciliacionModel::verificarGrupo($db, $fecha, $monto, $cuenta, Auth::usuarioActual());
 
         if ($resultado === null) {
             $this->form(null, "Ya no hay suficientes líneas disponibles en el estado de cuenta para ese grupo (puede que alguien más lo haya verificado, o falte importar más líneas).", $desde);
