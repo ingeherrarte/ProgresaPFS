@@ -1,42 +1,46 @@
 <?php
 require_once __DIR__ . "/../helpers/Auth.php";
+require_once __DIR__ . "/../helpers/Tema.php";
 
 class UsuariosView {
 
     private static function estilos(): void {
         ?>
         <style>
+            <?php Tema::tokensBase(); ?>
             * { box-sizing: border-box; margin: 0; padding: 0; }
-            body { font-family: Arial, sans-serif; background: #f0f2f5; padding: 24px; color: #333; }
+            body { font-family: Arial, sans-serif; background: var(--bg-pagina); padding: 24px; color: var(--texto); }
             .barra {
                 display: flex; justify-content: space-between; align-items: center;
                 max-width: 720px; margin: 0 auto 16px;
             }
-            .barra .usuario { font-size: 13px; color: #555; }
-            .barra a { color: #1a237e; text-decoration: none; font-size: 13px; font-weight: bold; margin-left: 16px; }
-            h1 { font-size: 22px; margin-bottom: 20px; color: #1a237e; text-align: center; }
+            .barra .usuario { font-size: 13px; color: var(--texto-muted); }
+            .barra a { color: var(--acento); text-decoration: none; font-size: 13px; font-weight: bold; margin-left: 16px; }
+            <?php Tema::estiloBoton(); ?>
+            h1 { font-size: 22px; margin-bottom: 20px; color: var(--acento); text-align: center; }
             .card {
-                background: #fff; max-width: 720px; margin: 0 auto 24px;
-                border-radius: 6px; padding: 24px 28px; box-shadow: 0 1px 4px rgba(0,0,0,.1);
+                background: var(--bg-tarjeta); max-width: 720px; margin: 0 auto 24px;
+                border-radius: 6px; padding: 24px 28px; box-shadow: 0 1px 4px var(--sombra-tarjeta);
             }
-            fieldset { border: 1px solid #e0e0e0; border-radius: 6px; padding: 14px 18px; margin-bottom: 18px; }
-            legend { font-size: 13px; font-weight: bold; color: #1a237e; padding: 0 6px; }
+            fieldset { border: 1px solid var(--borde-input); border-radius: 6px; padding: 14px 18px; margin-bottom: 18px; }
+            legend { font-size: 13px; font-weight: bold; color: var(--acento); padding: 0 6px; }
             .fila { display: flex; gap: 16px; flex-wrap: wrap; margin-bottom: 12px; }
             .campo { flex: 1; min-width: 160px; }
-            label { display: block; font-size: 12px; font-weight: bold; color: #444; margin-bottom: 4px; }
+            label { display: block; font-size: 12px; font-weight: bold; color: var(--texto); margin-bottom: 4px; }
             input {
                 width: 100%; padding: 8px 10px; font-size: 14px;
-                border: 1px solid #ccc; border-radius: 4px;
+                border: 1px solid var(--borde-input); border-radius: 4px;
+                background: var(--bg-tarjeta); color: var(--texto);
             }
-            input:focus { outline: none; border-color: #1a237e; }
+            input:focus { outline: none; border-color: var(--acento); }
             select {
                 width: 100%; padding: 8px 10px; font-size: 14px;
-                border: 1px solid #ccc; border-radius: 4px; background: #fff;
+                border: 1px solid var(--borde-input); border-radius: 4px; background: var(--bg-tarjeta); color: var(--texto);
             }
-            select:focus { outline: none; border-color: #1a237e; }
+            select:focus { outline: none; border-color: var(--acento); }
             button[type=submit] {
                 width: 100%; padding: 12px; font-size: 15px; font-weight: bold;
-                background: #1a237e; color: #fff; border: none; border-radius: 4px; cursor: pointer;
+                background: var(--acento); color: #fff; border: none; border-radius: 4px; cursor: pointer;
             }
             button[type=submit]:hover { background: #283593; }
             .errores {
@@ -49,9 +53,10 @@ class UsuariosView {
                 padding: 10px 14px; border-radius: 4px; margin-bottom: 18px; font-size: 13px;
             }
             table { border-collapse: collapse; width: 100%; font-size: 13px; }
-            th, td { border: 1px solid #ddd; padding: 8px 10px; text-align: left; }
-            th { background: #1a237e; color: #fff; }
-            tbody tr:nth-child(even) { background: #f5f7ff; }
+            th, td { border: 1px solid var(--tabla-borde); padding: 8px 10px; text-align: left; }
+            th { background: var(--tabla-header-bg); color: var(--tabla-header-texto); }
+            td { color: var(--texto); }
+            tbody tr:nth-child(even) { background: var(--fila-alterna); }
             .estado-activo { color: #2e7d32; font-weight: bold; }
             .estado-inactivo { color: #b71c1c; font-weight: bold; }
         </style>
@@ -67,6 +72,7 @@ class UsuariosView {
                 <a href="recibospfs.php">Ingresar recibo</a>
                 <a href="usuarios.php?action=password">Cambiar contraseña</a>
                 <a href="login.php?action=logout">Cerrar sesión</a>
+                <?php Tema::boton(); ?>
             </span>
         </div>
         <?php
@@ -91,6 +97,7 @@ class UsuariosView {
             <meta charset="UTF-8">
             <meta name="viewport" content="width=device-width, initial-scale=1">
             <title>Usuarios del sistema — CETECPRO</title>
+            <?php Tema::scriptInicial(); ?>
             <?php self::estilos(); ?>
         </head>
         <body>
@@ -183,6 +190,7 @@ class UsuariosView {
                     </table>
                 </fieldset>
             </div>
+            <?php Tema::script(); ?>
         </body>
         </html>
         <?php
@@ -196,6 +204,7 @@ class UsuariosView {
             <meta charset="UTF-8">
             <meta name="viewport" content="width=device-width, initial-scale=1">
             <title>Restablecer contraseña — CETECPRO</title>
+            <?php Tema::scriptInicial(); ?>
             <?php self::estilos(); ?>
         </head>
         <body>
@@ -233,6 +242,7 @@ class UsuariosView {
                     <button type="submit">Restablecer contraseña</button>
                 </form>
             </div>
+            <?php Tema::script(); ?>
         </body>
         </html>
         <?php
@@ -246,6 +256,7 @@ class UsuariosView {
             <meta charset="UTF-8">
             <meta name="viewport" content="width=device-width, initial-scale=1">
             <title>Cambiar contraseña — CETECPRO</title>
+            <?php Tema::scriptInicial(); ?>
             <?php self::estilos(); ?>
         </head>
         <body>
@@ -292,6 +303,7 @@ class UsuariosView {
                     <button type="submit">Cambiar contraseña</button>
                 </form>
             </div>
+            <?php Tema::script(); ?>
         </body>
         </html>
         <?php
