@@ -498,6 +498,15 @@ class AdminView {
                                         <?php endforeach; ?>
                                     </select>
                                 </div>
+                                <div class="campo">
+                                    <label for="cuenta_destino">Cuenta que recibió la transferencia</label>
+                                    <select id="cuenta_destino" name="cuenta_destino">
+                                        <option value="">-- Seleccione la cuenta --</option>
+                                        <?php foreach (DepositosModel::cuentas() as $numero => $bancoCuenta): ?>
+                                            <option value="<?= htmlspecialchars($numero) ?>" <?= ((string)$numero === ($recibo['cuenta_destino'] ?? '')) ? 'selected' : '' ?>><?= htmlspecialchars($bancoCuenta) ?> — <?= htmlspecialchars($numero) ?></option>
+                                        <?php endforeach; ?>
+                                    </select>
+                                </div>
                             </div>
                             <div class="fila">
                                 <div class="campo">

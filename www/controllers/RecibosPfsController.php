@@ -1,6 +1,7 @@
 <?php
 require_once "models/RecibosPfsModel.php";
 require_once "models/EstudiantesPfsModel.php";
+require_once "models/DepositosModel.php";
 require_once "views/RecibosPfsView.php";
 require_once __DIR__ . "/../helpers/Auth.php";
 require_once __DIR__ . "/../helpers/SubidaImagen.php";
@@ -158,6 +159,9 @@ class RecibosPfsController {
         if (($deposito > 0 || $cheque > 0) && trim($post['banco'] ?? '') === '') {
             $errores[] = "Debe indicar el banco de origen.";
         }
+        if ($deposito > 0 && !array_key_exists(trim($post['cuenta_destino'] ?? ''), DepositosModel::cuentas())) {
+            $errores[] = "Debe indicar a cuál cuenta propia entró la transferencia.";
+        }
 
         return $errores;
     }
@@ -225,6 +229,7 @@ class RecibosPfsController {
             'cheque' => (float)$_POST['cheque'],
             'nocheque' => (int)($_POST['nocheque'] ?? 0),
             'banco' => trim($_POST['banco'] ?? ''),
+            'cuenta_destino' => $deposito > 0 ? trim($_POST['cuenta_destino'] ?? '') : null,
             'usuario' => Auth::usuarioActual(),
             'foto_deposito' => $fotoDeposito,
         ];

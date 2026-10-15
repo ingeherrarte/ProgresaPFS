@@ -104,6 +104,10 @@ class InicioView {
                 <div class="icono">🏦</div>
                 <div class="titulo">Depósitos</div>
             </a>
+            <a class="acceso" href="conciliacion.php">
+                <div class="icono">🔗</div>
+                <div class="titulo">Conciliación de Transferencias</div>
+            </a>
             <a class="acceso" href="admin.php">
                 <div class="icono">⚙️</div>
                 <div class="titulo">Administración</div>
@@ -159,10 +163,11 @@ class InicioView {
         ['icono' => '📈', 'titulo' => 'Cierre del Mes', 'href' => 'reporte_recibospfs.php'],
         ['icono' => '📊', 'titulo' => 'Cierre de Año', 'href' => 'cierres.php?tipo=anio'],
         ['icono' => '🏦', 'titulo' => 'Depósitos', 'href' => 'depositos.php'],
+        ['icono' => '🔗', 'titulo' => 'Conciliación de Transferencias', 'href' => 'conciliacion.php'],
         ['icono' => '⚙️', 'titulo' => 'Administración', 'href' => 'admin.php'],
     ];
 
-    public static function mostrarModerno(array $stats): void {
+    public static function mostrarModerno(array $stats, bool $sinPermiso = false): void {
         $recibosHoy = $stats['recibosHoy'];
         $recibosMes = $stats['recibosMes'];
         ?>

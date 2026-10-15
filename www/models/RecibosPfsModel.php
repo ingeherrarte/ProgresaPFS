@@ -1,6 +1,7 @@
 <?php
 require_once __DIR__ . "/../config/Conexion.php";
 require_once __DIR__ . "/EstudiantesPfsModel.php";
+require_once __DIR__ . "/DepositosModel.php";
 
 class RecibosPfsModel {
 
@@ -42,12 +43,12 @@ class RecibosPfsModel {
         $sql = "INSERT INTO recibospfs
             (numero, carne, fechadelpago, primero, segundo, tercero, cuarto,
              mesquepaga, mensualidad, inscripcion, otro, detalle,
-             efectivo, deposito, nodeposito, fechadep, cheque, nocheque, banco,
+             efectivo, deposito, nodeposito, fechadep, cheque, nocheque, banco, cuenta_destino,
              usuario, horaregistro, aleatorio, foto_deposito)
             VALUES
             (?, ?, ?, 0, 0, 0, 0,
              ?, ?, ?, ?, ?,
-             ?, ?, ?, ?, ?, ?, ?,
+             ?, ?, ?, ?, ?, ?, ?, ?,
              ?, NOW(), ?, ?)";
 
         $intentos = 0;
@@ -61,7 +62,7 @@ class RecibosPfsModel {
                     $numero, $datos['carne'], $datos['fechadelpago'],
                     $datos['mesquepaga'], $datos['mensualidad'], $datos['inscripcion'], $datos['otro'], $datos['detalle'],
                     $datos['efectivo'], $datos['deposito'], $datos['nodeposito'], $datos['fechadep'],
-                    $datos['cheque'], $datos['nocheque'], $datos['banco'],
+                    $datos['cheque'], $datos['nocheque'], $datos['banco'], $datos['cuenta_destino'],
                     $datos['usuario'], $aleatorio, $datos['foto_deposito'],
                 ]);
                 return ['numero' => $numero, 'aleatorio' => $aleatorio];
@@ -132,6 +133,7 @@ class RecibosPfsModel {
         'cheque'       => 'Cheque',
         'nocheque'     => 'No. de cheque',
         'banco'        => 'Banco',
+        'cuenta_destino' => 'Cuenta que recibió la transferencia',
         'foto_deposito' => 'Foto del comprobante',
     ];
 
@@ -188,6 +190,7 @@ class RecibosPfsModel {
             'cheque'       => (float)($post['cheque'] ?? 0),
             'nocheque'     => (int)($post['nocheque'] ?? 0),
             'banco'        => trim($post['banco'] ?? ''),
+            'cuenta_destino' => $deposito > 0 ? (trim($post['cuenta_destino'] ?? '') ?: null) : null,
             // Resuelto por el controlador antes de llegar aquí (ver
             // AdminController::editarReciboGuardar): el nombre nuevo si se
             // subió una foto, o el que ya tenía el recibo si no.
@@ -256,6 +259,9 @@ class RecibosPfsModel {
         }
         if (($deposito > 0 || $cheque > 0) && trim($post['banco'] ?? '') === '') {
             $errores[] = "Debe indicar el banco de origen.";
+        }
+        if ($deposito > 0 && !array_key_exists(trim($post['cuenta_destino'] ?? ''), DepositosModel::cuentas())) {
+            $errores[] = "Debe indicar a cuál cuenta propia entró la transferencia.";
         }
 
         if (trim($post['motivo'] ?? '') === '') {
