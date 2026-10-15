@@ -134,9 +134,10 @@ class DashboardView {
         }
         $xw = $x + $w;
         $yh = $y + $h;
+        $yr = $y + $r;
         $yhr = $yh - $r;
         $xwr = $xw - $r;
-        return "M $x $y L $xwr $y Q $xw $y $xw ($y + $r) L $xw $yhr Q $xw $yh $xwr $yh L $x $yh Z";
+        return "M $x $y L $xwr $y Q $xw $y $xw $yr L $xw $yhr Q $xw $yh $xwr $yh L $x $yh Z";
     }
 
     // Gráfica de barras apiladas: ingresos por mes, 3 series (efectivo,
