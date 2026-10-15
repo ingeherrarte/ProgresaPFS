@@ -1,4 +1,6 @@
 <?php
+require_once __DIR__ . "/../helpers/Tema.php";
+
 class LoginView {
 
     public static function mostrar(?string $error = null, string $destino = 'inicio.php') {
@@ -15,33 +17,35 @@ class LoginView {
             <meta name="apple-mobile-web-app-capable" content="yes">
             <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
             <meta name="apple-mobile-web-app-title" content="CETECPRO">
+            <?php Tema::scriptInicial(); ?>
             <style>
+                <?php Tema::tokensBase(); ?>
                 * { box-sizing: border-box; margin: 0; padding: 0; }
                 body {
                     font-family: Arial, sans-serif;
-                    background: #f0f2f5;
+                    background: var(--bg-pagina);
                     min-height: 100vh;
                     display: flex;
                     align-items: center;
                     justify-content: center;
                 }
                 .caja {
-                    background: #fff;
+                    background: var(--bg-tarjeta);
                     width: 100%;
                     max-width: 360px;
                     padding: 32px;
                     border-radius: 8px;
-                    box-shadow: 0 1px 6px rgba(0,0,0,.15);
+                    box-shadow: 0 1px 6px var(--sombra-tarjeta);
                 }
                 h1 {
                     font-size: 20px;
-                    color: #1a237e;
+                    color: var(--acento);
                     margin-bottom: 4px;
                     text-align: center;
                 }
                 p.subtitulo {
                     font-size: 13px;
-                    color: #777;
+                    color: var(--sin-datos);
                     text-align: center;
                     margin-bottom: 24px;
                 }
@@ -49,27 +53,29 @@ class LoginView {
                     display: block;
                     font-size: 13px;
                     font-weight: bold;
-                    color: #333;
+                    color: var(--texto);
                     margin-bottom: 4px;
                 }
                 input[type=text], input[type=password] {
                     width: 100%;
                     padding: 10px 12px;
                     font-size: 14px;
-                    border: 1px solid #ccc;
+                    border: 1px solid var(--borde-input);
                     border-radius: 4px;
                     margin-bottom: 18px;
+                    background: var(--bg-tarjeta);
+                    color: var(--texto);
                 }
                 input[type=text]:focus, input[type=password]:focus {
                     outline: none;
-                    border-color: #1a237e;
+                    border-color: var(--acento);
                 }
                 button {
                     width: 100%;
                     padding: 11px;
                     font-size: 14px;
                     font-weight: bold;
-                    background: #1a237e;
+                    background: var(--acento);
                     color: #fff;
                     border: none;
                     border-radius: 4px;
@@ -85,9 +91,12 @@ class LoginView {
                     font-size: 13px;
                     margin-bottom: 18px;
                 }
+                <?php Tema::estiloBoton(); ?>
+                .tema-toggle-flotante { position: fixed; top: 16px; right: 16px; }
             </style>
         </head>
         <body>
+            <div class="tema-toggle-flotante"><?php Tema::boton(); ?></div>
             <div class="caja">
                 <h1>CETECPRO</h1>
                 <p class="subtitulo">Ingreso de Recibos de Pago</p>
@@ -113,6 +122,7 @@ class LoginView {
                     window.addEventListener('load', () => navigator.serviceWorker.register('sw.js'));
                 }
             </script>
+            <?php Tema::script(); ?>
         </body>
         </html>
         <?php
