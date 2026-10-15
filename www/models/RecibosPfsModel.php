@@ -411,5 +411,33 @@ class RecibosPfsModel {
         $stmt->execute([$anio]);
         return $stmt->fetch(PDO::FETCH_ASSOC);
     }
+
+    // Ingresos del año agrupados por diplomado, para el Dashboard. Un
+    // recibo no sabe a qué curso pertenece directamente — se llega ahí vía
+    // el carné del estudiante (carne = idestudiante). Los recibos de
+    // estudiantes sin curso asignado (codcurso NULL, o un código que ya no
+    // existe en diplomado-curso) se agrupan aparte en vez de perderse en
+    // silencio: son un problema real de datos que vale la pena mostrar, no
+    // ocultar.
+    public static function ingresosPorDiplomado(PDO $db, int $anio): array {
+        $stmt = $db->prepare(
+            "SELECT d.nombre AS diplomado,
+                    COALESCE(SUM(r.efectivo + r.deposito + r.cheque), 0) AS total,
+                    COUNT(*) AS cantidad
+             FROM recibospfs r
+             JOIN estudiantespfs e ON e.idestudiante = r.carne
+             LEFT JOIN `diplomado-curso` d ON d.id = e.codcurso
+             WHERE r.anulado = 0 AND YEAR(r.horaregistro) = ?
+             GROUP BY d.nombre
+             ORDER BY total DESC"
+        );
+        $stmt->execute([$anio]);
+        $filas = $stmt->fetchAll(PDO::FETCH_ASSOC);
+        foreach ($filas as &$fila) {
+            $fila['diplomado'] = $fila['diplomado'] ?? 'Sin curso asignado';
+        }
+        unset($fila);
+        return $filas;
+    }
 }
 ?>
