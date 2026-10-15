@@ -1,5 +1,6 @@
 <?php
 require_once __DIR__ . "/../helpers/Auth.php";
+require_once __DIR__ . "/../helpers/Tema.php";
 
 class DashboardView {
 
@@ -25,22 +26,20 @@ class DashboardView {
     private static function estilos(): void {
         ?>
         <style>
+            <?php Tema::tokensBase(); ?>
+            /* Tokens propios de esta página (KPIs y gráficas) — se agregan
+               encima de los tokens genéricos de Tema::tokensBase(). */
             :root {
-                --bg-pagina: #f0f2f5; --bg-tarjeta: #fff; --texto: #333; --texto-muted: #555;
-                --acento: #1a237e; --borde-input: #ccc; --sombra-tarjeta: rgba(0,0,0,.1);
                 --kpi-bg: #f5f7ff; --kpi-etiqueta: #666; --kpi-valor: #1a237e;
-                --viz-leyenda-texto: #52514e; --tabla-borde: #ddd; --tabla-header-bg: #1a237e;
-                --tabla-header-texto: #fff; --sin-datos: #888;
+                --viz-leyenda-texto: #52514e;
                 --chart-superficie: #fcfcfb; --chart-ink-primaria: #0b0b0b;
                 --chart-ink-secundaria: #52514e; --chart-ink-muted: #898781;
                 --chart-grid: #e1e0d9; --chart-grid-fuerte: #c3c2b7;
             }
-            /* Oscuro automático por preferencia del sistema, salvo que el
-               toggle manual (data-theme) ya haya decidido explícitamente. */
             @media (prefers-color-scheme: dark) {
-                :root:not([data-theme="light"]) { <?php self::tokensOscuros(); ?> }
+                :root:not([data-theme="light"]) { <?php self::tokensOscurosPropios(); ?> }
             }
-            :root[data-theme="dark"] { <?php self::tokensOscuros(); ?> }
+            :root[data-theme="dark"] { <?php self::tokensOscurosPropios(); ?> }
 
             * { box-sizing: border-box; margin: 0; padding: 0; }
             body { font-family: system-ui, -apple-system, "Segoe UI", sans-serif; background: var(--bg-pagina); padding: 24px; color: var(--texto); }
@@ -50,11 +49,7 @@ class DashboardView {
             }
             .barra .usuario { font-size: 13px; color: var(--texto-muted); }
             .barra a { color: var(--acento); text-decoration: none; font-size: 13px; font-weight: bold; margin-left: 16px; }
-            .tema-toggle {
-                background: none; border: 1px solid var(--borde-input); border-radius: 4px;
-                color: var(--texto); font-size: 12.5px; padding: 5px 10px; margin-left: 16px;
-                cursor: pointer; font-family: inherit;
-            }
+            <?php Tema::estiloBoton(); ?>
             h1 { font-size: 22px; margin-bottom: 20px; color: var(--acento); text-align: center; }
             h2 { font-size: 15px; color: var(--acento); margin: 0 0 14px; }
             .card {
@@ -104,15 +99,14 @@ class DashboardView {
         <?php
     }
 
-    // Tokens de tema oscuro, en un solo lugar para no repetirlos entre el
+    // Tokens oscuros propios de esta página (KPIs y gráficas) — los
+    // genéricos (fondo, tarjeta, texto, acento, tabla...) ya los cubre
+    // Tema::tokensBase(). En un solo lugar para no repetirlos entre el
     // bloque de preferencia de sistema y el de selección manual (data-theme).
-    private static function tokensOscuros(): void {
+    private static function tokensOscurosPropios(): void {
         ?>
-        --bg-pagina: #15171c; --bg-tarjeta: #1f232b; --texto: #d7d9de; --texto-muted: #9aa0ab;
-        --acento: #8c9eff; --borde-input: #3a3f4b; --sombra-tarjeta: rgba(0,0,0,.4);
         --kpi-bg: #262b38; --kpi-etiqueta: #aab0ba; --kpi-valor: #8c9eff;
-        --viz-leyenda-texto: #c3c5cb; --tabla-borde: #3a3f4b; --tabla-header-bg: #2b3350;
-        --tabla-header-texto: #e8e9ec; --sin-datos: #8a909b;
+        --viz-leyenda-texto: #c3c5cb;
         --chart-superficie: #1b1e24; --chart-ink-primaria: #e8e9ec;
         --chart-ink-secundaria: #c3c5cb; --chart-ink-muted: #8a8d95;
         --chart-grid: #33363d; --chart-grid-fuerte: #4a4d55;
@@ -127,7 +121,7 @@ class DashboardView {
                 <a href="inicio.php">Inicio</a>
                 <a href="admin.php">Administración</a>
                 <a href="login.php?action=logout">Cerrar sesión</a>
-                <button type="button" id="temaToggle" class="tema-toggle" onclick="alternarTema()">🌓 Tema</button>
+                <?php Tema::boton(); ?>
             </span>
         </div>
         <?php
@@ -363,16 +357,7 @@ class DashboardView {
             <meta charset="UTF-8">
             <meta name="viewport" content="width=device-width, initial-scale=1">
             <title>Dashboard — CETECPRO</title>
-            <script>
-                // Se aplica el tema guardado ANTES de pintar la página
-                // (evita el parpadeo de un tema para luego cambiar al otro).
-                try {
-                    const temaGuardado = localStorage.getItem('cetecpro_tema');
-                    if (temaGuardado === 'dark' || temaGuardado === 'light') {
-                        document.documentElement.setAttribute('data-theme', temaGuardado);
-                    }
-                } catch (e) {}
-            </script>
+            <?php Tema::scriptInicial(); ?>
             <?php self::estilos(); ?>
         </head>
         <body>
@@ -463,19 +448,8 @@ class DashboardView {
             </div>
 
             <div class="viz-tooltip" id="vizTooltip"></div>
+            <?php Tema::script(); ?>
             <script>
-                // Toggle manual de tema: data-theme en <html> pisa la
-                // preferencia de sistema (ver @media en estilos()) y se
-                // recuerda en localStorage para la próxima visita.
-                function alternarTema() {
-                    const raiz = document.documentElement;
-                    const prefiereOscuro = window.matchMedia('(prefers-color-scheme: dark)').matches;
-                    const actual = raiz.getAttribute('data-theme') || (prefiereOscuro ? 'dark' : 'light');
-                    const nuevo = actual === 'dark' ? 'light' : 'dark';
-                    raiz.setAttribute('data-theme', nuevo);
-                    try { localStorage.setItem('cetecpro_tema', nuevo); } catch (e) {}
-                }
-
                 // Hover/focus en cada marca (barra o segmento): el propio
                 // mark es el hit target, no hace falta un overlay aparte.
                 // Mismo tooltip para mouse (pointermove) y teclado (focus).
