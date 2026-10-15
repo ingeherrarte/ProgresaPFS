@@ -32,7 +32,7 @@ class Tema {
             --bg-pagina: #f0f2f5; --bg-tarjeta: #fff; --texto: #333; --texto-muted: #555;
             --acento: #1a237e; --borde-input: #ccc; --sombra-tarjeta: rgba(0,0,0,.1);
             --tabla-borde: #ddd; --tabla-header-bg: #1a237e; --tabla-header-texto: #fff;
-            --sin-datos: #888;
+            --sin-datos: #888; --fila-alterna: #f5f7ff;
         }
         <?php self::bloqueOscuro(); ?>
         <?php
@@ -55,7 +55,7 @@ class Tema {
         --bg-pagina: #15171c; --bg-tarjeta: #1f232b; --texto: #d7d9de; --texto-muted: #9aa0ab;
         --acento: #8c9eff; --borde-input: #3a3f4b; --sombra-tarjeta: rgba(0,0,0,.4);
         --tabla-borde: #3a3f4b; --tabla-header-bg: #2b3350; --tabla-header-texto: #e8e9ec;
-        --sin-datos: #8a909b;
+        --sin-datos: #8a909b; --fila-alterna: #262b38;
         <?php
     }
 

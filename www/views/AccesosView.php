@@ -1,31 +1,35 @@
 <?php
 require_once __DIR__ . "/../helpers/Auth.php";
+require_once __DIR__ . "/../helpers/Tema.php";
 
 class AccesosView {
 
     private static function estilos(): void {
         ?>
         <style>
+            <?php Tema::tokensBase(); ?>
             * { box-sizing: border-box; margin: 0; padding: 0; }
-            body { font-family: Arial, sans-serif; background: #f0f2f5; padding: 24px; color: #333; }
+            body { font-family: Arial, sans-serif; background: var(--bg-pagina); padding: 24px; color: var(--texto); }
             .barra {
                 display: flex; justify-content: space-between; align-items: center;
                 max-width: 720px; margin: 0 auto 16px;
             }
-            .barra .usuario { font-size: 13px; color: #555; }
-            .barra a { color: #1a237e; text-decoration: none; font-size: 13px; font-weight: bold; margin-left: 16px; }
-            h1 { font-size: 22px; margin-bottom: 20px; color: #1a237e; text-align: center; }
+            .barra .usuario { font-size: 13px; color: var(--texto-muted); }
+            .barra a { color: var(--acento); text-decoration: none; font-size: 13px; font-weight: bold; margin-left: 16px; }
+            <?php Tema::estiloBoton(); ?>
+            h1 { font-size: 22px; margin-bottom: 20px; color: var(--acento); text-align: center; }
             .card {
-                background: #fff; max-width: 720px; margin: 0 auto 24px;
-                border-radius: 6px; padding: 24px 28px; box-shadow: 0 1px 4px rgba(0,0,0,.1);
+                background: var(--bg-tarjeta); max-width: 720px; margin: 0 auto 24px;
+                border-radius: 6px; padding: 24px 28px; box-shadow: 0 1px 4px var(--sombra-tarjeta);
             }
             table { border-collapse: collapse; width: 100%; font-size: 13px; }
-            th, td { border: 1px solid #ddd; padding: 8px 10px; text-align: left; }
-            th { background: #1a237e; color: #fff; }
-            tbody tr:nth-child(even) { background: #f5f7ff; }
+            th, td { border: 1px solid var(--tabla-borde); padding: 8px 10px; text-align: left; }
+            th { background: var(--tabla-header-bg); color: var(--tabla-header-texto); }
+            td { color: var(--texto); }
+            tbody tr:nth-child(even) { background: var(--fila-alterna); }
             .tipo-ingreso { color: #2e7d32; font-weight: bold; }
             .tipo-salida { color: #b71c1c; font-weight: bold; }
-            .vacio { text-align: center; color: #777; font-size: 13px; padding: 12px 0; }
+            .vacio { text-align: center; color: var(--sin-datos); font-size: 13px; padding: 12px 0; }
         </style>
         <?php
     }
@@ -38,6 +42,7 @@ class AccesosView {
                 <a href="inicio.php">Inicio</a>
                 <a href="admin.php">Administración</a>
                 <a href="login.php?action=logout">Cerrar sesión</a>
+                <?php Tema::boton(); ?>
             </span>
         </div>
         <?php
@@ -51,6 +56,7 @@ class AccesosView {
             <meta charset="UTF-8">
             <meta name="viewport" content="width=device-width, initial-scale=1">
             <title>Registro de accesos — CETECPRO</title>
+            <?php Tema::scriptInicial(); ?>
             <?php self::estilos(); ?>
         </head>
         <body>
@@ -86,6 +92,7 @@ class AccesosView {
                     </table>
                 <?php endif; ?>
             </div>
+            <?php Tema::script(); ?>
         </body>
         </html>
         <?php
