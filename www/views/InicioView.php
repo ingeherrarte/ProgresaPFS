@@ -1,48 +1,51 @@
 <?php
 require_once __DIR__ . "/../helpers/Auth.php";
+require_once __DIR__ . "/../helpers/Tema.php";
 
 class InicioView {
 
     private static function estilos(): void {
         ?>
         <style>
+            <?php Tema::tokensBase(); ?>
             * { box-sizing: border-box; margin: 0; padding: 0; }
-            body { font-family: Arial, sans-serif; background: #f0f2f5; padding: 24px; color: #333; }
+            body { font-family: Arial, sans-serif; background: var(--bg-pagina); padding: 24px; color: var(--texto); }
             .barra {
                 display: flex; justify-content: space-between; align-items: center;
                 max-width: 900px; margin: 0 auto 16px;
             }
-            .barra .usuario { font-size: 13px; color: #555; }
-            .barra a { color: #1a237e; text-decoration: none; font-size: 13px; font-weight: bold; margin-left: 16px; }
-            h1 { font-size: 22px; margin-bottom: 6px; color: #1a237e; text-align: center; }
-            .subtitulo { text-align: center; font-size: 13px; color: #777; margin-bottom: 24px; }
+            .barra .usuario { font-size: 13px; color: var(--texto-muted); }
+            .barra a { color: var(--acento); text-decoration: none; font-size: 13px; font-weight: bold; margin-left: 16px; }
+            <?php Tema::estiloBoton(); ?>
+            h1 { font-size: 22px; margin-bottom: 6px; color: var(--acento); text-align: center; }
+            .subtitulo { text-align: center; font-size: 13px; color: var(--sin-datos); margin-bottom: 24px; }
             .contenedor { max-width: 900px; margin: 0 auto; }
             .accesos {
                 display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
                 gap: 16px; margin-bottom: 8px;
             }
             .acceso {
-                background: #fff; border-radius: 8px; padding: 28px 20px; text-align: center;
-                text-decoration: none; box-shadow: 0 1px 4px rgba(0,0,0,.1);
+                background: var(--bg-tarjeta); border-radius: 8px; padding: 28px 20px; text-align: center;
+                text-decoration: none; box-shadow: 0 1px 4px var(--sombra-tarjeta);
                 transition: transform .15s, box-shadow .15s;
             }
-            .acceso:hover { transform: translateY(-3px); box-shadow: 0 4px 12px rgba(0,0,0,.15); }
+            .acceso:hover { transform: translateY(-3px); box-shadow: 0 4px 12px var(--sombra-tarjeta); }
             .acceso .icono { font-size: 32px; margin-bottom: 10px; }
-            .acceso .titulo { font-size: 15px; font-weight: bold; color: #1a237e; }
+            .acceso .titulo { font-size: 15px; font-weight: bold; color: var(--acento); }
             .tarjetas {
                 display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
                 gap: 16px; margin-bottom: 28px;
             }
             .tarjeta {
-                background: #fff; border-radius: 8px; padding: 20px; box-shadow: 0 1px 4px rgba(0,0,0,.1);
-                border-left: 4px solid #1a237e;
+                background: var(--bg-tarjeta); border-radius: 8px; padding: 20px; box-shadow: 0 1px 4px var(--sombra-tarjeta);
+                border-left: 4px solid var(--acento);
             }
-            .tarjeta .etiqueta { font-size: 12px; color: #777; font-weight: bold; text-transform: uppercase; letter-spacing: .5px; }
-            .tarjeta .valor { font-size: 28px; font-weight: bold; color: #1a237e; margin: 6px 0 2px; }
-            .tarjeta .detalle { font-size: 12px; color: #999; }
+            .tarjeta .etiqueta { font-size: 12px; color: var(--sin-datos); font-weight: bold; text-transform: uppercase; letter-spacing: .5px; }
+            .tarjeta .valor { font-size: 28px; font-weight: bold; color: var(--acento); margin: 6px 0 2px; }
+            .tarjeta .detalle { font-size: 12px; color: var(--sin-datos); }
             .cambiar-vista { text-align: center; margin-top: 24px; }
             .cambiar-vista a {
-                font-size: 13px; color: #1a237e; text-decoration: none; font-weight: bold;
+                font-size: 13px; color: var(--acento); text-decoration: none; font-weight: bold;
             }
             .cambiar-vista a:hover { text-decoration: underline; }
             .errores {
@@ -60,6 +63,7 @@ class InicioView {
             <span class="usuario">Usuario: <b><?= htmlspecialchars(Auth::nombreActual()) ?></b></span>
             <span>
                 <a href="login.php?action=logout">Cerrar sesión</a>
+                <?php Tema::boton(); ?>
             </span>
         </div>
         <?php
@@ -124,6 +128,7 @@ class InicioView {
             <meta charset="UTF-8">
             <meta name="viewport" content="width=device-width, initial-scale=1">
             <title>Inicio — CETECPRO</title>
+            <?php Tema::scriptInicial(); ?>
             <?php self::estilos(); ?>
         </head>
         <body>
@@ -144,6 +149,7 @@ class InicioView {
                     <a href="inicio.php?vista=moderno">Ver estilo moderno (Laravel/Vue) →</a>
                 </div>
             </div>
+            <?php Tema::script(); ?>
         </body>
         </html>
         <?php
@@ -383,6 +389,7 @@ class InicioView {
             <meta charset="UTF-8">
             <meta name="viewport" content="width=device-width, initial-scale=1">
             <title>Inicio — CETECPRO</title>
+            <?php Tema::scriptInicial(); ?>
             <?php self::estilos(); ?>
         </head>
         <body>
@@ -422,6 +429,7 @@ class InicioView {
                     <a href="inicio.php?vista=moderno">Ver estilo moderno (Laravel/Vue) →</a>
                 </div>
             </div>
+            <?php Tema::script(); ?>
         </body>
         </html>
         <?php

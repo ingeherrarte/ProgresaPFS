@@ -1,6 +1,7 @@
 <?php
 require_once __DIR__ . "/../helpers/Auth.php";
 require_once __DIR__ . "/../models/DepositosModel.php";
+require_once __DIR__ . "/../helpers/Tema.php";
 
 class DepositosView {
 
@@ -20,38 +21,42 @@ class DepositosView {
             <meta name="apple-mobile-web-app-capable" content="yes">
             <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
             <meta name="apple-mobile-web-app-title" content="CETECPRO">
+            <?php Tema::scriptInicial(); ?>
             <style>
+                <?php Tema::tokensBase(); ?>
                 * { box-sizing: border-box; margin: 0; padding: 0; }
-                body { font-family: Arial, sans-serif; background: #f0f2f5; padding: 24px; color: #333; }
+                body { font-family: Arial, sans-serif; background: var(--bg-pagina); padding: 24px; color: var(--texto); }
                 .barra {
                     display: flex; justify-content: space-between; align-items: center;
                     max-width: 900px; margin: 0 auto 16px;
                 }
-                .barra .usuario { font-size: 13px; color: #555; }
-                .barra a { color: #1a237e; text-decoration: none; font-size: 13px; font-weight: bold; margin-left: 16px; }
-                h1 { font-size: 22px; margin-bottom: 20px; color: #1a237e; text-align: center; }
+                .barra .usuario { font-size: 13px; color: var(--texto-muted); }
+                .barra a { color: var(--acento); text-decoration: none; font-size: 13px; font-weight: bold; margin-left: 16px; }
+                <?php Tema::estiloBoton(); ?>
+                h1 { font-size: 22px; margin-bottom: 20px; color: var(--acento); text-align: center; }
                 .card {
-                    background: #fff; max-width: 900px; margin: 0 auto 24px;
-                    border-radius: 6px; padding: 24px 28px; box-shadow: 0 1px 4px rgba(0,0,0,.1);
+                    background: var(--bg-tarjeta); max-width: 900px; margin: 0 auto 24px;
+                    border-radius: 6px; padding: 24px 28px; box-shadow: 0 1px 4px var(--sombra-tarjeta);
                 }
-                fieldset { border: 1px solid #e0e0e0; border-radius: 6px; padding: 14px 18px; margin-bottom: 18px; }
-                legend { font-size: 13px; font-weight: bold; color: #1a237e; padding: 0 6px; }
+                fieldset { border: 1px solid var(--borde-input); border-radius: 6px; padding: 14px 18px; margin-bottom: 18px; }
+                legend { font-size: 13px; font-weight: bold; color: var(--acento); padding: 0 6px; }
                 /* Mobile-first: un campo por renglón, más fácil de llenar con el
                    pulgar; a partir de 640px se acomodan varios por fila. */
                 .fila { display: flex; flex-direction: column; gap: 14px; margin-bottom: 14px; }
                 .campo { flex: 1; min-width: 0; }
-                label { display: block; font-size: 13px; font-weight: bold; color: #444; margin-bottom: 5px; }
+                label { display: block; font-size: 13px; font-weight: bold; color: var(--texto); margin-bottom: 5px; }
                 input, select {
                     width: 100%; padding: 12px 10px; font-size: 16px;
-                    border: 1px solid #ccc; border-radius: 4px;
+                    border: 1px solid var(--borde-input); border-radius: 4px;
+                    background: var(--bg-tarjeta); color: var(--texto);
                 }
                 /* font-size 16px en inputs evita que Safari/Chrome en iPhone
                    hagan zoom automático al enfocar el campo. */
-                input:focus, select:focus { outline: none; border-color: #1a237e; }
+                input:focus, select:focus { outline: none; border-color: var(--acento); }
                 input[type=file] { padding: 10px 8px; }
                 button[type=submit] {
                     width: 100%; padding: 15px; font-size: 16px; font-weight: bold;
-                    background: #1a237e; color: #fff; border: none; border-radius: 4px; cursor: pointer;
+                    background: var(--acento); color: #fff; border: none; border-radius: 4px; cursor: pointer;
                 }
                 button[type=submit]:hover { background: #283593; }
                 .tabla-scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; }
@@ -68,12 +73,13 @@ class DepositosView {
                     padding: 10px 14px; border-radius: 4px; margin-bottom: 18px; font-size: 13px;
                 }
                 table { border-collapse: collapse; width: 100%; font-size: 13px; }
-                th, td { border: 1px solid #ddd; padding: 8px 10px; text-align: left; }
-                th { background: #1a237e; color: #fff; white-space: nowrap; }
+                th, td { border: 1px solid var(--tabla-borde); padding: 8px 10px; text-align: left; }
+                th { background: var(--tabla-header-bg); color: var(--tabla-header-texto); white-space: nowrap; }
+                td { color: var(--texto); }
                 td.num { text-align: right; font-family: 'Courier New', monospace; }
-                tbody tr:nth-child(even) { background: #f5f7ff; }
-                .sin-datos { color: #888; font-style: italic; padding: 12px 0; }
-                h2 { font-size: 15px; color: #1a237e; margin: 0 0 12px; }
+                tbody tr:nth-child(even) { background: var(--fila-alterna); }
+                .sin-datos { color: var(--sin-datos); font-style: italic; padding: 12px 0; }
+                h2 { font-size: 15px; color: var(--acento); margin: 0 0 12px; }
             </style>
         </head>
         <body>
@@ -82,6 +88,7 @@ class DepositosView {
                 <span>
                     <a href="inicio.php">Inicio</a>
                     <a href="login.php?action=logout">Cerrar sesión</a>
+                    <?php Tema::boton(); ?>
                 </span>
             </div>
             <h1>Ingreso de Boletas de Depósito</h1>
@@ -216,6 +223,7 @@ class DepositosView {
                     window.addEventListener('load', () => navigator.serviceWorker.register('sw.js'));
                 }
             </script>
+            <?php Tema::script(); ?>
         </body>
         </html>
         <?php

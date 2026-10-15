@@ -1,43 +1,48 @@
 <?php
 require_once __DIR__ . "/../helpers/Auth.php";
+require_once __DIR__ . "/../helpers/Tema.php";
 
 class CierresView {
 
     private static function estilos(): void {
         ?>
         <style>
+            <?php Tema::tokensBase(); ?>
             * { box-sizing: border-box; margin: 0; padding: 0; }
-            body { font-family: Arial, sans-serif; background: #f0f2f5; padding: 24px; color: #333; }
+            body { font-family: Arial, sans-serif; background: var(--bg-pagina); padding: 24px; color: var(--texto); }
             .barra {
                 display: flex; justify-content: space-between; align-items: center;
                 max-width: 960px; margin: 0 auto 16px;
             }
-            .barra .usuario { font-size: 13px; color: #555; }
-            .barra a { color: #1a237e; text-decoration: none; font-size: 13px; font-weight: bold; margin-left: 16px; }
-            h1 { font-size: 22px; margin-bottom: 20px; color: #1a237e; text-align: center; }
+            .barra .usuario { font-size: 13px; color: var(--texto-muted); }
+            .barra a { color: var(--acento); text-decoration: none; font-size: 13px; font-weight: bold; margin-left: 16px; }
+            <?php Tema::estiloBoton(); ?>
+            h1 { font-size: 22px; margin-bottom: 20px; color: var(--acento); text-align: center; }
             .card {
-                background: #fff; max-width: 960px; margin: 0 auto 24px;
-                border-radius: 6px; padding: 24px 28px; box-shadow: 0 1px 4px rgba(0,0,0,.1);
+                background: var(--bg-tarjeta); max-width: 960px; margin: 0 auto 24px;
+                border-radius: 6px; padding: 24px 28px; box-shadow: 0 1px 4px var(--sombra-tarjeta);
             }
             .filtro { display: flex; gap: 12px; align-items: flex-end; flex-wrap: wrap; }
-            .filtro label { display: block; font-size: 12px; font-weight: bold; color: #444; margin-bottom: 4px; }
+            .filtro label { display: block; font-size: 12px; font-weight: bold; color: var(--texto); margin-bottom: 4px; }
             .filtro input, .filtro select {
-                padding: 8px 10px; font-size: 14px; border: 1px solid #ccc; border-radius: 4px;
+                padding: 8px 10px; font-size: 14px; border: 1px solid var(--borde-input); border-radius: 4px;
+                background: var(--bg-tarjeta); color: var(--texto);
             }
             .filtro button {
                 padding: 9px 20px; font-size: 14px; font-weight: bold;
-                background: #1a237e; color: #fff; border: none; border-radius: 4px; cursor: pointer;
+                background: var(--acento); color: #fff; border: none; border-radius: 4px; cursor: pointer;
             }
             .filtro button:hover { background: #283593; }
             table { border-collapse: collapse; width: 100%; font-size: 13px; }
-            th, td { border: 1px solid #ddd; padding: 8px 10px; text-align: left; }
-            th { background: #1a237e; color: #fff; white-space: nowrap; }
+            th, td { border: 1px solid var(--tabla-borde); padding: 8px 10px; text-align: left; }
+            th { background: var(--tabla-header-bg); color: var(--tabla-header-texto); white-space: nowrap; }
+            td { color: var(--texto); }
             td.num { text-align: right; font-family: 'Courier New', monospace; }
-            tbody tr:nth-child(even) { background: #f5f7ff; }
-            tfoot tr { background: #1a237e !important; color: #fff; font-weight: bold; }
-            tfoot td { border-color: #1a237e; }
-            .sin-datos { color: #888; font-style: italic; padding: 20px 0; }
-            h2 { font-size: 15px; color: #1a237e; margin: 0 0 12px; }
+            tbody tr:nth-child(even) { background: var(--fila-alterna); }
+            tfoot tr { background: var(--tabla-header-bg) !important; color: var(--tabla-header-texto); font-weight: bold; }
+            tfoot td { border-color: var(--tabla-header-bg); color: var(--tabla-header-texto); }
+            .sin-datos { color: var(--sin-datos); font-style: italic; padding: 20px 0; }
+            h2 { font-size: 15px; color: var(--acento); margin: 0 0 12px; }
             .fila-anulada td { color: #999; text-decoration: line-through; }
             .fila-anulada td.estado { text-decoration: none; }
             .estado-anulado { color: #b71c1c; font-weight: bold; text-decoration: none !important; }
@@ -57,6 +62,7 @@ class CierresView {
             <span>
                 <a href="inicio.php">Inicio</a>
                 <a href="login.php?action=logout">Cerrar sesión</a>
+                <?php Tema::boton(); ?>
             </span>
         </div>
         <?php
@@ -70,6 +76,7 @@ class CierresView {
             <meta charset="UTF-8">
             <meta name="viewport" content="width=device-width, initial-scale=1">
             <title>Cierre del Día — CETECPRO</title>
+            <?php Tema::scriptInicial(); ?>
             <?php self::estilos(); ?>
         </head>
         <body>
@@ -168,6 +175,7 @@ class CierresView {
                     </div>
                 <?php endif; ?>
             </div>
+            <?php Tema::script(); ?>
         </body>
         </html>
         <?php
@@ -185,6 +193,7 @@ class CierresView {
             <meta charset="UTF-8">
             <meta name="viewport" content="width=device-width, initial-scale=1">
             <title>Cierre de Año — CETECPRO</title>
+            <?php Tema::scriptInicial(); ?>
             <?php self::estilos(); ?>
         </head>
         <body>
@@ -252,6 +261,7 @@ class CierresView {
                     </div>
                 <?php endif; ?>
             </div>
+            <?php Tema::script(); ?>
         </body>
         </html>
         <?php

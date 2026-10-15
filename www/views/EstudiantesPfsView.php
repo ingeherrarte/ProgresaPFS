@@ -1,6 +1,7 @@
 <?php
 require_once __DIR__ . "/../helpers/Auth.php";
 require_once __DIR__ . "/../models/EstudiantesPfsModel.php";
+require_once __DIR__ . "/../helpers/Tema.php";
 
 class EstudiantesPfsView {
 
@@ -12,47 +13,52 @@ class EstudiantesPfsView {
             <meta charset="UTF-8">
             <meta name="viewport" content="width=device-width, initial-scale=1">
             <title>Buscar Estudiantes — CETECPRO</title>
+            <?php Tema::scriptInicial(); ?>
             <style>
+                <?php Tema::tokensBase(); ?>
                 * { box-sizing: border-box; margin: 0; padding: 0; }
-                body { font-family: Arial, sans-serif; background: #f0f2f5; padding: 24px; color: #333; }
+                body { font-family: Arial, sans-serif; background: var(--bg-pagina); padding: 24px; color: var(--texto); }
                 .barra {
                     display: flex; justify-content: space-between; align-items: center;
                     max-width: 960px; margin: 0 auto 16px;
                 }
-                .barra .usuario { font-size: 13px; color: #555; }
-                .barra a { color: #1a237e; text-decoration: none; font-size: 13px; font-weight: bold; margin-left: 16px; }
-                h1 { font-size: 22px; margin-bottom: 20px; color: #1a237e; text-align: center; }
+                .barra .usuario { font-size: 13px; color: var(--texto-muted); }
+                .barra a { color: var(--acento); text-decoration: none; font-size: 13px; font-weight: bold; margin-left: 16px; }
+                <?php Tema::estiloBoton(); ?>
+                h1 { font-size: 22px; margin-bottom: 20px; color: var(--acento); text-align: center; }
                 .card {
-                    background: #fff; max-width: 960px; margin: 0 auto 24px;
-                    border-radius: 6px; padding: 24px 28px; box-shadow: 0 1px 4px rgba(0,0,0,.1);
+                    background: var(--bg-tarjeta); max-width: 960px; margin: 0 auto 24px;
+                    border-radius: 6px; padding: 24px 28px; box-shadow: 0 1px 4px var(--sombra-tarjeta);
                 }
                 .fila { display: flex; gap: 16px; flex-wrap: wrap; align-items: flex-end; }
                 .campo { flex: 1; min-width: 200px; }
-                label { display: block; font-size: 12px; font-weight: bold; color: #444; margin-bottom: 4px; }
+                label { display: block; font-size: 12px; font-weight: bold; color: var(--texto); margin-bottom: 4px; }
                 input {
                     width: 100%; padding: 8px 10px; font-size: 14px;
-                    border: 1px solid #ccc; border-radius: 4px;
+                    border: 1px solid var(--borde-input); border-radius: 4px;
+                    background: var(--bg-tarjeta); color: var(--texto);
                 }
-                input:focus { outline: none; border-color: #1a237e; }
+                input:focus { outline: none; border-color: var(--acento); }
                 button {
                     padding: 9px 20px; font-size: 14px; font-weight: bold;
-                    background: #1a237e; color: #fff; border: none; border-radius: 4px; cursor: pointer;
+                    background: var(--acento); color: #fff; border: none; border-radius: 4px; cursor: pointer;
                 }
                 button:hover { background: #283593; }
                 table { border-collapse: collapse; width: 100%; font-size: 13px; }
-                th, td { border: 1px solid #ddd; padding: 8px 10px; text-align: left; }
-                th { background: #1a237e; color: #fff; }
-                tbody tr:nth-child(even) { background: #f5f7ff; }
-                .sin-resultados { color: #777; font-style: italic; padding: 12px 0; }
-                .resumen { font-size: 13px; color: #555; margin-bottom: 12px; }
+                th, td { border: 1px solid var(--tabla-borde); padding: 8px 10px; text-align: left; }
+                th { background: var(--tabla-header-bg); color: var(--tabla-header-texto); }
+                td { color: var(--texto); }
+                tbody tr:nth-child(even) { background: var(--fila-alterna); }
+                .sin-resultados { color: var(--sin-datos); font-style: italic; padding: 12px 0; }
+                .resumen { font-size: 13px; color: var(--texto-muted); margin-bottom: 12px; }
                 .estado-inactivo { color: #b71c1c; font-weight: bold; font-size: 11px; }
                 .paginacion { display: flex; gap: 6px; justify-content: center; margin-top: 16px; flex-wrap: wrap; }
                 .paginacion a, .paginacion span {
                     padding: 6px 12px; border-radius: 4px; font-size: 13px; text-decoration: none;
                 }
-                .paginacion a { background: #f5f7ff; color: #1a237e; }
+                .paginacion a { background: var(--fila-alterna); color: var(--acento); }
                 .paginacion a:hover { background: #e0e4ff; }
-                .paginacion span.actual { background: #1a237e; color: #fff; font-weight: bold; }
+                .paginacion span.actual { background: var(--acento); color: #fff; font-weight: bold; }
                 .usar-btn {
                     display: inline-block; padding: 5px 12px; font-size: 12px; font-weight: bold;
                     background: #2e7d32; color: #fff; text-decoration: none; border-radius: 4px;
@@ -80,6 +86,7 @@ class EstudiantesPfsView {
                     <a href="estudiantespfs.php?action=form">Nuevo estudiante</a>
                     <a href="recibospfs.php">Nuevo recibo</a>
                     <a href="login.php?action=logout">Cerrar sesión</a>
+                    <?php Tema::boton(); ?>
                 </span>
             </div>
             <h1>Buscar Estudiantes</h1>
@@ -223,6 +230,7 @@ class EstudiantesPfsView {
                     temporizadorBusqueda = setTimeout(() => buscarEnVivo(termino), 300);
                 });
             </script>
+            <?php Tema::script(); ?>
         </body>
         </html>
         <?php
@@ -240,21 +248,24 @@ class EstudiantesPfsView {
             <meta charset="UTF-8">
             <meta name="viewport" content="width=device-width, initial-scale=1">
             <title>Ficha de Estudiante — <?= htmlspecialchars(trim($e['nombre'] . ' ' . $e['apellidos'])) ?></title>
+            <?php Tema::scriptInicial(); ?>
             <style>
+                <?php Tema::tokensBase(); ?>
                 * { box-sizing: border-box; margin: 0; padding: 0; }
-                body { font-family: Arial, sans-serif; background: #f0f2f5; padding: 24px; color: #222; }
+                body { font-family: Arial, sans-serif; background: var(--bg-pagina); padding: 24px; color: var(--texto); }
                 .barra {
                     display: flex; justify-content: space-between; align-items: center;
                     max-width: 800px; margin: 0 auto 16px;
                 }
-                .barra a { color: #1a237e; text-decoration: none; font-size: 13px; font-weight: bold; margin-right: 12px; }
+                .barra a { color: var(--acento); text-decoration: none; font-size: 13px; font-weight: bold; margin-right: 12px; }
                 .barra button {
                     padding: 7px 16px; font-size: 13px; font-weight: bold; cursor: pointer;
-                    background: #1a237e; color: #fff; border: none; border-radius: 4px;
+                    background: var(--acento); color: #fff; border: none; border-radius: 4px;
                 }
+                <?php Tema::estiloBoton(); ?>
                 .ficha {
-                    background: #fff; max-width: 800px; margin: 0 auto;
-                    border-radius: 6px; padding: 28px 32px; box-shadow: 0 1px 4px rgba(0,0,0,.1);
+                    background: var(--bg-tarjeta); max-width: 800px; margin: 0 auto;
+                    border-radius: 6px; padding: 28px 32px; box-shadow: 0 1px 4px var(--sombra-tarjeta);
                 }
                 .encabezado { text-align: center; margin-bottom: 14px; }
                 .encabezado h1 { font-size: 18px; color: #1a237e; }
@@ -304,7 +315,10 @@ class EstudiantesPfsView {
                 <span>
                     <a href="estudiantespfs.php">← Volver a la búsqueda</a>
                 </span>
-                <button onclick="window.print()">🖨️ Imprimir</button>
+                <span>
+                    <button onclick="window.print()">🖨️ Imprimir</button>
+                    <?php Tema::boton(); ?>
+                </span>
             </div>
 
             <div class="ficha">
@@ -381,6 +395,7 @@ class EstudiantesPfsView {
                     <?php endif; ?>
                 </div>
             </div>
+            <?php Tema::script(); ?>
         </body>
         </html>
         <?php
@@ -400,33 +415,37 @@ class EstudiantesPfsView {
             <meta charset="UTF-8">
             <meta name="viewport" content="width=device-width, initial-scale=1">
             <title>Nuevo Estudiante — CETECPRO</title>
+            <?php Tema::scriptInicial(); ?>
             <style>
+                <?php Tema::tokensBase(); ?>
                 * { box-sizing: border-box; margin: 0; padding: 0; }
-                body { font-family: Arial, sans-serif; background: #f0f2f5; padding: 24px; color: #333; }
+                body { font-family: Arial, sans-serif; background: var(--bg-pagina); padding: 24px; color: var(--texto); }
                 .barra {
                     display: flex; justify-content: space-between; align-items: center;
                     max-width: 800px; margin: 0 auto 16px;
                 }
-                .barra .usuario { font-size: 13px; color: #555; }
-                .barra a { color: #1a237e; text-decoration: none; font-size: 13px; font-weight: bold; margin-left: 16px; }
-                h1 { font-size: 22px; margin-bottom: 20px; color: #1a237e; text-align: center; }
+                .barra .usuario { font-size: 13px; color: var(--texto-muted); }
+                .barra a { color: var(--acento); text-decoration: none; font-size: 13px; font-weight: bold; margin-left: 16px; }
+                <?php Tema::estiloBoton(); ?>
+                h1 { font-size: 22px; margin-bottom: 20px; color: var(--acento); text-align: center; }
                 .card {
-                    background: #fff; max-width: 800px; margin: 0 auto;
-                    border-radius: 6px; padding: 24px 28px; box-shadow: 0 1px 4px rgba(0,0,0,.1);
+                    background: var(--bg-tarjeta); max-width: 800px; margin: 0 auto;
+                    border-radius: 6px; padding: 24px 28px; box-shadow: 0 1px 4px var(--sombra-tarjeta);
                 }
-                fieldset { border: 1px solid #e0e0e0; border-radius: 6px; padding: 14px 18px; margin-bottom: 18px; }
-                legend { font-size: 13px; font-weight: bold; color: #1a237e; padding: 0 6px; }
+                fieldset { border: 1px solid var(--borde-input); border-radius: 6px; padding: 14px 18px; margin-bottom: 18px; }
+                legend { font-size: 13px; font-weight: bold; color: var(--acento); padding: 0 6px; }
                 .fila { display: flex; gap: 16px; flex-wrap: wrap; margin-bottom: 12px; }
                 .campo { flex: 1; min-width: 180px; }
-                label { display: block; font-size: 12px; font-weight: bold; color: #444; margin-bottom: 4px; }
+                label { display: block; font-size: 12px; font-weight: bold; color: var(--texto); margin-bottom: 4px; }
                 input, select {
                     width: 100%; padding: 8px 10px; font-size: 14px;
-                    border: 1px solid #ccc; border-radius: 4px;
+                    border: 1px solid var(--borde-input); border-radius: 4px;
+                    background: var(--bg-tarjeta); color: var(--texto);
                 }
-                input:focus, select:focus { outline: none; border-color: #1a237e; }
+                input:focus, select:focus { outline: none; border-color: var(--acento); }
                 button[type=submit] {
                     width: 100%; padding: 12px; font-size: 15px; font-weight: bold;
-                    background: #1a237e; color: #fff; border: none; border-radius: 4px; cursor: pointer;
+                    background: var(--acento); color: #fff; border: none; border-radius: 4px; cursor: pointer;
                 }
                 button[type=submit]:hover { background: #283593; }
                 .errores {
@@ -448,6 +467,7 @@ class EstudiantesPfsView {
                     <a href="estudiantespfs.php">Buscar estudiante</a>
                     <a href="recibospfs.php">Nuevo recibo</a>
                     <a href="login.php?action=logout">Cerrar sesión</a>
+                    <?php Tema::boton(); ?>
                 </span>
             </div>
             <h1>Registrar Nuevo Estudiante</h1>
@@ -476,6 +496,7 @@ class EstudiantesPfsView {
             </div>
 
             <?php self::scriptToggleMenor(); ?>
+            <?php Tema::script(); ?>
         </body>
         </html>
         <?php

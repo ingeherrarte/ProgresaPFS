@@ -2,6 +2,7 @@
 require_once __DIR__ . "/../helpers/Auth.php";
 require_once __DIR__ . "/../models/EstudiantesPfsModel.php";
 require_once __DIR__ . "/../models/ConsultaPagosModel.php";
+require_once __DIR__ . "/../helpers/Tema.php";
 
 class ConsultaPagosView {
 
@@ -17,38 +18,42 @@ class ConsultaPagosView {
     private static function estilos(): void {
         ?>
         <style>
+            <?php Tema::tokensBase(); ?>
             * { box-sizing: border-box; margin: 0; padding: 0; }
-            body { font-family: Arial, sans-serif; background: #f0f2f5; padding: 24px; color: #333; }
+            body { font-family: Arial, sans-serif; background: var(--bg-pagina); padding: 24px; color: var(--texto); }
             .barra {
                 display: flex; justify-content: space-between; align-items: center;
                 max-width: 1000px; margin: 0 auto 16px;
             }
-            .barra .usuario { font-size: 13px; color: #555; }
-            .barra a { color: #1a237e; text-decoration: none; font-size: 13px; font-weight: bold; margin-left: 16px; }
-            h1 { font-size: 22px; margin-bottom: 20px; color: #1a237e; text-align: center; }
+            .barra .usuario { font-size: 13px; color: var(--texto-muted); }
+            .barra a { color: var(--acento); text-decoration: none; font-size: 13px; font-weight: bold; margin-left: 16px; }
+            <?php Tema::estiloBoton(); ?>
+            h1 { font-size: 22px; margin-bottom: 20px; color: var(--acento); text-align: center; }
             .card {
-                background: #fff; max-width: 1000px; margin: 0 auto 24px;
-                border-radius: 6px; padding: 24px 28px; box-shadow: 0 1px 4px rgba(0,0,0,.1);
+                background: var(--bg-tarjeta); max-width: 1000px; margin: 0 auto 24px;
+                border-radius: 6px; padding: 24px 28px; box-shadow: 0 1px 4px var(--sombra-tarjeta);
             }
             .fila { display: flex; gap: 16px; flex-wrap: wrap; align-items: flex-end; }
             .campo { flex: 1; min-width: 200px; }
-            label { display: block; font-size: 12px; font-weight: bold; color: #444; margin-bottom: 4px; }
+            label { display: block; font-size: 12px; font-weight: bold; color: var(--texto); margin-bottom: 4px; }
             input {
                 width: 100%; padding: 8px 10px; font-size: 14px;
-                border: 1px solid #ccc; border-radius: 4px;
+                border: 1px solid var(--borde-input); border-radius: 4px;
+                background: var(--bg-tarjeta); color: var(--texto);
             }
-            input:focus { outline: none; border-color: #1a237e; }
+            input:focus { outline: none; border-color: var(--acento); }
             button {
                 padding: 9px 20px; font-size: 14px; font-weight: bold;
-                background: #1a237e; color: #fff; border: none; border-radius: 4px; cursor: pointer;
+                background: var(--acento); color: #fff; border: none; border-radius: 4px; cursor: pointer;
             }
             button:hover { background: #283593; }
             table { border-collapse: collapse; width: 100%; font-size: 13px; }
-            th, td { border: 1px solid #ddd; padding: 8px 10px; text-align: left; }
-            th { background: #1a237e; color: #fff; }
-            tbody tr:nth-child(even) { background: #f5f7ff; }
-            .sin-resultados { color: #777; font-style: italic; padding: 12px 0; }
-            .resumen { font-size: 13px; color: #555; margin-bottom: 12px; }
+            th, td { border: 1px solid var(--tabla-borde); padding: 8px 10px; text-align: left; }
+            th { background: var(--tabla-header-bg); color: var(--tabla-header-texto); }
+            td { color: var(--texto); }
+            tbody tr:nth-child(even) { background: var(--fila-alterna); }
+            .sin-resultados { color: var(--sin-datos); font-style: italic; padding: 12px 0; }
+            .resumen { font-size: 13px; color: var(--texto-muted); margin-bottom: 12px; }
             .estado-inactivo { color: #b71c1c; font-weight: bold; font-size: 11px; }
             .estado-anulado { color: #b71c1c; font-weight: bold; font-size: 11px; }
             .money { text-align: right; font-variant-numeric: tabular-nums; }
@@ -56,12 +61,12 @@ class ConsultaPagosView {
             .paginacion a, .paginacion span {
                 padding: 6px 12px; border-radius: 4px; font-size: 13px; text-decoration: none;
             }
-            .paginacion a { background: #f5f7ff; color: #1a237e; }
+            .paginacion a { background: var(--fila-alterna); color: var(--acento); }
             .paginacion a:hover { background: #e0e4ff; }
-            .paginacion span.actual { background: #1a237e; color: #fff; font-weight: bold; }
+            .paginacion span.actual { background: var(--acento); color: #fff; font-weight: bold; }
             .ver-btn {
                 display: inline-block; padding: 5px 12px; font-size: 12px; font-weight: bold;
-                background: #1a237e; color: #fff; text-decoration: none; border-radius: 4px;
+                background: var(--acento); color: #fff; text-decoration: none; border-radius: 4px;
             }
             .ver-btn:hover { background: #283593; }
             .usar-btn {
@@ -74,20 +79,20 @@ class ConsultaPagosView {
                 gap: 14px; margin-bottom: 24px;
             }
             .tarjeta {
-                background: #f5f7ff; border-radius: 8px; padding: 16px; text-align: center;
-                border: 1px solid #e0e4ff;
+                background: var(--fila-alterna); border-radius: 8px; padding: 16px; text-align: center;
+                border: 1px solid var(--borde-input);
             }
-            .tarjeta.total { background: #1a237e; color: #fff; border: none; }
-            .tarjeta .etiqueta { font-size: 11px; text-transform: uppercase; letter-spacing: .5px; color: #666; font-weight: bold; }
+            .tarjeta.total { background: var(--acento); color: #fff; border: none; }
+            .tarjeta .etiqueta { font-size: 11px; text-transform: uppercase; letter-spacing: .5px; color: var(--texto-muted); font-weight: bold; }
             .tarjeta.total .etiqueta { color: #c5cae9; }
-            .tarjeta .valor { font-size: 20px; font-weight: bold; margin-top: 6px; color: #1a237e; }
+            .tarjeta .valor { font-size: 20px; font-weight: bold; margin-top: 6px; color: var(--acento); }
             .tarjeta.total .valor { color: #fff; }
             .info-grid {
                 display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-                gap: 14px; margin-bottom: 22px; background: #f8f9fb; border-left: 4px solid #1a237e;
+                gap: 14px; margin-bottom: 22px; background: var(--fila-alterna); border-left: 4px solid var(--acento);
                 border-radius: 6px; padding: 16px 20px;
             }
-            .info-grid .dato b { display: block; color: #666; font-size: 11px; text-transform: uppercase; }
+            .info-grid .dato b { display: block; color: var(--texto-muted); font-size: 11px; text-transform: uppercase; }
         </style>
         <?php
     }
@@ -99,6 +104,7 @@ class ConsultaPagosView {
             <span>
                 <a href="inicio.php">Inicio</a>
                 <a href="login.php?action=logout">Cerrar sesión</a>
+                <?php Tema::boton(); ?>
             </span>
         </div>
         <?php
@@ -112,6 +118,7 @@ class ConsultaPagosView {
             <meta charset="UTF-8">
             <meta name="viewport" content="width=device-width, initial-scale=1">
             <title>Consulta de Pagos — CETECPRO</title>
+            <?php Tema::scriptInicial(); ?>
             <?php self::estilos(); ?>
         </head>
         <body>
@@ -254,6 +261,7 @@ class ConsultaPagosView {
                     temporizadorBusqueda = setTimeout(() => buscarEnVivo(termino), 300);
                 });
             </script>
+            <?php Tema::script(); ?>
         </body>
         </html>
         <?php
@@ -280,6 +288,7 @@ class ConsultaPagosView {
             <meta charset="UTF-8">
             <meta name="viewport" content="width=device-width, initial-scale=1">
             <title>Historial de Pagos — <?= htmlspecialchars(trim($estudiante['nombre'] . ' ' . $estudiante['apellidos'])) ?></title>
+            <?php Tema::scriptInicial(); ?>
             <?php self::estilos(); ?>
         </head>
         <body>
@@ -399,6 +408,7 @@ class ConsultaPagosView {
                     </table>
                 <?php endif; ?>
             </div>
+            <?php Tema::script(); ?>
         </body>
         </html>
         <?php
