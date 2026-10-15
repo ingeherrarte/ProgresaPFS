@@ -1,6 +1,7 @@
 <?php
 require_once __DIR__ . "/../helpers/Auth.php";
 require_once __DIR__ . "/../models/DepositosModel.php";
+require_once __DIR__ . "/../helpers/Tema.php";
 
 class RecibosPfsView {
 
@@ -40,29 +41,32 @@ class RecibosPfsView {
     private static function estilos(): void {
         ?>
         <style>
+            <?php Tema::tokensBase(); ?>
             * { box-sizing: border-box; margin: 0; padding: 0; }
-            body { font-family: Arial, sans-serif; background: #f0f2f5; padding: 24px; color: #333; }
+            body { font-family: Arial, sans-serif; background: var(--bg-pagina); padding: 24px; color: var(--texto); }
             .barra {
                 display: flex; justify-content: space-between; align-items: center;
                 max-width: 720px; margin: 0 auto 16px;
             }
-            .barra .usuario { font-size: 13px; color: #555; }
-            .barra a { color: #1a237e; text-decoration: none; font-size: 13px; font-weight: bold; margin-left: 16px; }
-            h1 { font-size: 22px; margin-bottom: 20px; color: #1a237e; text-align: center; }
+            .barra .usuario { font-size: 13px; color: var(--texto-muted); }
+            .barra a { color: var(--acento); text-decoration: none; font-size: 13px; font-weight: bold; margin-left: 16px; }
+            <?php Tema::estiloBoton(); ?>
+            h1 { font-size: 22px; margin-bottom: 20px; color: var(--acento); text-align: center; }
             .card {
-                background: #fff; max-width: 720px; margin: 0 auto;
-                border-radius: 6px; padding: 24px 28px; box-shadow: 0 1px 4px rgba(0,0,0,.1);
+                background: var(--bg-tarjeta); max-width: 720px; margin: 0 auto;
+                border-radius: 6px; padding: 24px 28px; box-shadow: 0 1px 4px var(--sombra-tarjeta);
             }
-            fieldset { border: 1px solid #e0e0e0; border-radius: 6px; padding: 14px 18px; margin-bottom: 18px; }
-            legend { font-size: 13px; font-weight: bold; color: #1a237e; padding: 0 6px; }
+            fieldset { border: 1px solid var(--borde-input); border-radius: 6px; padding: 14px 18px; margin-bottom: 18px; }
+            legend { font-size: 13px; font-weight: bold; color: var(--acento); padding: 0 6px; }
             .fila { display: flex; gap: 16px; flex-wrap: wrap; margin-bottom: 12px; }
             .campo { flex: 1; min-width: 160px; }
-            label { display: block; font-size: 12px; font-weight: bold; color: #444; margin-bottom: 4px; }
+            label { display: block; font-size: 12px; font-weight: bold; color: var(--texto); margin-bottom: 4px; }
             input, select {
                 width: 100%; padding: 8px 10px; font-size: 14px;
-                border: 1px solid #ccc; border-radius: 4px;
+                border: 1px solid var(--borde-input); border-radius: 4px;
+                background: var(--bg-tarjeta); color: var(--texto);
             }
-            input:focus, select:focus { outline: none; border-color: #1a237e; }
+            input:focus, select:focus { outline: none; border-color: var(--acento); }
             .estudiante-info {
                 font-size: 13px; margin-top: 6px; padding: 8px 10px; border-radius: 4px;
                 min-height: 18px;
@@ -72,13 +76,13 @@ class RecibosPfsView {
             .estudiante-info.alerta { background: #fff8e1; color: #8d6e00; }
             .totales {
                 display: flex; justify-content: space-between; font-size: 14px;
-                background: #f5f7ff; border-radius: 4px; padding: 10px 14px; margin-bottom: 18px;
+                background: var(--fila-alterna); border-radius: 4px; padding: 10px 14px; margin-bottom: 18px;
             }
             .totales span.no-coincide { color: #b71c1c; font-weight: bold; }
             .totales span.coincide { color: #2e7d32; font-weight: bold; }
             button[type=submit] {
                 width: 100%; padding: 12px; font-size: 15px; font-weight: bold;
-                background: #1a237e; color: #fff; border: none; border-radius: 4px; cursor: pointer;
+                background: var(--acento); color: #fff; border: none; border-radius: 4px; cursor: pointer;
             }
             button[type=submit]:hover { background: #283593; }
             .errores {
@@ -86,14 +90,15 @@ class RecibosPfsView {
                 padding: 10px 14px; border-radius: 4px; margin-bottom: 18px; font-size: 13px;
             }
             .errores ul { margin: 6px 0 0 18px; }
-            .campo.destacado label { font-weight: bold; color: #1a237e; }
+            .campo.destacado label { font-weight: bold; color: var(--acento); }
             .campo.destacado input, .campo.destacado select { font-weight: bold; }
             .card.ancho { max-width: 960px; }
             table { border-collapse: collapse; width: 100%; font-size: 13px; }
-            th, td { border: 1px solid #ddd; padding: 8px 10px; text-align: left; }
-            th { background: #1a237e; color: #fff; }
-            tbody tr:nth-child(even) { background: #f5f7ff; }
-            .sin-resultados { color: #777; font-style: italic; padding: 12px 0; }
+            th, td { border: 1px solid var(--tabla-borde); padding: 8px 10px; text-align: left; }
+            th { background: var(--tabla-header-bg); color: var(--tabla-header-texto); }
+            td { color: var(--texto); }
+            tbody tr:nth-child(even) { background: var(--fila-alterna); }
+            .sin-resultados { color: var(--sin-datos); font-style: italic; padding: 12px 0; }
         </style>
         <?php
     }
@@ -133,6 +138,7 @@ class RecibosPfsView {
             <meta charset="UTF-8">
             <meta name="viewport" content="width=device-width, initial-scale=1">
             <title>Ingreso de Recibo — CETECPRO</title>
+            <?php Tema::scriptInicial(); ?>
             <?php self::estilos(); ?>
         </head>
         <body>
@@ -144,6 +150,7 @@ class RecibosPfsView {
                     <a href="estudiantespfs.php">Buscar estudiante</a>
                     <a href="recibospfs.php?action=buscar">Buscar recibos</a>
                     <a href="login.php?action=logout">Cerrar sesión</a>
+                    <?php Tema::boton(); ?>
                 </span>
             </div>
             <h1>CETECPRO — Ingreso de Recibo de Pago</h1>
@@ -375,6 +382,7 @@ class RecibosPfsView {
                 [depositoInput, chequeInput].forEach(el => el.addEventListener('input', actualizarCamposRequeridos));
                 actualizarCamposRequeridos();
             </script>
+            <?php Tema::script(); ?>
         </body>
         </html>
         <?php
@@ -412,32 +420,35 @@ class RecibosPfsView {
             <meta charset="UTF-8">
             <meta name="viewport" content="width=device-width, initial-scale=1">
             <title>Recibo No. <?= $recibo['numero'] ?> — CETECPRO</title>
+            <?php Tema::scriptInicial(); ?>
             <style>
+                <?php Tema::tokensBase(); ?>
                 * { box-sizing: border-box; margin: 0; padding: 0; }
-                body { font-family: Arial, sans-serif; background: #f0f2f5; padding: 24px; color: #222; }
+                body { font-family: Arial, sans-serif; background: var(--bg-pagina); padding: 24px; color: var(--texto); }
                 .acciones { max-width: 640px; margin: 0 auto 16px; display: flex; justify-content: space-between; }
-                .acciones span { display: flex; gap: 8px; }
+                .acciones span { display: flex; gap: 8px; align-items: center; }
                 .acciones a, .acciones button {
-                    font-size: 13px; font-weight: bold; color: #fff; background: #1a237e;
+                    font-size: 13px; font-weight: bold; color: #fff; background: var(--acento);
                     border: none; border-radius: 4px; padding: 8px 16px; text-decoration: none; cursor: pointer;
                 }
+                <?php Tema::estiloBoton(); ?>
                 .copia {
-                    background: #fff; max-width: 640px; margin: 0 auto 24px; border-radius: 6px;
-                    padding: 24px 28px; box-shadow: 0 1px 4px rgba(0,0,0,.1);
+                    background: var(--bg-tarjeta); max-width: 640px; margin: 0 auto 24px; border-radius: 6px;
+                    padding: 24px 28px; box-shadow: 0 1px 4px var(--sombra-tarjeta);
                 }
-                .copia h2 { color: #1a237e; font-size: 18px; margin-bottom: 2px; }
-                .copia .direccion { font-size: 12px; color: #666; margin-bottom: 14px; }
-                .copia .numero { text-align: right; font-size: 13px; color: #555; margin-bottom: 10px; }
-                .datos { font-size: 14px; margin-bottom: 4px; }
-                .datos b { color: #1a237e; }
+                .copia h2 { color: var(--acento); font-size: 18px; margin-bottom: 2px; }
+                .copia .direccion { font-size: 12px; color: var(--texto-muted); margin-bottom: 14px; }
+                .copia .numero { text-align: right; font-size: 13px; color: var(--texto-muted); margin-bottom: 10px; }
+                .datos { font-size: 14px; margin-bottom: 4px; color: var(--texto); }
+                .datos b { color: var(--acento); }
                 .aviso {
                     background: #fff8e1; color: #8d6e00; padding: 8px 12px; border-radius: 4px;
                     font-size: 13px; margin: 12px 0;
                 }
-                .total { font-size: 16px; font-weight: bold; text-align: right; margin-top: 12px; color: #1a237e; }
-                .pie { font-size: 11px; color: #777; margin-top: 16px; text-align: center; }
+                .total { font-size: 16px; font-weight: bold; text-align: right; margin-top: 12px; color: var(--acento); }
+                .pie { font-size: 11px; color: var(--sin-datos); margin-top: 16px; text-align: center; }
                 .etiqueta-copia {
-                    text-align: center; font-size: 11px; color: #999; margin-top: 16px;
+                    text-align: center; font-size: 11px; color: var(--sin-datos); margin-top: 16px;
                     text-transform: uppercase; letter-spacing: 1px;
                 }
                 .banner-anulado {
@@ -467,6 +478,7 @@ class RecibosPfsView {
                         <a href="admin.php?action=anular&numero=<?= $recibo['numero'] ?>" style="background:#b71c1c;">Anular recibo</a>
                     <?php endif; ?>
                     <button onclick="window.print()">Imprimir</button>
+                    <?php Tema::boton(); ?>
                 </span>
             </div>
 
@@ -544,6 +556,7 @@ class RecibosPfsView {
                 <div class="etiqueta-copia"><?= $etiqueta ?></div>
             </div>
             <?php endforeach; ?>
+            <?php Tema::script(); ?>
         </body>
         </html>
         <?php
@@ -557,6 +570,7 @@ class RecibosPfsView {
             <meta charset="UTF-8">
             <meta name="viewport" content="width=device-width, initial-scale=1">
             <title>Buscar Recibos — CETECPRO</title>
+            <?php Tema::scriptInicial(); ?>
             <?php self::estilos(); ?>
         </head>
         <body>
@@ -566,6 +580,7 @@ class RecibosPfsView {
                     <a href="inicio.php">Inicio</a>
                     <a href="recibospfs.php">Nuevo recibo</a>
                     <a href="login.php?action=logout">Cerrar sesión</a>
+                    <?php Tema::boton(); ?>
                 </span>
             </div>
             <h1>Buscar Recibos</h1>
@@ -648,6 +663,7 @@ class RecibosPfsView {
                     <?php endif; ?>
                 </div>
             <?php endif; ?>
+            <?php Tema::script(); ?>
         </body>
         </html>
         <?php
