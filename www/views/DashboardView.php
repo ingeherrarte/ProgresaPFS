@@ -11,48 +11,75 @@ class DashboardView {
     private const SERIE_DEPOSITO = '#eb6834';
     private const SERIE_CHEQUE   = '#1baf7a';
 
-    private const SUPERFICIE = '#fcfcfb';
-    private const TINTA_PRIMARIA = '#0b0b0b';
-    private const TINTA_SECUNDARIA = '#52514e';
-    private const TINTA_MUTED = '#898781';
-    private const LINEA_REJILLA = '#e1e0d9';
-    private const LINEA_BASE = '#c3c2b7';
+    // Estos apuntan a variables CSS (no a hex fijo): las gráficas son SVG
+    // generado en servidor, pero el navegador sí resuelve var() dentro de
+    // atributos de presentación (fill/stroke), así que cambian en vivo con
+    // el toggle de tema sin recargar la página.
+    private const SUPERFICIE = 'var(--chart-superficie)';
+    private const TINTA_PRIMARIA = 'var(--chart-ink-primaria)';
+    private const TINTA_SECUNDARIA = 'var(--chart-ink-secundaria)';
+    private const TINTA_MUTED = 'var(--chart-ink-muted)';
+    private const LINEA_REJILLA = 'var(--chart-grid)';
+    private const LINEA_BASE = 'var(--chart-grid-fuerte)';
 
     private static function estilos(): void {
         ?>
         <style>
+            :root {
+                --bg-pagina: #f0f2f5; --bg-tarjeta: #fff; --texto: #333; --texto-muted: #555;
+                --acento: #1a237e; --borde-input: #ccc; --sombra-tarjeta: rgba(0,0,0,.1);
+                --kpi-bg: #f5f7ff; --kpi-etiqueta: #666; --kpi-valor: #1a237e;
+                --viz-leyenda-texto: #52514e; --tabla-borde: #ddd; --tabla-header-bg: #1a237e;
+                --tabla-header-texto: #fff; --sin-datos: #888;
+                --chart-superficie: #fcfcfb; --chart-ink-primaria: #0b0b0b;
+                --chart-ink-secundaria: #52514e; --chart-ink-muted: #898781;
+                --chart-grid: #e1e0d9; --chart-grid-fuerte: #c3c2b7;
+            }
+            /* Oscuro automático por preferencia del sistema, salvo que el
+               toggle manual (data-theme) ya haya decidido explícitamente. */
+            @media (prefers-color-scheme: dark) {
+                :root:not([data-theme="light"]) { <?php self::tokensOscuros(); ?> }
+            }
+            :root[data-theme="dark"] { <?php self::tokensOscuros(); ?> }
+
             * { box-sizing: border-box; margin: 0; padding: 0; }
-            body { font-family: system-ui, -apple-system, "Segoe UI", sans-serif; background: #f0f2f5; padding: 24px; color: #333; }
+            body { font-family: system-ui, -apple-system, "Segoe UI", sans-serif; background: var(--bg-pagina); padding: 24px; color: var(--texto); }
             .barra {
                 display: flex; justify-content: space-between; align-items: center;
                 max-width: 1100px; margin: 0 auto 16px;
             }
-            .barra .usuario { font-size: 13px; color: #555; }
-            .barra a { color: #1a237e; text-decoration: none; font-size: 13px; font-weight: bold; margin-left: 16px; }
-            h1 { font-size: 22px; margin-bottom: 20px; color: #1a237e; text-align: center; }
-            h2 { font-size: 15px; color: #1a237e; margin: 0 0 14px; }
+            .barra .usuario { font-size: 13px; color: var(--texto-muted); }
+            .barra a { color: var(--acento); text-decoration: none; font-size: 13px; font-weight: bold; margin-left: 16px; }
+            .tema-toggle {
+                background: none; border: 1px solid var(--borde-input); border-radius: 4px;
+                color: var(--texto); font-size: 12.5px; padding: 5px 10px; margin-left: 16px;
+                cursor: pointer; font-family: inherit;
+            }
+            h1 { font-size: 22px; margin-bottom: 20px; color: var(--acento); text-align: center; }
+            h2 { font-size: 15px; color: var(--acento); margin: 0 0 14px; }
             .card {
-                background: #fff; max-width: 1100px; margin: 0 auto 24px;
-                border-radius: 6px; padding: 24px 28px; box-shadow: 0 1px 4px rgba(0,0,0,.1);
+                background: var(--bg-tarjeta); max-width: 1100px; margin: 0 auto 24px;
+                border-radius: 6px; padding: 24px 28px; box-shadow: 0 1px 4px var(--sombra-tarjeta);
             }
             .filtros {
                 display: flex; align-items: center; gap: 10px; max-width: 1100px; margin: 0 auto 18px;
             }
-            .filtros label { font-size: 13px; font-weight: bold; color: #444; }
+            .filtros label { font-size: 13px; font-weight: bold; color: var(--texto); }
             .filtros select {
-                padding: 7px 10px; font-size: 14px; border: 1px solid #ccc; border-radius: 4px;
+                padding: 7px 10px; font-size: 14px; border: 1px solid var(--borde-input); border-radius: 4px;
+                background: var(--bg-tarjeta); color: var(--texto);
             }
             .kpis {
                 display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
                 gap: 16px;
             }
             .kpi {
-                background: #f5f7ff; border-radius: 8px; padding: 16px 18px;
+                background: var(--kpi-bg); border-radius: 8px; padding: 16px 18px;
             }
-            .kpi .etiqueta { font-size: 12px; font-weight: bold; color: #666; margin-bottom: 6px; }
-            .kpi .valor { font-size: 24px; font-weight: 600; color: #1a237e; }
+            .kpi .etiqueta { font-size: 12px; font-weight: bold; color: var(--kpi-etiqueta); margin-bottom: 6px; }
+            .kpi .valor { font-size: 24px; font-weight: 600; color: var(--kpi-valor); }
             .viz-leyenda {
-                display: flex; gap: 18px; flex-wrap: wrap; margin-top: 10px; font-size: 12.5px; color: #52514e;
+                display: flex; gap: 18px; flex-wrap: wrap; margin-top: 10px; font-size: 12.5px; color: var(--viz-leyenda-texto);
             }
             .viz-leyenda .item { display: flex; align-items: center; gap: 6px; }
             .viz-leyenda .cuadro { width: 11px; height: 11px; border-radius: 2px; display: inline-block; }
@@ -64,15 +91,31 @@ class DashboardView {
             }
             .viz-tooltip b { font-size: 13px; }
             .tabla-toggle {
-                font-size: 12.5px; color: #1a237e; font-weight: bold; cursor: pointer;
+                font-size: 12.5px; color: var(--acento); font-weight: bold; cursor: pointer;
                 background: none; border: none; padding: 0; margin-top: 10px; text-decoration: underline;
             }
             table.datos { border-collapse: collapse; width: 100%; font-size: 12.5px; margin-top: 10px; }
-            table.datos th, table.datos td { border: 1px solid #ddd; padding: 6px 9px; text-align: left; }
-            table.datos th { background: #1a237e; color: #fff; }
+            table.datos th, table.datos td { border: 1px solid var(--tabla-borde); padding: 6px 9px; text-align: left; }
+            table.datos th { background: var(--tabla-header-bg); color: var(--tabla-header-texto); }
+            table.datos td { color: var(--texto); }
             table.datos td.num { text-align: right; font-variant-numeric: tabular-nums; }
-            .sin-datos { color: #888; font-style: italic; padding: 12px 0; }
+            .sin-datos { color: var(--sin-datos); font-style: italic; padding: 12px 0; }
         </style>
+        <?php
+    }
+
+    // Tokens de tema oscuro, en un solo lugar para no repetirlos entre el
+    // bloque de preferencia de sistema y el de selección manual (data-theme).
+    private static function tokensOscuros(): void {
+        ?>
+        --bg-pagina: #15171c; --bg-tarjeta: #1f232b; --texto: #d7d9de; --texto-muted: #9aa0ab;
+        --acento: #8c9eff; --borde-input: #3a3f4b; --sombra-tarjeta: rgba(0,0,0,.4);
+        --kpi-bg: #262b38; --kpi-etiqueta: #aab0ba; --kpi-valor: #8c9eff;
+        --viz-leyenda-texto: #c3c5cb; --tabla-borde: #3a3f4b; --tabla-header-bg: #2b3350;
+        --tabla-header-texto: #e8e9ec; --sin-datos: #8a909b;
+        --chart-superficie: #1b1e24; --chart-ink-primaria: #e8e9ec;
+        --chart-ink-secundaria: #c3c5cb; --chart-ink-muted: #8a8d95;
+        --chart-grid: #33363d; --chart-grid-fuerte: #4a4d55;
         <?php
     }
 
@@ -84,6 +127,7 @@ class DashboardView {
                 <a href="inicio.php">Inicio</a>
                 <a href="admin.php">Administración</a>
                 <a href="login.php?action=logout">Cerrar sesión</a>
+                <button type="button" id="temaToggle" class="tema-toggle" onclick="alternarTema()">🌓 Tema</button>
             </span>
         </div>
         <?php
@@ -319,6 +363,16 @@ class DashboardView {
             <meta charset="UTF-8">
             <meta name="viewport" content="width=device-width, initial-scale=1">
             <title>Dashboard — CETECPRO</title>
+            <script>
+                // Se aplica el tema guardado ANTES de pintar la página
+                // (evita el parpadeo de un tema para luego cambiar al otro).
+                try {
+                    const temaGuardado = localStorage.getItem('cetecpro_tema');
+                    if (temaGuardado === 'dark' || temaGuardado === 'light') {
+                        document.documentElement.setAttribute('data-theme', temaGuardado);
+                    }
+                } catch (e) {}
+            </script>
             <?php self::estilos(); ?>
         </head>
         <body>
@@ -410,6 +464,18 @@ class DashboardView {
 
             <div class="viz-tooltip" id="vizTooltip"></div>
             <script>
+                // Toggle manual de tema: data-theme en <html> pisa la
+                // preferencia de sistema (ver @media en estilos()) y se
+                // recuerda en localStorage para la próxima visita.
+                function alternarTema() {
+                    const raiz = document.documentElement;
+                    const prefiereOscuro = window.matchMedia('(prefers-color-scheme: dark)').matches;
+                    const actual = raiz.getAttribute('data-theme') || (prefiereOscuro ? 'dark' : 'light');
+                    const nuevo = actual === 'dark' ? 'light' : 'dark';
+                    raiz.setAttribute('data-theme', nuevo);
+                    try { localStorage.setItem('cetecpro_tema', nuevo); } catch (e) {}
+                }
+
                 // Hover/focus en cada marca (barra o segmento): el propio
                 // mark es el hit target, no hace falta un overlay aparte.
                 // Mismo tooltip para mouse (pointermove) y teclado (focus).
