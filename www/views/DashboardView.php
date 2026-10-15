@@ -146,7 +146,7 @@ class DashboardView {
     // lo que ya no es una composición de un total, sino tres magnitudes
     // independientes a comparar). "Trend over time" → line, color
     // categórico en el mismo orden de slot que antes.
-    private static function graficaIngresosPorMes(array $porMes, array $meses): string {
+    private static function graficaIngresosPorMes(array $porMes, array $meses, int $mesLimite): string {
         $ancho = 760; $alto = 340;
         $margenIzq = 58; $margenDer = 16; $margenArriba = 16; $margenAbajo = 30;
         $anchoPlot = $ancho - $margenIzq - $margenDer;
@@ -159,7 +159,10 @@ class DashboardView {
         ];
 
         $maxValor = 0;
-        foreach ($porMes as $m) {
+        foreach ($porMes as $numMes => $m) {
+            if ($numMes > $mesLimite) {
+                continue;
+            }
             foreach (array_keys($series) as $clave) {
                 $maxValor = max($maxValor, (float)$m[$clave]);
             }
@@ -194,11 +197,17 @@ class DashboardView {
 
         // Una polilínea de 2px por serie, trazada ANTES que los puntos de
         // cruce invisibles (el hit target de hover va encima, no estorba
-        // el trazo).
+        // el trazo). Solo hasta $mesLimite: en el año en curso los meses
+        // futuros no tienen ingresos todavía, y graficarlos en 0 dibuja una
+        // caída en picada que no refleja nada real — la línea se detiene en
+        // el último mes con datos, el eje sigue mostrando el año completo.
         foreach ($series as $clave => $def) {
             $puntos = [];
             foreach (array_keys($nombresMeses) as $idx) {
                 $mesNum = $idx + 1;
+                if ($mesNum > $mesLimite) {
+                    break;
+                }
                 $valor = (float)($porMes[$mesNum][$clave] ?? 0);
                 $y = $margenArriba + $altoPlot - ($valor / $escala) * $altoPlot;
                 $puntos[] = round($puntosX[$idx], 1) . ',' . round($y, 1);
@@ -207,6 +216,9 @@ class DashboardView {
 
             foreach (array_keys($nombresMeses) as $idx) {
                 $mesNum = $idx + 1;
+                if ($mesNum > $mesLimite) {
+                    break;
+                }
                 $valor = (float)($porMes[$mesNum][$clave] ?? 0);
                 $y = $margenArriba + $altoPlot - ($valor / $escala) * $altoPlot;
                 // Marcador ≥8px con anillo de 2px en el color de superficie,
@@ -218,9 +230,13 @@ class DashboardView {
         // Una columna invisible por mes = el hit target del crosshair
         // (más ancha que las líneas: "el área de hover es más grande que
         // la marca"). Un solo tooltip por mes lista las 3 series — el
-        // lector no tiene que acertarle a una línea de 2px.
+        // lector no tiene que acertarle a una línea de 2px. Solo hasta
+        // $mesLimite: los meses futuros no tienen datos que mostrar.
         foreach (array_keys($nombresMeses) as $idx) {
             $mesNum = $idx + 1;
+            if ($mesNum > $mesLimite) {
+                break;
+            }
             $xCol = $margenIzq + $idx * $pasoX - $pasoX / 2;
             $filas = [];
             foreach ($series as $clave => $def) {
@@ -338,9 +354,15 @@ class DashboardView {
                 </div>
             </div>
 
+            <?php
+            // En el año en curso la línea se detiene en el mes actual (los
+            // meses futuros aún no tienen ingresos); en un año cerrado se
+            // ven los 12 meses completos.
+            $mesLimite = $anio === $anioActual ? (int)date('n') : 12;
+            ?>
             <div class="card">
                 <h2>Ingresos por mes — <?= $anio ?></h2>
-                <?= self::graficaIngresosPorMes($porMes, $meses) ?>
+                <?= self::graficaIngresosPorMes($porMes, $meses, $mesLimite) ?>
                 <div class="viz-leyenda">
                     <span class="item"><span class="cuadro" style="background:<?= self::SERIE_EFECTIVO ?>"></span>Efectivo</span>
                     <span class="item"><span class="cuadro" style="background:<?= self::SERIE_DEPOSITO ?>"></span>Depósito</span>
