@@ -60,7 +60,7 @@ class DashboardView {
                 position: fixed; display: none; pointer-events: none; z-index: 50;
                 background: #0b0b0b; color: #fff; font-size: 12px; line-height: 1.5;
                 padding: 8px 10px; border-radius: 5px; max-width: 240px;
-                box-shadow: 0 2px 10px rgba(0,0,0,.25);
+                box-shadow: 0 2px 10px rgba(0,0,0,.25); white-space: pre-line;
             }
             .viz-tooltip b { font-size: 13px; }
             .tabla-toggle {
@@ -126,21 +126,6 @@ class DashboardView {
         return $paso * $magnitud;
     }
 
-    // Rectángulo con solo las esquinas superiores redondeadas (barra
-    // vertical: crece desde la base, que queda cuadrada). Si el segmento es
-    // más bajo que 2×radio, se usa un rect plano para no deformar la forma.
-    private static function pathTopeRedondeado(float $x, float $y, float $w, float $h, float $r): string {
-        if ($h < $r * 2 || $w < $r * 2) {
-            return "M $x $y h $w v $h h -$w Z";
-        }
-        $xw = $x + $w;
-        $yh = $y + $h;
-        $yr = $y + $r;
-        $xr = $x + $r;
-        $xwr = $xw - $r;
-        return "M $x $yh L $x $yr Q $x $y $xr $y L $xwr $y Q $xw $y $xw $yr L $xw $yh Z";
-    }
-
     // Rectángulo con solo el extremo derecho redondeado (barra horizontal:
     // crece desde el eje a la izquierda, que queda cuadrado).
     private static function pathExtremoRedondeado(float $x, float $y, float $w, float $h, float $r): string {
@@ -156,23 +141,37 @@ class DashboardView {
 
     // Gráfica de barras apiladas: ingresos por mes, 3 series (efectivo,
     // depósito, cheque) en orden fijo de slot — nunca reasignado.
+    // Multi-línea: 3 series (efectivo/depósito/cheque), cada una su propio
+    // valor mensual (no apiladas — una línea apilada sumaría visualmente
+    // lo que ya no es una composición de un total, sino tres magnitudes
+    // independientes a comparar). "Trend over time" → line, color
+    // categórico en el mismo orden de slot que antes.
     private static function graficaIngresosPorMes(array $porMes, array $meses): string {
         $ancho = 760; $alto = 340;
         $margenIzq = 58; $margenDer = 16; $margenArriba = 16; $margenAbajo = 30;
         $anchoPlot = $ancho - $margenIzq - $margenDer;
         $altoPlot = $alto - $margenArriba - $margenAbajo;
 
-        $maxTotal = 0;
-        foreach ($porMes as $m) {
-            $total = (float)$m['efectivo'] + (float)$m['deposito'] + (float)$m['cheque'];
-            $maxTotal = max($maxTotal, $total);
-        }
-        $escala = self::escalaMaxima($maxTotal);
+        $series = [
+            'efectivo' => ['color' => self::SERIE_EFECTIVO, 'etiqueta' => 'Efectivo'],
+            'deposito' => ['color' => self::SERIE_DEPOSITO, 'etiqueta' => 'Depósito'],
+            'cheque'   => ['color' => self::SERIE_CHEQUE,   'etiqueta' => 'Cheque'],
+        ];
 
-        $numBandas = count($meses);
-        $anchoBanda = $anchoPlot / $numBandas;
-        $anchoBarra = min(24, $anchoBanda * 0.62);
-        $gap = 2;
+        $maxValor = 0;
+        foreach ($porMes as $m) {
+            foreach (array_keys($series) as $clave) {
+                $maxValor = max($maxValor, (float)$m[$clave]);
+            }
+        }
+        $escala = self::escalaMaxima($maxValor);
+
+        $nombresMeses = array_values($meses);
+        $numPuntos = count($nombresMeses);
+        // Puntos de borde a borde del plot (no bandas centradas como en un
+        // bar chart): el primer mes cae en x=margenIzq, el último en el
+        // borde derecho del área de trazado.
+        $pasoX = $numPuntos > 1 ? $anchoPlot / ($numPuntos - 1) : 0;
 
         $svg = '<svg viewBox="0 0 ' . $ancho . ' ' . $alto . '" role="img" aria-label="Ingresos por mes: efectivo, depósito y cheque" style="width:100%; height:auto; font-family:inherit;">';
         $svg .= '<rect x="0" y="0" width="' . $ancho . '" height="' . $alto . '" fill="' . self::SUPERFICIE . '"/>';
@@ -186,38 +185,53 @@ class DashboardView {
             $svg .= '<text x="' . ($margenIzq - 8) . '" y="' . round($y + 3, 1) . '" text-anchor="end" font-size="10.5" fill="' . self::TINTA_MUTED . '">' . self::formatoCompacto($valor) . '</text>';
         }
 
-        foreach (array_values($meses) as $idx => $nombreMes) {
-            $mesNum = $idx + 1;
-            $datos = $porMes[$mesNum] ?? ['efectivo' => 0, 'deposito' => 0, 'cheque' => 0];
-            $segmentos = [
-                ['clave' => 'efectivo', 'valor' => (float)$datos['efectivo'], 'color' => self::SERIE_EFECTIVO],
-                ['clave' => 'deposito', 'valor' => (float)$datos['deposito'], 'color' => self::SERIE_DEPOSITO],
-                ['clave' => 'cheque',   'valor' => (float)$datos['cheque'],   'color' => self::SERIE_CHEQUE],
-            ];
-            $segmentosConValor = array_values(array_filter($segmentos, fn($s) => $s['valor'] > 0));
-
-            $xBanda = $margenIzq + $idx * $anchoBanda;
-            $xBarra = $xBanda + ($anchoBanda - $anchoBarra) / 2;
-
-            $yAcum = $margenArriba + $altoPlot;
-            foreach ($segmentosConValor as $i => $seg) {
-                $hSeg = ($seg['valor'] / $escala) * $altoPlot;
-                $hSeg = max(0, $hSeg - ($i < count($segmentosConValor) - 1 ? $gap : 0));
-                $yTop = $yAcum - $hSeg;
-                $esUltimo = $i === count($segmentosConValor) - 1;
-
-                $path = $esUltimo
-                    ? self::pathTopeRedondeado(round($xBarra, 1), round($yTop, 1), round($anchoBarra, 1), round($hSeg, 1), 4)
-                    : ('M ' . round($xBarra, 1) . ' ' . round($yTop, 1) . ' h ' . round($anchoBarra, 1) . ' v ' . round($hSeg, 1) . ' h -' . round($anchoBarra, 1) . ' Z');
-
-                $titulo = ucfirst($seg['clave']) . ' — ' . ucfirst($nombreMes) . ': ' . self::formatoQ($seg['valor']);
-                $svg .= '<path d="' . $path . '" fill="' . $seg['color'] . '" class="viz-mark" tabindex="0" data-tooltip="' . htmlspecialchars($titulo) . '"><title>' . htmlspecialchars($titulo) . '</title></path>';
-
-                $yAcum = $yTop - $gap;
-            }
-
-            $svg .= '<text x="' . round($xBanda + $anchoBanda / 2, 1) . '" y="' . ($alto - 10) . '" text-anchor="middle" font-size="11" fill="' . self::TINTA_MUTED . '">' . htmlspecialchars($nombreMes) . '</text>';
+        $puntosX = [];
+        foreach ($nombresMeses as $idx => $nombreMes) {
+            $x = $margenIzq + $idx * $pasoX;
+            $puntosX[] = $x;
+            $svg .= '<text x="' . round($x, 1) . '" y="' . ($alto - 10) . '" text-anchor="middle" font-size="11" fill="' . self::TINTA_MUTED . '">' . htmlspecialchars($nombreMes) . '</text>';
         }
+
+        // Una polilínea de 2px por serie, trazada ANTES que los puntos de
+        // cruce invisibles (el hit target de hover va encima, no estorba
+        // el trazo).
+        foreach ($series as $clave => $def) {
+            $puntos = [];
+            foreach (array_keys($nombresMeses) as $idx) {
+                $mesNum = $idx + 1;
+                $valor = (float)($porMes[$mesNum][$clave] ?? 0);
+                $y = $margenArriba + $altoPlot - ($valor / $escala) * $altoPlot;
+                $puntos[] = round($puntosX[$idx], 1) . ',' . round($y, 1);
+            }
+            $svg .= '<polyline points="' . implode(' ', $puntos) . '" fill="none" stroke="' . $def['color'] . '" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>';
+
+            foreach (array_keys($nombresMeses) as $idx) {
+                $mesNum = $idx + 1;
+                $valor = (float)($porMes[$mesNum][$clave] ?? 0);
+                $y = $margenArriba + $altoPlot - ($valor / $escala) * $altoPlot;
+                // Marcador ≥8px con anillo de 2px en el color de superficie,
+                // para que no se pierda donde cruza otra línea.
+                $svg .= '<circle cx="' . round($puntosX[$idx], 1) . '" cy="' . round($y, 1) . '" r="5" fill="' . $def['color'] . '" stroke="' . self::SUPERFICIE . '" stroke-width="2"/>';
+            }
+        }
+
+        // Una columna invisible por mes = el hit target del crosshair
+        // (más ancha que las líneas: "el área de hover es más grande que
+        // la marca"). Un solo tooltip por mes lista las 3 series — el
+        // lector no tiene que acertarle a una línea de 2px.
+        foreach (array_keys($nombresMeses) as $idx) {
+            $mesNum = $idx + 1;
+            $xCol = $margenIzq + $idx * $pasoX - $pasoX / 2;
+            $filas = [];
+            foreach ($series as $clave => $def) {
+                $valor = (float)($porMes[$mesNum][$clave] ?? 0);
+                $filas[] = ['etiqueta' => $def['etiqueta'], 'valor' => self::formatoQ($valor), 'color' => $def['color']];
+            }
+            $payload = htmlspecialchars(json_encode(['titulo' => ucfirst($nombresMeses[$idx]), 'filas' => $filas]), ENT_QUOTES);
+            $svg .= '<rect x="' . round($xCol, 1) . '" y="' . $margenArriba . '" width="' . round($pasoX, 1) . '" height="' . $altoPlot . '" fill="transparent" class="viz-col" tabindex="0" data-x="' . round($puntosX[$idx], 1) . '" data-tooltip-json="' . $payload . '"/>';
+        }
+
+        $svg .= '<line class="viz-crosshair" x1="0" y1="' . $margenArriba . '" x2="0" y2="' . ($margenArriba + $altoPlot) . '" stroke="' . self::LINEA_BASE . '" stroke-width="1" style="display:none"/>';
 
         $svg .= '</svg>';
         return $svg;
@@ -397,6 +411,53 @@ class DashboardView {
                     el.style.cursor = 'pointer';
                     el.addEventListener('pointerenter', () => el.style.opacity = '0.85');
                     el.addEventListener('pointerleave', () => el.style.opacity = '1');
+                });
+
+                // Columna de cada mes en la gráfica de líneas: un solo
+                // tooltip con las 3 series (el lector no tiene que acertar
+                // a una línea de 2px) + una línea vertical (crosshair) que
+                // salta al mes más cercano. Construido con createElement/
+                // textContent, nunca innerHTML con texto concatenado.
+                function construirTooltip(datos) {
+                    tooltip.replaceChildren();
+                    const titulo = document.createElement('b');
+                    titulo.textContent = datos.titulo;
+                    tooltip.appendChild(titulo);
+                    datos.filas.forEach(fila => {
+                        const renglon = document.createElement('div');
+                        const marca = document.createElement('span');
+                        marca.textContent = '▬ ';
+                        marca.style.color = fila.color;
+                        const texto = document.createElement('span');
+                        texto.textContent = fila.valor + ' — ' + fila.etiqueta;
+                        renglon.appendChild(marca);
+                        renglon.appendChild(texto);
+                        tooltip.appendChild(renglon);
+                    });
+                }
+                document.querySelectorAll('.viz-col').forEach(el => {
+                    const datos = JSON.parse(el.getAttribute('data-tooltip-json'));
+                    const crosshair = el.closest('svg').querySelector('.viz-crosshair');
+                    const x = el.getAttribute('data-x');
+                    function activar(ev) {
+                        construirTooltip(datos);
+                        tooltip.style.display = 'block';
+                        const px = ev.clientX ?? el.getBoundingClientRect().right;
+                        const py = ev.clientY ?? el.getBoundingClientRect().top;
+                        tooltip.style.left = Math.min(px + 14, window.innerWidth - 250) + 'px';
+                        tooltip.style.top = Math.max(py - 10, 10) + 'px';
+                        crosshair.setAttribute('x1', x);
+                        crosshair.setAttribute('x2', x);
+                        crosshair.style.display = 'block';
+                    }
+                    function desactivar() {
+                        ocultarTooltip();
+                        crosshair.style.display = 'none';
+                    }
+                    el.addEventListener('pointermove', activar);
+                    el.addEventListener('pointerleave', desactivar);
+                    el.addEventListener('focus', activar);
+                    el.addEventListener('blur', desactivar);
                 });
             </script>
         </body>
