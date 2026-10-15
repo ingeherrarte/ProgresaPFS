@@ -130,6 +130,10 @@ class AdminView {
                         <div class="icono">💾</div>
                         <div class="titulo">Respaldo de Base de Datos</div>
                     </a>
+                    <a class="acceso" href="dashboard.php">
+                        <div class="icono">📊</div>
+                        <div class="titulo">Dashboard de Ingresos</div>
+                    </a>
                     <?php if (Auth::esAdministrador()): ?>
                         <a class="acceso" href="admin.php?action=editar_recibo">
                             <div class="icono">🧾</div>
