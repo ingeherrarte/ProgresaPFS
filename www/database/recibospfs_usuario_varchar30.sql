@@ -8,6 +8,12 @@
 -- bomba de tiempo que ya se corrigió en las otras dos tablas.
 SET SESSION sql_mode = 'ALLOW_INVALID_DATES';
 
+-- anulado_por necesita DEFAULT '' (lo tenía desde recibospfs_anulacion.sql):
+-- un MODIFY sin repetir el DEFAULT se lo quita, y como el INSERT de un
+-- recibo nuevo no manda este campo (solo se llena al anular), cualquier
+-- guardado nuevo falla con "Field 'anulado_por' doesn't have a default
+-- value" (SQLSTATE 1364). Pasó en vivo el 2026-10-16 porque esta migración
+-- se corrió así (sin DEFAULT) contra producción.
 ALTER TABLE recibospfs
   MODIFY usuario VARCHAR(30) NOT NULL,
-  MODIFY anulado_por VARCHAR(30) NOT NULL;
+  MODIFY anulado_por VARCHAR(30) NOT NULL DEFAULT '';
