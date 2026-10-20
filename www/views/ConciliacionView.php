@@ -230,9 +230,9 @@ class ConciliacionView {
                                             <?php $c = $candidatos[0]; ?>
                                             <span class="pill ok">✓</span>
                                             <b><?= htmlspecialchars(DepositosModel::bancoDeCuenta($c['cuenta']) ?? $c['cuenta']) ?></b>
-                                            · Q <?= number_format((float)$c['monto'], 2) ?>
                                             · <?= date('d/m/Y', strtotime($c['fecha'])) ?>
                                             <?php if ($c['referencia']): ?>· ref <?= htmlspecialchars($c['referencia']) ?><?php endif; ?>
+                                            · Q <?= number_format((float)$c['monto'], 2) ?>
                                         <?php else: ?>
                                             <span class="pill falta">⚠ <?= count($candidatos) ?> candidatas — elige una</span>
                                             <select name="estado_cuenta_id" form="form_verificar_<?= (int)$r['numero'] ?>" style="margin:4px 0 0;" required>
@@ -240,9 +240,9 @@ class ConciliacionView {
                                                 <?php foreach ($candidatos as $c): ?>
                                                     <option value="<?= (int)$c['id'] ?>">
                                                         <?= htmlspecialchars(DepositosModel::bancoDeCuenta($c['cuenta']) ?? $c['cuenta']) ?>
-                                                        · Q <?= number_format((float)$c['monto'], 2) ?>
                                                         · <?= date('d/m/Y', strtotime($c['fecha'])) ?>
                                                         <?= $c['referencia'] ? '· ref ' . htmlspecialchars($c['referencia']) : '' ?>
+                                                        · Q <?= number_format((float)$c['monto'], 2) ?>
                                                     </option>
                                                 <?php endforeach; ?>
                                             </select>
