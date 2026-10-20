@@ -56,6 +56,9 @@ class ConciliacionController {
             case 'movimientos':
                 $this->movimientos();
                 break;
+            case 'reporte':
+                $this->reporte();
+                break;
             case 'form':
             default:
                 $this->form();
@@ -713,6 +716,21 @@ class ConciliacionController {
         $db = Conexion::conectar();
         $movimientos = ConciliacionModel::buscarMovimientos($db, $cuenta, $desde, $hasta, $texto);
         ConciliacionView::mostrarMovimientos($movimientos, $desde, $hasta, $cuenta, $texto);
+    }
+
+    // Reporte de avance: qué se ha verificado y cuándo — filtra por la
+    // fecha en que se VERIFICÓ (no la fecha del depósito), con default de
+    // los últimos 7 días (es un reporte de "qué se hizo estos días", no un
+    // histórico completo).
+    private function reporte() {
+        $desde = preg_match('/^\d{4}-\d{2}-\d{2}$/', (string)($_GET['desde'] ?? '')) ? $_GET['desde'] : date('Y-m-d', strtotime('-7 days'));
+        $hasta = preg_match('/^\d{4}-\d{2}-\d{2}$/', (string)($_GET['hasta'] ?? '')) ? $_GET['hasta'] : date('Y-m-d');
+        if ($hasta < $desde) { [$desde, $hasta] = [$hasta, $desde]; }
+        $cuenta = trim($_GET['cuenta'] ?? '') ?: null;
+
+        $db = Conexion::conectar();
+        $verificados = ConciliacionModel::recibosVerificados($db, $desde, $hasta, $cuenta);
+        ConciliacionView::mostrarReporte($verificados, $desde, $hasta, $cuenta);
     }
 }
 ?>

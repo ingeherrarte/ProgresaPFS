@@ -173,6 +173,7 @@ class ConciliacionView {
                     Recibos pendientes de verificar
                     <a href="conciliacion.php?action=buscarManual" style="font-size:12.5px;font-weight:normal;margin-left:10px;color:var(--acento);">Vincular manualmente un recibo →</a>
                     <a href="conciliacion.php?action=movimientos" style="font-size:12.5px;font-weight:normal;margin-left:10px;color:var(--acento);">Ver movimientos del banco →</a>
+                    <a href="conciliacion.php?action=reporte" style="font-size:12.5px;font-weight:normal;margin-left:10px;color:var(--acento);">Reporte de verificados →</a>
                 </h2>
                 <p style="font-size:12px;color:var(--sin-datos);margin:-4px 0 12px;">
                     Úsalo cuando el cruce automático no aplica: una transferencia de un período muy anterior, o un depósito que cubre varios recibos a la vez (ej. una empresa paga por 2 estudiantes con la misma transferencia).
@@ -785,6 +786,132 @@ class ConciliacionView {
                                             <?php endforeach; ?>
                                         <?php else: ?>
                                             <span style="color:var(--sin-datos);">—</span>
+                                        <?php endif; ?>
+                                    </td>
+                                </tr>
+                            <?php endforeach; ?>
+                        </tbody>
+                    </table>
+                    </div>
+                <?php endif; ?>
+            </div>
+            <?php Tema::script(); ?>
+        </body>
+        </html>
+        <?php
+    }
+
+    // Reporte de avance: qué se ha verificado y cuándo, con totales por
+    // banco y un desglose automático/manual — responde "¿cómo va quedando
+    // el trabajo de conciliación?" sin tener que contar a mano.
+    public static function mostrarReporte(array $verificados, string $desde, string $hasta, ?string $cuenta): void {
+        $totalMonto = array_sum(array_column($verificados, 'monto'));
+        $porBanco = [];
+        foreach ($verificados as $v) {
+            $b = $v['cuenta_destino'] ?? '(sin dato)';
+            $porBanco[$b] = ($porBanco[$b] ?? 0) + (float)$v['monto'];
+        }
+        $manuales = count(array_filter($verificados, fn($v) => !empty($v['es_manual'])));
+        ?>
+        <!DOCTYPE html>
+        <html lang="es">
+        <head>
+            <meta charset="UTF-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1">
+            <title>Reporte de verificados — CETECPRO</title>
+            <?php Tema::scriptInicial(); ?>
+            <?php self::estilos(); ?>
+        </head>
+        <body>
+            <?php self::barra(); ?>
+            <h1>Reporte de recibos verificados</h1>
+
+            <div class="card">
+                <a href="conciliacion.php" style="font-size:13px;color:var(--acento);font-weight:bold;">← Volver a Conciliación</a>
+                <form method="GET" action="conciliacion.php" style="margin-top:14px;">
+                    <input type="hidden" name="action" value="reporte">
+                    <div class="fila" style="align-items:flex-end;">
+                        <div class="campo" style="max-width:180px;">
+                            <label for="cuenta">Banco</label>
+                            <select id="cuenta" name="cuenta" style="margin-bottom:0;">
+                                <option value="">-- Cualquiera --</option>
+                                <?php foreach (DepositosModel::cuentas() as $numeroCuenta => $banco): ?>
+                                    <option value="<?= htmlspecialchars($numeroCuenta) ?>" <?= $cuenta === $numeroCuenta ? 'selected' : '' ?>><?= htmlspecialchars($banco) ?></option>
+                                <?php endforeach; ?>
+                            </select>
+                        </div>
+                        <div class="campo" style="max-width:180px;">
+                            <label for="desde">Verificado desde</label>
+                            <input type="date" id="desde" name="desde" value="<?= htmlspecialchars($desde) ?>" style="margin-bottom:0;">
+                        </div>
+                        <div class="campo" style="max-width:180px;">
+                            <label for="hasta">hasta</label>
+                            <input type="date" id="hasta" name="hasta" value="<?= htmlspecialchars($hasta) ?>" style="margin-bottom:0;">
+                        </div>
+                        <div class="campo" style="flex:0 0 auto;">
+                            <button type="submit">Filtrar</button>
+                        </div>
+                    </div>
+                </form>
+            </div>
+
+            <div class="card">
+                <div class="kpis" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:16px;">
+                    <div class="kpi" style="background:var(--bg-pagina);border-radius:8px;padding:16px 18px;">
+                        <div style="font-size:12px;font-weight:bold;color:var(--texto-muted);margin-bottom:6px;">Recibos verificados</div>
+                        <div style="font-size:24px;font-weight:600;color:var(--acento);"><?= count($verificados) ?></div>
+                    </div>
+                    <div class="kpi" style="background:var(--bg-pagina);border-radius:8px;padding:16px 18px;">
+                        <div style="font-size:12px;font-weight:bold;color:var(--texto-muted);margin-bottom:6px;">Monto total</div>
+                        <div style="font-size:24px;font-weight:600;color:var(--acento);">Q <?= number_format($totalMonto, 2) ?></div>
+                    </div>
+                    <div class="kpi" style="background:var(--bg-pagina);border-radius:8px;padding:16px 18px;">
+                        <div style="font-size:12px;font-weight:bold;color:var(--texto-muted);margin-bottom:6px;">Vinculados manualmente</div>
+                        <div style="font-size:24px;font-weight:600;color:var(--acento);"><?= $manuales ?></div>
+                    </div>
+                    <?php foreach ($porBanco as $b => $monto): ?>
+                        <div class="kpi" style="background:var(--bg-pagina);border-radius:8px;padding:16px 18px;">
+                            <div style="font-size:12px;font-weight:bold;color:var(--texto-muted);margin-bottom:6px;"><?= htmlspecialchars(DepositosModel::bancoDeCuenta($b) ?? $b) ?></div>
+                            <div style="font-size:24px;font-weight:600;color:var(--acento);">Q <?= number_format($monto, 2) ?></div>
+                        </div>
+                    <?php endforeach; ?>
+                </div>
+            </div>
+
+            <div class="card">
+                <h2>Detalle</h2>
+                <?php if (empty($verificados)): ?>
+                    <p class="sin-datos">No hay recibos verificados en este período.</p>
+                <?php else: ?>
+                    <div class="tabla-scroll">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Recibo</th>
+                                <th>Carné</th>
+                                <th>Fecha depósito</th>
+                                <th>Monto</th>
+                                <th>Banco</th>
+                                <th>Verificado por</th>
+                                <th>Fecha de verificación</th>
+                                <th>Tipo</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <?php foreach ($verificados as $v): ?>
+                                <tr>
+                                    <td><a href="recibospfs.php?action=ver&amp;numero=<?= (int)$v['numero'] ?>" style="color:var(--acento);font-weight:bold;text-decoration:none;">#<?= (int)$v['numero'] ?></a></td>
+                                    <td><?= htmlspecialchars($v['carne']) ?></td>
+                                    <td><?= date('d/m/Y', strtotime($v['fechadep'])) ?></td>
+                                    <td class="num">Q <?= number_format((float)$v['monto'], 2) ?></td>
+                                    <td><?= $v['cuenta_destino'] ? htmlspecialchars(DepositosModel::bancoDeCuenta($v['cuenta_destino']) ?? $v['cuenta_destino']) : '<span style="color:var(--sin-datos);">(sin dato)</span>' ?></td>
+                                    <td><?= htmlspecialchars($v['verificado_por'] ?? '') ?></td>
+                                    <td><?= $v['fecha_verificacion'] ? date('d/m/Y H:i', strtotime($v['fecha_verificacion'])) : '—' ?></td>
+                                    <td>
+                                        <?php if (!empty($v['es_manual'])): ?>
+                                            <span class="pill falta">Manual</span>
+                                        <?php else: ?>
+                                            <span class="pill ok">Automático</span>
                                         <?php endif; ?>
                                     </td>
                                 </tr>

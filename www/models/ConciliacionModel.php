@@ -311,5 +311,30 @@ class ConciliacionModel {
         $stmt->execute($params);
         return $stmt->fetchAll(PDO::FETCH_ASSOC);
     }
+
+    // Reporte de avance: recibos ya verificados, filtrado por CUÁNDO se
+    // verificaron (no por la fecha del depósito) — para responder "¿cómo
+    // va quedando el trabajo de conciliación de estos días?". manual=1 si
+    // se resolvió por vinculación manual (conciliacion_vinculos), 0 si fue
+    // por el cruce automático (fecha+monto exactos, ver antes verificarGrupo).
+    public static function recibosVerificados(PDO $db, string $desde, string $hasta, ?string $cuenta): array {
+        $condiciones = ["r.estado_transferencia = 'verificado'", "r.deposito > 0", "r.anulado = 0",
+            "DATE(r.fecha_verificacion) >= ?", "DATE(r.fecha_verificacion) <= ?"];
+        $params = [$desde, $hasta];
+        if ($cuenta !== null) {
+            $condiciones[] = "r.cuenta_destino = ?";
+            $params[] = $cuenta;
+        }
+        $stmt = $db->prepare(
+            "SELECT r.numero, r.carne, r.fechadep, r.deposito AS monto, r.cuenta_destino,
+                    r.verificado_por, r.fecha_verificacion,
+                    (SELECT 1 FROM conciliacion_vinculos cv WHERE cv.recibo_numero = r.numero LIMIT 1) AS es_manual
+             FROM recibospfs r
+             WHERE " . implode(' AND ', $condiciones) . "
+             ORDER BY r.fecha_verificacion DESC"
+        );
+        $stmt->execute($params);
+        return $stmt->fetchAll(PDO::FETCH_ASSOC);
+    }
 }
 ?>
