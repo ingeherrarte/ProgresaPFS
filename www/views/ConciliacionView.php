@@ -202,7 +202,7 @@ class ConciliacionView {
                                 <th>Monto</th>
                                 <th>Cuenta destino</th>
                                 <th>Recibos pendientes</th>
-                                <th>Líneas disponibles en estado de cuenta</th>
+                                <th>Líneas candidatas en el banco</th>
                                 <th>Estado</th>
                                 <th>Acción</th>
                             </tr>
@@ -217,20 +217,29 @@ class ConciliacionView {
                                             <?= htmlspecialchars(DepositosModel::bancoDeCuenta($g['cuenta_destino']) ?? $g['cuenta_destino']) ?>
                                         <?php else: ?>
                                             <span style="color:var(--sin-datos);">(sin dato)</span>
-                                            <?php if (!empty($g['disponibles_por_cuenta'])): ?>
-                                                <div class="numeros">
-                                                    <?php foreach ($g['disponibles_por_cuenta'] as $numCuenta => $cant): ?>
-                                                        <?= htmlspecialchars(DepositosModel::bancoDeCuenta($numCuenta) ?? $numCuenta) ?>: <?= $cant ?><br>
-                                                    <?php endforeach; ?>
-                                                </div>
-                                            <?php endif; ?>
                                         <?php endif; ?>
                                     </td>
                                     <td>
                                         <?= (int)$g['cantidad'] ?>
                                         <div class="numeros">recibos: <?= htmlspecialchars($g['numeros']) ?></div>
                                     </td>
-                                    <td><?= (int)$g['disponibles'] ?></td>
+                                    <td>
+                                        <?php if (empty($g['candidatos'])): ?>
+                                            <span style="color:var(--sin-datos);">—</span>
+                                        <?php else: ?>
+                                            <div class="numeros" style="color:var(--texto);line-height:1.6;">
+                                                <?php foreach ($g['candidatos'] as $c): ?>
+                                                    <b><?= htmlspecialchars(DepositosModel::bancoDeCuenta($c['cuenta']) ?? $c['cuenta']) ?></b>
+                                                    · <?= date('d/m/Y', strtotime($c['fecha'])) ?>
+                                                    <?php if ($c['referencia']): ?>· ref <?= htmlspecialchars($c['referencia']) ?><?php endif; ?>
+                                                    <br>
+                                                <?php endforeach; ?>
+                                                <?php if ($g['disponibles'] > count($g['candidatos'])): ?>
+                                                    +<?= $g['disponibles'] - count($g['candidatos']) ?> más
+                                                <?php endif; ?>
+                                            </div>
+                                        <?php endif; ?>
+                                    </td>
                                     <td>
                                         <?php if ($g['sugerido']): ?>
                                             <span class="pill ok">✓ Sugerido</span>
@@ -240,7 +249,23 @@ class ConciliacionView {
                                     </td>
                                     <td>
                                         <?php if ($g['sugerido'] && $esAdmin): ?>
-                                            <form method="POST" action="conciliacion.php?action=verificar" onsubmit="return confirm('¿Confirmas que estas <?= (int)$g['cantidad'] ?> transferencia(s) del <?= date('d/m/Y', strtotime($g['fecha'])) ?> por Q <?= number_format($g['monto'], 2) ?> están en el estado de cuenta?');">
+                                            <?php
+                                            // El confirm() nativo repite las líneas candidatas (no
+                                            // solo fecha/monto del grupo), para que la última
+                                            // comprobación antes de confirmar sea explícita sobre
+                                            // CUÁLES líneas del banco se están dando por buenas.
+                                            $detalle = '';
+                                            foreach ($g['candidatos'] as $c) {
+                                                $banco = DepositosModel::bancoDeCuenta($c['cuenta']) ?? $c['cuenta'];
+                                                $detalle .= "\n- $banco " . date('d/m/Y', strtotime($c['fecha']))
+                                                    . ($c['referencia'] ? " ref {$c['referencia']}" : '');
+                                            }
+                                            $mensajeConfirm = "¿Confirmas que estas " . (int)$g['cantidad'] . " transferencia(s) del "
+                                                . date('d/m/Y', strtotime($g['fecha'])) . " por Q " . number_format($g['monto'], 2)
+                                                . " corresponden a estas línea(s) del banco?" . $detalle;
+                                            $onsubmit = 'return confirm(' . json_encode($mensajeConfirm, JSON_UNESCAPED_UNICODE) . ');';
+                                            ?>
+                                            <form method="POST" action="conciliacion.php?action=verificar" onsubmit="<?= htmlspecialchars($onsubmit) ?>">
                                                 <input type="hidden" name="fecha" value="<?= htmlspecialchars($g['fecha']) ?>">
                                                 <input type="hidden" name="monto" value="<?= htmlspecialchars($g['monto']) ?>">
                                                 <input type="hidden" name="cuenta" value="<?= htmlspecialchars($g['cuenta_destino'] ?? '') ?>">
@@ -249,7 +274,7 @@ class ConciliacionView {
                                                 <button type="submit" class="chico">Verificar</button>
                                             </form>
                                         <?php elseif ($g['sugerido']): ?>
-                                            <span style="font-size:12px;color:#888;">Requiere admin</span>
+                                            <span class="pill falta">Requiere admin</span>
                                         <?php else: ?>
                                             —
                                         <?php endif; ?>
