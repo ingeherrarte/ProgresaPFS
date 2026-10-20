@@ -169,7 +169,13 @@ class ConciliacionView {
             </div>
 
             <div class="card">
-                <h2>Recibos pendientes de verificar</h2>
+                <h2>
+                    Recibos pendientes de verificar
+                    <a href="conciliacion.php?action=buscarManual" style="font-size:12.5px;font-weight:normal;margin-left:10px;color:var(--acento);">Vincular manualmente un recibo →</a>
+                </h2>
+                <p style="font-size:12px;color:var(--sin-datos);margin:-4px 0 12px;">
+                    Úsalo cuando el cruce automático no aplica: una transferencia de un período muy anterior, o un depósito que cubre varios recibos a la vez (ej. una empresa paga por 2 estudiantes con la misma transferencia).
+                </p>
                 <form method="GET" action="conciliacion.php" style="margin-bottom:16px;">
                     <div class="fila" style="align-items:flex-end;">
                         <div class="campo" style="max-width:200px;">
@@ -321,9 +327,16 @@ class ConciliacionView {
                                                 <td>
                                                     <?php if ($l['recibo_numero']): ?>
                                                         <a href="recibospfs.php?action=ver&amp;numero=<?= (int)$l['recibo_numero'] ?>" style="color:var(--acento);font-weight:bold;text-decoration:none;">#<?= (int)$l['recibo_numero'] ?></a>
-                                                        <?php if ($l['carne']): ?>
-                                                            <div class="numeros">carné <?= htmlspecialchars($l['carne']) ?></div>
+                                                        <?php if ($l['carne_automatico']): ?>
+                                                            <div class="numeros">carné <?= htmlspecialchars($l['carne_automatico']) ?></div>
                                                         <?php endif; ?>
+                                                    <?php elseif ($l['vinculos_manuales']): ?>
+                                                        <?php foreach (explode(',', $l['vinculos_manuales']) as $par): [$numRecibo, $montoAsignado] = explode(':', $par); ?>
+                                                            <div>
+                                                                <a href="recibospfs.php?action=ver&amp;numero=<?= (int)$numRecibo ?>" style="color:var(--acento);font-weight:bold;text-decoration:none;">#<?= (int)$numRecibo ?></a>
+                                                                <span class="numeros">Q <?= number_format((float)$montoAsignado, 2) ?> (manual)</span>
+                                                            </div>
+                                                        <?php endforeach; ?>
                                                     <?php else: ?>
                                                         <span style="color:var(--sin-datos);">—</span>
                                                     <?php endif; ?>
@@ -331,6 +344,8 @@ class ConciliacionView {
                                                 <td>
                                                     <?php if ((int)$l['conciliado'] === 1): ?>
                                                         <span class="pill ok">✓ Marcada</span>
+                                                    <?php elseif ($l['vinculos_manuales']): ?>
+                                                        <span class="pill falta">⟳ Parcial</span>
                                                     <?php else: ?>
                                                         <span class="pill falta">✗ Sin marcar</span>
                                                     <?php endif; ?>
@@ -488,6 +503,155 @@ class ConciliacionView {
                     <a href="conciliacion.php?desde=<?= urlencode($desde) ?>&amp;hasta=<?= urlencode($hasta) ?>" style="font-size:13px;color:var(--acento);font-weight:bold;">Cancelar</a>
                 </form>
             </div>
+            <?php Tema::script(); ?>
+        </body>
+        </html>
+        <?php
+    }
+
+    // Pantalla de vinculación manual: busca recibos pendientes y líneas
+    // disponibles por separado (sin límite de fecha, a propósito — es lo
+    // que permite encontrar un depósito de un período muy anterior), y
+    // los vincula en un solo POST. Admite varios recibos por línea (ej.
+    // una empresa que paga por 2 estudiantes con la misma transferencia).
+    public static function mostrarBusquedaManual(array $recibos, array $lineas, string $carne, string $montoRecibo, string $cuentaLinea, string $montoLinea, ?string $mensaje, ?string $error): void {
+        $esAdmin = Auth::esAdministrador();
+        ?>
+        <!DOCTYPE html>
+        <html lang="es">
+        <head>
+            <meta charset="UTF-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1">
+            <title>Vincular manualmente — CETECPRO</title>
+            <?php Tema::scriptInicial(); ?>
+            <?php self::estilos(); ?>
+        </head>
+        <body>
+            <?php self::barra(); ?>
+            <h1>Vincular recibo(s) con una línea del banco</h1>
+
+            <div class="card">
+                <?php if ($mensaje): ?><div class="exito">✅ <?= htmlspecialchars($mensaje) ?></div><?php endif; ?>
+                <?php if ($error): ?><div class="errores">⚠️ <?= htmlspecialchars($error) ?></div><?php endif; ?>
+                <p style="font-size:13px;color:var(--texto-muted);">
+                    Para casos que el cruce automático no resuelve: una transferencia de un período muy anterior al que se está conciliando, o un depósito que cubre <b>varios</b> recibos a la vez (ej. una empresa transfiere Q650 para pagar 2 recibos de Q325 cada uno). Busca por separado el/los recibo(s) y la línea del banco, márcalos, y vincula — sin límite de fecha.
+                </p>
+                <a href="conciliacion.php" style="font-size:13px;color:var(--acento);font-weight:bold;">← Volver a Conciliación</a>
+            </div>
+
+            <div class="card">
+                <h2>1. Buscar recibo(s) pendiente(s)</h2>
+                <form method="GET" action="conciliacion.php">
+                    <input type="hidden" name="action" value="buscarManual">
+                    <input type="hidden" name="cuenta_linea" value="<?= htmlspecialchars($cuentaLinea) ?>">
+                    <input type="hidden" name="monto_linea" value="<?= htmlspecialchars($montoLinea) ?>">
+                    <div class="fila" style="align-items:flex-end;">
+                        <div class="campo">
+                            <label for="carne">Carné (parcial o completo)</label>
+                            <input type="text" id="carne" name="carne" value="<?= htmlspecialchars($carne) ?>" style="margin-bottom:0;">
+                        </div>
+                        <div class="campo">
+                            <label for="monto_recibo">Monto exacto del recibo</label>
+                            <input type="number" step="0.01" id="monto_recibo" name="monto_recibo" value="<?= htmlspecialchars($montoRecibo) ?>" style="margin-bottom:0;">
+                        </div>
+                        <div class="campo" style="flex:0 0 auto;">
+                            <button type="submit">Buscar recibos</button>
+                        </div>
+                    </div>
+                </form>
+            </div>
+
+            <div class="card">
+                <h2>2. Buscar línea del banco con saldo disponible</h2>
+                <form method="GET" action="conciliacion.php">
+                    <input type="hidden" name="action" value="buscarManual">
+                    <input type="hidden" name="carne" value="<?= htmlspecialchars($carne) ?>">
+                    <input type="hidden" name="monto_recibo" value="<?= htmlspecialchars($montoRecibo) ?>">
+                    <div class="fila" style="align-items:flex-end;">
+                        <div class="campo">
+                            <label for="cuenta_linea">Banco</label>
+                            <select id="cuenta_linea" name="cuenta_linea" style="margin-bottom:0;">
+                                <option value="">-- Cualquiera --</option>
+                                <?php foreach (DepositosModel::cuentas() as $numeroCuenta => $banco): ?>
+                                    <option value="<?= htmlspecialchars($numeroCuenta) ?>" <?= $cuentaLinea === $numeroCuenta ? 'selected' : '' ?>><?= htmlspecialchars($banco) ?></option>
+                                <?php endforeach; ?>
+                            </select>
+                        </div>
+                        <div class="campo">
+                            <label for="monto_linea">Monto exacto de la línea</label>
+                            <input type="number" step="0.01" id="monto_linea" name="monto_linea" value="<?= htmlspecialchars($montoLinea) ?>" style="margin-bottom:0;">
+                        </div>
+                        <div class="campo" style="flex:0 0 auto;">
+                            <button type="submit">Buscar líneas</button>
+                        </div>
+                    </div>
+                </form>
+            </div>
+
+            <?php if (!empty($recibos) || !empty($lineas)): ?>
+            <div class="card">
+                <h2>3. Marcar y vincular</h2>
+                <?php if (!$esAdmin): ?>
+                    <p class="sin-datos">Solo un administrador puede confirmar vínculos manuales — puedes buscar, pero el botón de vincular no aparecerá.</p>
+                <?php endif; ?>
+                <form method="POST" action="conciliacion.php?action=vincularManual">
+                    <input type="hidden" name="carne" value="<?= htmlspecialchars($carne) ?>">
+                    <input type="hidden" name="monto_recibo" value="<?= htmlspecialchars($montoRecibo) ?>">
+                    <input type="hidden" name="cuenta_linea" value="<?= htmlspecialchars($cuentaLinea) ?>">
+                    <input type="hidden" name="monto_linea" value="<?= htmlspecialchars($montoLinea) ?>">
+
+                    <h3 style="font-size:13px;color:var(--texto);margin-bottom:8px;">Recibos pendientes encontrados (<?= count($recibos) ?>) — marca uno o varios</h3>
+                    <?php if (empty($recibos)): ?>
+                        <p class="sin-datos">Busca por carné o monto arriba.</p>
+                    <?php else: ?>
+                        <div class="tabla-scroll">
+                        <table>
+                            <thead><tr><th></th><th>Recibo</th><th>Carné</th><th>Fecha depósito</th><th>Monto</th><th>Cuenta destino</th></tr></thead>
+                            <tbody>
+                                <?php foreach ($recibos as $r): ?>
+                                    <tr>
+                                        <td><input type="checkbox" name="recibos[]" value="<?= (int)$r['numero'] ?>"></td>
+                                        <td>#<?= (int)$r['numero'] ?></td>
+                                        <td><?= htmlspecialchars($r['carne']) ?></td>
+                                        <td><?= date('d/m/Y', strtotime($r['fechadep'])) ?></td>
+                                        <td class="num">Q <?= number_format((float)$r['monto'], 2) ?></td>
+                                        <td><?= $r['cuenta_destino'] ? htmlspecialchars(DepositosModel::bancoDeCuenta($r['cuenta_destino']) ?? $r['cuenta_destino']) : '<span style="color:var(--sin-datos);">(sin dato)</span>' ?></td>
+                                    </tr>
+                                <?php endforeach; ?>
+                            </tbody>
+                        </table>
+                        </div>
+                    <?php endif; ?>
+
+                    <h3 style="font-size:13px;color:var(--texto);margin:18px 0 8px;">Líneas del banco con saldo disponible (<?= count($lineas) ?>) — marca exactamente una</h3>
+                    <?php if (empty($lineas)): ?>
+                        <p class="sin-datos">Busca por banco o monto arriba.</p>
+                    <?php else: ?>
+                        <div class="tabla-scroll">
+                        <table>
+                            <thead><tr><th></th><th>Banco</th><th>Fecha</th><th>Monto línea</th><th>Disponible</th><th>Referencia</th></tr></thead>
+                            <tbody>
+                                <?php foreach ($lineas as $l): ?>
+                                    <tr>
+                                        <td><input type="radio" name="estado_cuenta_id" value="<?= (int)$l['id'] ?>"></td>
+                                        <td><?= htmlspecialchars(DepositosModel::bancoDeCuenta($l['cuenta']) ?? $l['cuenta']) ?></td>
+                                        <td><?= date('d/m/Y', strtotime($l['fecha'])) ?></td>
+                                        <td class="num">Q <?= number_format((float)$l['monto'], 2) ?></td>
+                                        <td class="num">Q <?= number_format((float)$l['disponible'], 2) ?></td>
+                                        <td><?= $l['referencia'] ? htmlspecialchars($l['referencia']) : '<span style="color:var(--sin-datos);">—</span>' ?></td>
+                                    </tr>
+                                <?php endforeach; ?>
+                            </tbody>
+                        </table>
+                        </div>
+                    <?php endif; ?>
+
+                    <?php if ($esAdmin && !empty($recibos) && !empty($lineas)): ?>
+                        <button type="submit" style="margin-top:16px;" onclick="return confirm('¿Confirmas vincular los recibos marcados con la línea marcada? Esto los marca como verificados.');">Vincular marcados</button>
+                    <?php endif; ?>
+                </form>
+            </div>
+            <?php endif; ?>
             <?php Tema::script(); ?>
         </body>
         </html>

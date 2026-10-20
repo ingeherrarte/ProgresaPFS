@@ -47,6 +47,12 @@ class ConciliacionController {
             case 'verificar':
                 $this->verificar();
                 break;
+            case 'buscarManual':
+                $this->buscarManual();
+                break;
+            case 'vincularManual':
+                $this->vincularManualAccion();
+                break;
             case 'form':
             default:
                 $this->form();
@@ -621,6 +627,67 @@ class ConciliacionController {
         }
 
         $this->form("$resultado recibo(s) verificados correctamente.", null, $desde, $hasta);
+    }
+
+    // Pantalla de vinculación manual: para una transferencia de un período
+    // muy anterior (el cruce automático no la habría encontrado porque no
+    // hay límite de fecha aquí, es justo lo que permite buscarla) o para
+    // un depósito que cubre varios recibos a la vez (ej. una empresa que
+    // paga por 2 estudiantes con la misma transferencia).
+    private function buscarManual(?string $mensaje = null, ?string $error = null, ?string $carne = null, ?string $montoRecibo = null, ?string $cuentaLinea = null, ?string $montoLinea = null) {
+        $carne = trim($carne ?? ($_GET['carne'] ?? ''));
+        $montoRecibo = $montoRecibo ?? ($_GET['monto_recibo'] ?? '');
+        $cuentaLinea = trim($cuentaLinea ?? ($_GET['cuenta_linea'] ?? ''));
+        $montoLinea = $montoLinea ?? ($_GET['monto_linea'] ?? '');
+
+        $montoReciboValor = $montoRecibo !== '' ? (float)$montoRecibo : null;
+        $montoLineaValor = $montoLinea !== '' ? (float)$montoLinea : null;
+        $cuentaLineaValor = $cuentaLinea !== '' ? $cuentaLinea : null;
+
+        $db = Conexion::conectar();
+        // Solo busca si se dio al menos un criterio — sin esto, cargar la
+        // pantalla por primera vez listaría TODOS los recibos pendientes o
+        // TODAS las líneas disponibles, que es justo lo que las otras dos
+        // tablas del módulo ya muestran.
+        $recibos = ($carne !== '' || $montoReciboValor !== null)
+            ? ConciliacionModel::buscarRecibosPendientes($db, $carne, $montoReciboValor)
+            : [];
+        $lineas = ($cuentaLineaValor !== null || $montoLineaValor !== null)
+            ? ConciliacionModel::buscarLineasDisponibles($db, $cuentaLineaValor, $montoLineaValor)
+            : [];
+
+        ConciliacionView::mostrarBusquedaManual($recibos, $lineas, $carne, $montoRecibo, $cuentaLinea, $montoLinea, $mensaje, $error);
+    }
+
+    private function vincularManualAccion() {
+        $carne = $_POST['carne'] ?? '';
+        $montoRecibo = $_POST['monto_recibo'] ?? '';
+        $cuentaLinea = $_POST['cuenta_linea'] ?? '';
+        $montoLinea = $_POST['monto_linea'] ?? '';
+
+        if (!Auth::esAdministrador()) {
+            header("Location: inicio.php?error=permiso");
+            exit;
+        }
+
+        $estadoCuentaId = (int)($_POST['estado_cuenta_id'] ?? 0);
+        $numerosRecibo = array_values(array_unique(array_filter(array_map('intval', $_POST['recibos'] ?? []))));
+
+        if ($estadoCuentaId <= 0 || empty($numerosRecibo)) {
+            $this->buscarManual(null, "Selecciona una línea y al menos un recibo.", $carne, $montoRecibo, $cuentaLinea, $montoLinea);
+            return;
+        }
+
+        $db = Conexion::conectar();
+        $resultado = ConciliacionModel::vincularManual($db, $estadoCuentaId, $numerosRecibo, Auth::usuarioActual());
+
+        if (!$resultado['ok']) {
+            $this->buscarManual(null, $resultado['error'], $carne, $montoRecibo, $cuentaLinea, $montoLinea);
+            return;
+        }
+
+        $mensaje = count($numerosRecibo) . " recibo(s) vinculado(s) correctamente por Q" . number_format($resultado['asignado'], 2) . ".";
+        $this->buscarManual($mensaje, null, $carne, $montoRecibo, $cuentaLinea, $montoLinea);
     }
 }
 ?>
