@@ -209,6 +209,16 @@ class ConciliacionView {
                         </thead>
                         <tbody>
                             <?php foreach ($grupos as $g): ?>
+                                <?php
+                                // Solo se usarán tantas líneas como recibos haya en el grupo
+                                // (verificarGrupo toma las primeras N por cercanía de fecha) —
+                                // si hay más candidatas que recibos, el resto NO se toca.
+                                // Calculado una vez por fila, se usa tanto en la columna de
+                                // candidatas como en el mensaje de confirmación de "Verificar".
+                                $usados = array_slice($g['candidatos'], 0, (int)$g['cantidad']);
+                                $extrasMostradas = array_slice($g['candidatos'], (int)$g['cantidad']);
+                                $extrasNoMostradas = max(0, $g['disponibles'] - count($g['candidatos']));
+                                ?>
                                 <tr class="<?= $g['sugerido'] ? 'fila-ok' : 'fila-falta' ?>">
                                     <td><?= date('d/m/Y', strtotime($g['fecha'])) ?></td>
                                     <td class="num">Q <?= number_format($g['monto'], 2) ?></td>
@@ -228,14 +238,16 @@ class ConciliacionView {
                                             <span style="color:var(--sin-datos);">—</span>
                                         <?php else: ?>
                                             <div class="numeros" style="color:var(--texto);line-height:1.6;">
-                                                <?php foreach ($g['candidatos'] as $c): ?>
+                                                <?php foreach ($usados as $c): ?>
                                                     <b><?= htmlspecialchars(DepositosModel::bancoDeCuenta($c['cuenta']) ?? $c['cuenta']) ?></b>
                                                     · <?= date('d/m/Y', strtotime($c['fecha'])) ?>
                                                     <?php if ($c['referencia']): ?>· ref <?= htmlspecialchars($c['referencia']) ?><?php endif; ?>
                                                     <br>
                                                 <?php endforeach; ?>
-                                                <?php if ($g['disponibles'] > count($g['candidatos'])): ?>
-                                                    +<?= $g['disponibles'] - count($g['candidatos']) ?> más
+                                                <?php if (!empty($extrasMostradas) || $extrasNoMostradas > 0): ?>
+                                                    <span style="color:var(--sin-datos);">
+                                                        + <?= count($extrasMostradas) + max(0, $extrasNoMostradas) ?> línea(s) más disponible(s) (no se usan en este cruce, quedan libres para otro recibo)
+                                                    </span>
                                                 <?php endif; ?>
                                             </div>
                                         <?php endif; ?>
@@ -250,19 +262,25 @@ class ConciliacionView {
                                     <td>
                                         <?php if ($g['sugerido'] && $esAdmin): ?>
                                             <?php
-                                            // El confirm() nativo repite las líneas candidatas (no
-                                            // solo fecha/monto del grupo), para que la última
-                                            // comprobación antes de confirmar sea explícita sobre
-                                            // CUÁLES líneas del banco se están dando por buenas.
+                                            // El confirm() nativo repite SOLO las líneas que
+                                            // realmente se van a usar (las mismas $usados de la
+                                            // columna de candidatas, no todas las disponibles) —
+                                            // mostrar una candidata que no se va a tocar ahí daba a
+                                            // entender que se estaban asignando varias transferencias
+                                            // a un solo recibo.
                                             $detalle = '';
-                                            foreach ($g['candidatos'] as $c) {
+                                            foreach ($usados as $c) {
                                                 $banco = DepositosModel::bancoDeCuenta($c['cuenta']) ?? $c['cuenta'];
                                                 $detalle .= "\n- $banco " . date('d/m/Y', strtotime($c['fecha']))
                                                     . ($c['referencia'] ? " ref {$c['referencia']}" : '');
                                             }
-                                            $mensajeConfirm = "¿Confirmas que estas " . (int)$g['cantidad'] . " transferencia(s) del "
+                                            $totalExtras = count($extrasMostradas) + $extrasNoMostradas;
+                                            $notaExtras = $totalExtras > 0
+                                                ? "\n\n(Hay $totalExtras línea(s) más con la misma fecha/monto; el sistema elige automáticamente la más cercana en fecha y las demás quedan libres para otro recibo.)"
+                                                : '';
+                                            $mensajeConfirm = "¿Confirmas que esta(s) " . (int)$g['cantidad'] . " transferencia(s) del "
                                                 . date('d/m/Y', strtotime($g['fecha'])) . " por Q " . number_format($g['monto'], 2)
-                                                . " corresponden a estas línea(s) del banco?" . $detalle;
+                                                . " corresponden a:" . $detalle . $notaExtras;
                                             $onsubmit = 'return confirm(' . json_encode($mensajeConfirm, JSON_UNESCAPED_UNICODE) . ');';
                                             ?>
                                             <form method="POST" action="conciliacion.php?action=verificar" onsubmit="<?= htmlspecialchars($onsubmit) ?>">
