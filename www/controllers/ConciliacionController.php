@@ -104,7 +104,12 @@ class ConciliacionController {
         [$desdeSubida, $hastaSubida] = $this->rangoSubida($_POST['desde'] ?? null, $_POST['hasta'] ?? null);
         $db = Conexion::conectar();
         $grupos = ConciliacionModel::sugerencias($db, $desde, $hasta);
-        $lineas = ConciliacionModel::lineasEstadoCuenta($db, $desde, $hasta);
+        // "Líneas del estado de cuenta" usa el rango de SUBIDA (más angosto,
+        // el período que se acaba de trabajar), no el de "Recibos
+        // pendientes" (que se queda amplio a propósito para no esconder
+        // backlog atrasado) — mostrar aquí todo el año hacía la tabla
+        // inútil para revisar "¿mi importación de hoy quedó bien?".
+        $lineas = ConciliacionModel::lineasEstadoCuenta($db, $desdeSubida, $hastaSubida);
         ConciliacionView::mostrarPrincipal($grupos, $lineas, $mensaje, $error, $desde, $hasta, $desdeSubida, $hastaSubida);
     }
 

@@ -70,6 +70,12 @@ class ConciliacionView {
             }
             .chip-archivo.hecho { background: var(--estado-ok-bg); color: var(--estado-ok-texto); border-color: var(--estado-ok-borde); }
             .chip-archivo.actual { background: var(--acento); color: #fff; border-color: var(--acento); }
+            .tabs-bar { display: flex; gap: 6px; border-bottom: 2px solid var(--tabla-borde); margin-bottom: 14px; }
+            .tab-btn {
+                background: none; border: none; padding: 9px 16px; font-size: 13px; font-weight: bold;
+                color: var(--texto-muted); cursor: pointer; border-bottom: 3px solid transparent; margin-bottom: -2px;
+            }
+            .tab-btn.activo { color: var(--acento); border-bottom-color: var(--acento); }
         </style>
         <?php
     }
@@ -244,64 +250,102 @@ class ConciliacionView {
             </div>
 
             <div class="card">
-                <h2>Líneas del estado de cuenta en el período (<?= count($lineas) ?>)</h2>
+                <h2>
+                    Líneas del estado de cuenta (<?= count($lineas) ?>)
+                    <span class="numeros" style="display:inline;">— <?= date('d/m/Y', strtotime($desdeSubida)) ?> al <?= date('d/m/Y', strtotime($hastaSubida)) ?></span>
+                </h2>
                 <?php if (empty($lineas)): ?>
-                    <p class="sin-datos">No hay líneas importadas en este período. Sube el estado de cuenta de cada banco (BANRURAL y BANTRAB se suben por separado, porque traen columnas distintas).</p>
+                    <p class="sin-datos">No hay líneas importadas en este período. Sube el estado de cuenta de cada banco arriba (BANRURAL y BANTRAB se mapean por separado, pero puedes subir los dos juntos).</p>
                 <?php else: ?>
                     <?php
-                    $conciliadas = count(array_filter($lineas, fn($l) => (int)$l['conciliado'] === 1));
-                    $totalMonto = array_sum(array_map(fn($l) => (float)$l['monto'], $lineas));
+                    // Una pestaña por cuenta conocida (BANRURAL/BANTRAB, en el
+                    // mismo orden del catálogo), más una pestaña extra solo si
+                    // aparece alguna cuenta fuera de catálogo (no debería pasar).
+                    $porCuenta = [];
+                    foreach ($lineas as $l) {
+                        $porCuenta[$l['cuenta']][] = $l;
+                    }
+                    $pestanas = [];
+                    foreach (DepositosModel::cuentas() as $numeroCuenta => $banco) {
+                        $pestanas[] = ['banco' => $banco, 'lineas' => $porCuenta[$numeroCuenta] ?? []];
+                        unset($porCuenta[$numeroCuenta]);
+                    }
+                    foreach ($porCuenta as $numeroCuenta => $lineasSueltas) {
+                        $pestanas[] = ['banco' => $numeroCuenta, 'lineas' => $lineasSueltas];
+                    }
                     ?>
-                    <p style="font-size:12.5px;color:var(--texto-muted);margin-bottom:12px;">
-                        <?= $conciliadas ?> de <?= count($lineas) ?> ya marcadas contra recibo ·
-                        total de créditos cargados: Q <?= number_format($totalMonto, 2) ?>
-                    </p>
-                    <div class="tabla-scroll">
-                    <table>
-                        <thead>
-                            <tr>
-                                <th>Banco / cuenta</th>
-                                <th>Fecha</th>
-                                <th>Monto</th>
-                                <th>Referencia del banco</th>
-                                <th>Recibo</th>
-                                <th>Estado</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            <?php foreach ($lineas as $l): ?>
-                                <tr class="<?= (int)$l['conciliado'] === 1 ? 'fila-ok' : 'fila-falta' ?>">
-                                    <td>
-                                        <?= htmlspecialchars(DepositosModel::bancoDeCuenta($l['cuenta']) ?? $l['cuenta']) ?>
-                                        <div class="numeros"><?= htmlspecialchars($l['cuenta']) ?></div>
-                                    </td>
-                                    <td><?= date('d/m/Y', strtotime($l['fecha'])) ?></td>
-                                    <td class="num">Q <?= number_format((float)$l['monto'], 2) ?></td>
-                                    <td><?= $l['referencia'] !== null && $l['referencia'] !== '' ? htmlspecialchars($l['referencia']) : '<span style="color:var(--sin-datos);">—</span>' ?></td>
-                                    <td>
-                                        <?php if ($l['recibo_numero']): ?>
-                                            <a href="recibospfs.php?action=ver&amp;numero=<?= (int)$l['recibo_numero'] ?>" style="color:var(--acento);font-weight:bold;text-decoration:none;">#<?= (int)$l['recibo_numero'] ?></a>
-                                            <?php if ($l['carne']): ?>
-                                                <div class="numeros">carné <?= htmlspecialchars($l['carne']) ?></div>
-                                            <?php endif; ?>
-                                        <?php else: ?>
-                                            <span style="color:var(--sin-datos);">—</span>
-                                        <?php endif; ?>
-                                    </td>
-                                    <td>
-                                        <?php if ((int)$l['conciliado'] === 1): ?>
-                                            <span class="pill ok">✓ Marcada</span>
-                                        <?php else: ?>
-                                            <span class="pill falta">✗ Sin marcar</span>
-                                        <?php endif; ?>
-                                    </td>
-                                </tr>
-                            <?php endforeach; ?>
-                        </tbody>
-                    </table>
+                    <div class="tabs-bar">
+                        <?php foreach ($pestanas as $i => $p): ?>
+                            <button type="button" class="tab-btn <?= $i === 0 ? 'activo' : '' ?>" id="tabBtn<?= $i ?>" onclick="mostrarPestanaBanco(<?= $i ?>)">
+                                <?= htmlspecialchars($p['banco']) ?> (<?= count($p['lineas']) ?>)
+                            </button>
+                        <?php endforeach; ?>
                     </div>
+                    <?php foreach ($pestanas as $i => $p): ?>
+                        <div class="tab-contenido" id="tabContenido<?= $i ?>" <?= $i === 0 ? '' : 'hidden' ?>>
+                            <?php if (empty($p['lineas'])): ?>
+                                <p class="sin-datos">No hay líneas de <?= htmlspecialchars($p['banco']) ?> en este período.</p>
+                            <?php else: ?>
+                                <?php
+                                $conciliadas = count(array_filter($p['lineas'], fn($l) => (int)$l['conciliado'] === 1));
+                                $totalMonto = array_sum(array_map(fn($l) => (float)$l['monto'], $p['lineas']));
+                                ?>
+                                <p style="font-size:12.5px;color:var(--texto-muted);margin-bottom:12px;">
+                                    <?= $conciliadas ?> de <?= count($p['lineas']) ?> ya marcadas contra recibo ·
+                                    total de créditos cargados: Q <?= number_format($totalMonto, 2) ?>
+                                </p>
+                                <div class="tabla-scroll">
+                                <table>
+                                    <thead>
+                                        <tr>
+                                            <th>Fecha</th>
+                                            <th>Monto</th>
+                                            <th>Referencia del banco</th>
+                                            <th>Recibo</th>
+                                            <th>Estado</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        <?php foreach ($p['lineas'] as $l): ?>
+                                            <tr class="<?= (int)$l['conciliado'] === 1 ? 'fila-ok' : 'fila-falta' ?>">
+                                                <td><?= date('d/m/Y', strtotime($l['fecha'])) ?></td>
+                                                <td class="num">Q <?= number_format((float)$l['monto'], 2) ?></td>
+                                                <td><?= $l['referencia'] !== null && $l['referencia'] !== '' ? htmlspecialchars($l['referencia']) : '<span style="color:var(--sin-datos);">—</span>' ?></td>
+                                                <td>
+                                                    <?php if ($l['recibo_numero']): ?>
+                                                        <a href="recibospfs.php?action=ver&amp;numero=<?= (int)$l['recibo_numero'] ?>" style="color:var(--acento);font-weight:bold;text-decoration:none;">#<?= (int)$l['recibo_numero'] ?></a>
+                                                        <?php if ($l['carne']): ?>
+                                                            <div class="numeros">carné <?= htmlspecialchars($l['carne']) ?></div>
+                                                        <?php endif; ?>
+                                                    <?php else: ?>
+                                                        <span style="color:var(--sin-datos);">—</span>
+                                                    <?php endif; ?>
+                                                </td>
+                                                <td>
+                                                    <?php if ((int)$l['conciliado'] === 1): ?>
+                                                        <span class="pill ok">✓ Marcada</span>
+                                                    <?php else: ?>
+                                                        <span class="pill falta">✗ Sin marcar</span>
+                                                    <?php endif; ?>
+                                                </td>
+                                            </tr>
+                                        <?php endforeach; ?>
+                                    </tbody>
+                                </table>
+                                </div>
+                            <?php endif; ?>
+                        </div>
+                    <?php endforeach; ?>
                 <?php endif; ?>
             </div>
+            <script>
+                function mostrarPestanaBanco(indice) {
+                    document.querySelectorAll('.tab-contenido').forEach(el => { el.hidden = true; });
+                    document.querySelectorAll('.tab-btn').forEach(el => el.classList.remove('activo'));
+                    document.getElementById('tabContenido' + indice).hidden = false;
+                    document.getElementById('tabBtn' + indice).classList.add('activo');
+                }
+            </script>
             <?php Tema::script(); ?>
         </body>
         </html>
