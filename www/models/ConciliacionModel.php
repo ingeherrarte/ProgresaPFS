@@ -41,53 +41,40 @@ class ConciliacionModel {
         return $stmt->fetchAll(PDO::FETCH_ASSOC);
     }
 
-    // Líneas del estado de cuenta aún no usadas en ninguna verificación.
-    // Devuelve dos mapas: uno preciso por (fecha, monto, cuenta) para
-    // recibos que ya saben a qué cuenta entraron, y otro agregado por
-    // (fecha, monto) sin importar la cuenta, para los recibos legacy sin
-    // cuenta_destino (NULL) que no pueden pedir esa precisión.
-    public static function disponiblesAgrupados(PDO $db): array {
-        $stmt = $db->query(
-            "SELECT fecha, monto, cuenta, COUNT(*) AS cantidad
-             FROM estados_cuenta
-             WHERE conciliado = 0
-             GROUP BY fecha, monto, cuenta"
+    // Tolerancia de fecha para cruzar un recibo contra el estado de cuenta:
+    // una transferencia ACH puede acreditarse 1-2 días después de la fecha
+    // de la boleta (fechadep) que digitó el cajero. Sin esta tolerancia,
+    // ese desfase deja el recibo en "Falta importar" para siempre aunque
+    // la línea correcta ya esté importada, porque las fechas nunca empatan
+    // exacto. Es solo para BUSCAR líneas disponibles — pendientesAgrupados
+    // sigue agrupando por la fecha EXACTA de la boleta (es el dato real).
+    private const TOLERANCIA_DIAS_ACH = 2;
+
+    // Cuenta, para un grupo pendiente puntual, cuántas líneas del estado de
+    // cuenta sin conciliar hay dentro de ±TOLERANCIA_DIAS_ACH de su fecha,
+    // con el mismo monto y cuenta. Sin cuenta_destino conocida (histórico
+    // previo a esa columna), cualquier cuenta cuenta — igual que antes de
+    // que existiera la columna.
+    private static function contarDisponibles(PDO $db, string $fecha, $monto, ?string $cuenta): int {
+        $stmt = $db->prepare(
+            "SELECT COUNT(*) FROM estados_cuenta
+             WHERE conciliado = 0 AND monto = ?
+                   AND fecha BETWEEN DATE_SUB(?, INTERVAL ? DAY) AND DATE_ADD(?, INTERVAL ? DAY)
+                   AND (? IS NULL OR cuenta = ?)"
         );
-        $porCuenta = [];
-        $porFechaMonto = [];
-        foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $fila) {
-            $claveFm = self::clave($fila['fecha'], $fila['monto']);
-            $porCuenta[$claveFm . '|' . $fila['cuenta']] = (int)$fila['cantidad'];
-            $porFechaMonto[$claveFm] = ($porFechaMonto[$claveFm] ?? 0) + (int)$fila['cantidad'];
-        }
-        return ['por_cuenta' => $porCuenta, 'por_fecha_monto' => $porFechaMonto];
+        $stmt->execute([$monto, $fecha, self::TOLERANCIA_DIAS_ACH, $fecha, self::TOLERANCIA_DIAS_ACH, $cuenta, $cuenta]);
+        return (int)$stmt->fetchColumn();
     }
 
-    // estados_cuenta.monto es DECIMAL (PDO lo entrega como string "900.00")
-    // y recibospfs.deposito es DOUBLE (PDO lo entrega como float 900): sin
-    // normalizar ambos lados antes de concatenar, la clave de comparación
-    // salía "900.00" de un lado y "900" del otro — nunca coincidían aunque
-    // el monto real fuera idéntico, y ningún grupo se sugería jamás.
-    private static function clave(string $fecha, $monto): string {
-        return $fecha . '|' . number_format((float)$monto, 2, '.', '');
-    }
-
-    // Combina ambos lados: cada grupo pendiente trae cuántas líneas del
-    // estado de cuenta hay disponibles con esa misma fecha+monto, para que
-    // la vista pueda mostrar "sugerido" (alcanza) o "falta" (no alcanza).
+    // Agrega a cada grupo pendiente cuántas líneas del estado de cuenta hay
+    // disponibles (dentro de la tolerancia ACH), para que la vista pueda
+    // mostrar "sugerido" (alcanza) o "falta" (no alcanza). Es solo una
+    // sugerencia — verificarGrupo() hace su propio chequeo con bloqueo al
+    // confirmar, así que un conteo optimista aquí no genera inconsistencias.
     public static function sugerencias(PDO $db, string $desde, string $hasta): array {
         $pendientes = self::pendientesAgrupados($db, $desde, $hasta);
-        $disponibles = self::disponiblesAgrupados($db);
-
         foreach ($pendientes as &$grupo) {
-            $claveFm = self::clave($grupo['fecha'], $grupo['monto']);
-            // Con cuenta conocida: solo cuentan como disponibles las líneas
-            // de esa MISMA cuenta. Sin cuenta (histórico): como antes de
-            // que existiera la columna, cualquier línea de cualquier
-            // cuenta con esa fecha+monto sirve.
-            $grupo['disponibles'] = $grupo['cuenta_destino']
-                ? ($disponibles['por_cuenta'][$claveFm . '|' . $grupo['cuenta_destino']] ?? 0)
-                : ($disponibles['por_fecha_monto'][$claveFm] ?? 0);
+            $grupo['disponibles'] = self::contarDisponibles($db, $grupo['fecha'], $grupo['monto'], $grupo['cuenta_destino']);
             $grupo['sugerido'] = $grupo['disponibles'] >= (int)$grupo['cantidad'];
         }
         unset($grupo);
@@ -144,17 +131,23 @@ class ConciliacionModel {
                 return 0;
             }
 
-            $condicionLinea = "fecha = ? AND monto = ? AND conciliado = 0";
-            $paramsLinea = [$fecha, $monto];
+            // Misma tolerancia que en sugerencias()/contarDisponibles(): una
+            // transferencia ACH puede acreditarse 1-2 días después de la
+            // fecha de la boleta. Se ordena por cercanía a la fecha real del
+            // recibo (ABS(DATEDIFF)) para preferir siempre la línea más
+            // probable en vez de una casualidad de monto más alejada.
+            $condicionLinea = "fecha BETWEEN DATE_SUB(?, INTERVAL ? DAY) AND DATE_ADD(?, INTERVAL ? DAY) AND monto = ? AND conciliado = 0";
+            $paramsLinea = [$fecha, self::TOLERANCIA_DIAS_ACH, $fecha, self::TOLERANCIA_DIAS_ACH, $monto];
             if ($cuenta !== null) {
                 $condicionLinea .= " AND cuenta = ?";
                 $paramsLinea[] = $cuenta;
             }
+            $paramsLinea[] = $fecha; // para el ORDER BY ABS(DATEDIFF(...))
 
             $stmtLineas = $db->prepare(
                 "SELECT id FROM estados_cuenta
                  WHERE $condicionLinea
-                 ORDER BY id LIMIT " . count($numeros) . " FOR UPDATE"
+                 ORDER BY ABS(DATEDIFF(fecha, ?)), id LIMIT " . count($numeros) . " FOR UPDATE"
             );
             $stmtLineas->execute($paramsLinea);
             $ids = $stmtLineas->fetchAll(PDO::FETCH_COLUMN);
