@@ -76,6 +76,16 @@ class ConciliacionView {
                 color: var(--texto-muted); cursor: pointer; border-bottom: 3px solid transparent; margin-bottom: -2px;
             }
             .tab-btn.activo { color: var(--acento); border-bottom-color: var(--acento); }
+            .accesos-conciliacion {
+                display: flex; gap: 12px; flex-wrap: wrap; max-width: 1100px; margin: 0 auto 18px;
+            }
+            .acceso-mini {
+                background: var(--fila-alterna); border-radius: 8px; padding: 12px 18px; text-align: center;
+                text-decoration: none; transition: transform .15s; min-width: 140px;
+            }
+            .acceso-mini:hover { transform: translateY(-2px); }
+            .acceso-mini .icono { font-size: 20px; margin-bottom: 4px; }
+            .acceso-mini .titulo { font-size: 12.5px; font-weight: bold; color: var(--acento); }
         </style>
         <?php
     }
@@ -168,15 +178,27 @@ class ConciliacionView {
                 </p>
             </div>
 
+            <div class="accesos-conciliacion">
+                <a class="acceso-mini" href="conciliacion.php?action=buscarManual">
+                    <div class="icono">🔗</div>
+                    <div class="titulo">Vincular manualmente</div>
+                </a>
+                <a class="acceso-mini" href="conciliacion.php?action=movimientos">
+                    <div class="icono">🏦</div>
+                    <div class="titulo">Movimientos del banco</div>
+                </a>
+                <?php if ($esAdmin): ?>
+                    <a class="acceso-mini" href="conciliacion.php?action=reporte">
+                        <div class="icono">📈</div>
+                        <div class="titulo">Reporte de verificados</div>
+                    </a>
+                <?php endif; ?>
+            </div>
+
             <div class="card">
-                <h2>
-                    Recibos pendientes de verificar
-                    <a href="conciliacion.php?action=buscarManual" style="font-size:12.5px;font-weight:normal;margin-left:10px;color:var(--acento);">Vincular manualmente un recibo →</a>
-                    <a href="conciliacion.php?action=movimientos" style="font-size:12.5px;font-weight:normal;margin-left:10px;color:var(--acento);">Ver movimientos del banco →</a>
-                    <a href="conciliacion.php?action=reporte" style="font-size:12.5px;font-weight:normal;margin-left:10px;color:var(--acento);">Reporte de verificados →</a>
-                </h2>
+                <h2>Recibos pendientes de verificar</h2>
                 <p style="font-size:12px;color:var(--sin-datos);margin:-4px 0 12px;">
-                    Úsalo cuando el cruce automático no aplica: una transferencia de un período muy anterior, o un depósito que cubre varios recibos a la vez (ej. una empresa paga por 2 estudiantes con la misma transferencia).
+                    "Vincular manualmente" (arriba) es para cuando el cruce automático no aplica: una transferencia de un período muy anterior, o un depósito que cubre varios recibos a la vez (ej. una empresa paga por 2 estudiantes con la misma transferencia).
                 </p>
                 <form method="GET" action="conciliacion.php" style="margin-bottom:16px;">
                     <div class="fila" style="align-items:flex-end;">

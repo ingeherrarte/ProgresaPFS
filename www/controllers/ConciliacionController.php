@@ -723,6 +723,11 @@ class ConciliacionController {
     // los últimos 7 días (es un reporte de "qué se hizo estos días", no un
     // histórico completo).
     private function reporte() {
+        if (!Auth::esAdministrador()) {
+            header("Location: inicio.php?error=permiso");
+            exit;
+        }
+
         $desde = preg_match('/^\d{4}-\d{2}-\d{2}$/', (string)($_GET['desde'] ?? '')) ? $_GET['desde'] : date('Y-m-d', strtotime('-7 days'));
         $hasta = preg_match('/^\d{4}-\d{2}-\d{2}$/', (string)($_GET['hasta'] ?? '')) ? $_GET['hasta'] : date('Y-m-d');
         if ($hasta < $desde) { [$desde, $hasta] = [$hasta, $desde]; }
