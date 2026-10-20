@@ -58,9 +58,18 @@ class ConciliacionView {
                 display: inline-block; padding: 3px 10px; border-radius: 999px;
                 font-size: 11.5px; font-weight: bold;
             }
-            .pill.ok { background: #e8f5e9; color: #2e7d32; }
-            .pill.falta { background: #fff8e1; color: #f57f17; }
+            .pill.ok { background: var(--estado-ok-bg); color: var(--estado-ok-texto); }
+            .pill.falta { background: var(--estado-falta-bg); color: var(--estado-falta-texto); }
+            tr.fila-ok td { background: var(--fila-ok-bg); }
+            tr.fila-falta td { background: var(--fila-falta-bg); }
             .numeros { font-size: 11.5px; color: var(--sin-datos); margin-top: 2px; }
+            .progreso-archivos { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 18px; }
+            .chip-archivo {
+                padding: 6px 14px; border-radius: 6px; font-size: 13px; font-weight: bold;
+                border: 1px solid var(--borde-input); color: var(--texto-muted);
+            }
+            .chip-archivo.hecho { background: var(--estado-ok-bg); color: var(--estado-ok-texto); border-color: var(--estado-ok-borde); }
+            .chip-archivo.actual { background: var(--acento); color: #fff; border-color: var(--acento); }
         </style>
         <?php
     }
@@ -90,7 +99,7 @@ class ConciliacionView {
         <?php
     }
 
-    public static function mostrarPrincipal(array $grupos, array $lineas, ?string $mensaje, ?string $error, string $desde, string $hasta): void {
+    public static function mostrarPrincipal(array $grupos, array $lineas, ?string $mensaje, ?string $error, string $desde, string $hasta, string $desdeSubida, string $hastaSubida): void {
         $esAdmin = Auth::esAdministrador();
         ?>
         <!DOCTYPE html>
@@ -110,30 +119,46 @@ class ConciliacionView {
                 <?php if ($mensaje): ?><div class="exito">✅ <?= htmlspecialchars($mensaje) ?></div><?php endif; ?>
                 <?php if ($error): ?><div class="errores">⚠️ <?= htmlspecialchars($error) ?></div><?php endif; ?>
 
-                <h2>Subir estado de cuenta (CSV)</h2>
+                <h2>Subir estados de cuenta (BANRURAL y/o BANTRAB)</h2>
                 <form method="POST" action="conciliacion.php?action=subir" enctype="multipart/form-data">
                     <div class="fila">
                         <div class="campo">
-                            <label for="archivo">Archivo del banco: CSV, Excel .xlsx, o .xls exportado como tabla HTML (máx. 3 MB)</label>
+                            <label for="archivo">Primer archivo (requerido): CSV, Excel .xlsx, o .xls exportado como tabla HTML (máx. 3 MB)</label>
                             <input type="file" id="archivo" name="archivo"
                                    accept=".csv,text/csv,.xlsx,.xls,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
                                    required>
                         </div>
+                        <div class="campo" style="max-width:200px;">
+                            <label for="cuenta1">¿De qué banco es?</label>
+                            <select id="cuenta1" name="cuenta1" required>
+                                <?php foreach (DepositosModel::cuentas() as $numeroCuenta => $banco): ?>
+                                    <option value="<?= htmlspecialchars($numeroCuenta) ?>" <?= $banco === 'BANRURAL' ? 'selected' : '' ?>><?= htmlspecialchars($banco) ?></option>
+                                <?php endforeach; ?>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="fila">
+                        <div class="campo">
+                            <label for="archivo2">Segundo archivo (opcional): el otro banco — se asume automáticamente, no hace falta indicarlo</label>
+                            <input type="file" id="archivo2" name="archivo2"
+                                   accept=".csv,text/csv,.xlsx,.xls,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet">
+                        </div>
                     </div>
                     <div class="fila">
                         <div class="campo" style="max-width:220px;">
-                            <label for="desde_subir">Período del estado de cuenta: desde</label>
-                            <input type="date" id="desde_subir" name="desde" value="<?= htmlspecialchars($desde) ?>">
+                            <label for="desde_subir">Período de los estados de cuenta: desde</label>
+                            <input type="date" id="desde_subir" name="desde" value="<?= htmlspecialchars($desdeSubida) ?>">
                         </div>
                         <div class="campo" style="max-width:220px;">
                             <label for="hasta_subir">hasta</label>
-                            <input type="date" id="hasta_subir" name="hasta" value="<?= htmlspecialchars($hasta) ?>">
+                            <input type="date" id="hasta_subir" name="hasta" value="<?= htmlspecialchars($hastaSubida) ?>">
                         </div>
                     </div>
                     <button type="submit">Subir y mapear columnas →</button>
                 </form>
-                <p style="font-size:12px;color:#888;margin-top:10px;">
-                    El sistema detecta el formato real del archivo (no la extensión) — funciona con CSV, .xlsx real, y con los ".xls" que en realidad son una tabla HTML (común en exports de banca en línea). Solo el .xls binario real de Excel 97-2003 no se puede leer directo.
+                <p style="font-size:12px;color:var(--sin-datos);margin-top:10px;">
+                    El sistema detecta el formato real de cada archivo (no la extensión) — funciona con CSV, .xlsx real, y con los ".xls" que en realidad son una tabla HTML (común en exports de banca en línea). Solo el .xls binario real de Excel 97-2003 no se puede leer directo.
+                    Las columnas de cada banco ya están precargadas (siempre son las mismas) — la pantalla de mapeo las muestra para que las verifiques, no para elegirlas desde cero.
                 </p>
             </div>
 
@@ -172,14 +197,14 @@ class ConciliacionView {
                         </thead>
                         <tbody>
                             <?php foreach ($grupos as $g): ?>
-                                <tr>
+                                <tr class="<?= $g['sugerido'] ? 'fila-ok' : 'fila-falta' ?>">
                                     <td><?= date('d/m/Y', strtotime($g['fecha'])) ?></td>
                                     <td class="num">Q <?= number_format($g['monto'], 2) ?></td>
                                     <td>
                                         <?php if ($g['cuenta_destino']): ?>
                                             <?= htmlspecialchars(DepositosModel::bancoDeCuenta($g['cuenta_destino']) ?? $g['cuenta_destino']) ?>
                                         <?php else: ?>
-                                            <span style="color:#999;">(sin dato)</span>
+                                            <span style="color:var(--sin-datos);">(sin dato)</span>
                                         <?php endif; ?>
                                     </td>
                                     <td>
@@ -189,9 +214,9 @@ class ConciliacionView {
                                     <td><?= (int)$g['disponibles'] ?></td>
                                     <td>
                                         <?php if ($g['sugerido']): ?>
-                                            <span class="pill ok">Sugerido</span>
+                                            <span class="pill ok">✓ Sugerido</span>
                                         <?php else: ?>
-                                            <span class="pill falta">Falta importar</span>
+                                            <span class="pill falta">✗ Falta importar</span>
                                         <?php endif; ?>
                                     </td>
                                     <td>
@@ -245,7 +270,7 @@ class ConciliacionView {
                         </thead>
                         <tbody>
                             <?php foreach ($lineas as $l): ?>
-                                <tr>
+                                <tr class="<?= (int)$l['conciliado'] === 1 ? 'fila-ok' : 'fila-falta' ?>">
                                     <td>
                                         <?= htmlspecialchars(DepositosModel::bancoDeCuenta($l['cuenta']) ?? $l['cuenta']) ?>
                                         <div class="numeros"><?= htmlspecialchars($l['cuenta']) ?></div>
@@ -265,9 +290,9 @@ class ConciliacionView {
                                     </td>
                                     <td>
                                         <?php if ((int)$l['conciliado'] === 1): ?>
-                                            <span class="pill ok">Marcada</span>
+                                            <span class="pill ok">✓ Marcada</span>
                                         <?php else: ?>
-                                            <span class="pill falta">Sin marcar</span>
+                                            <span class="pill falta">✗ Sin marcar</span>
                                         <?php endif; ?>
                                     </td>
                                 </tr>
@@ -283,9 +308,14 @@ class ConciliacionView {
         <?php
     }
 
-    public static function mostrarMapeo(array $filas, string $desde, string $hasta): void {
-        $primeraFila = $filas[0] ?? [];
-        $totalColumnas = count($primeraFila);
+    public static function mostrarMapeo(array $filas, string $desde, string $hasta, int $numero, int $total, string $nombreBanco, ?array $preset): void {
+        // El número de columnas se toma del MÁXIMO entre todas las filas, no
+        // solo de la primera: varias filas de membrete/título al inicio del
+        // archivo (común en BANRURAL) traen menos celdas que las filas de
+        // datos reales, y contar solo la fila 0 dejaba columnas reales (ej.
+        // la H de créditos) fuera del selector — parecía que el <select> no
+        // dejaba elegir nada distinto de A porque esa opción no existía.
+        $totalColumnas = !empty($filas) ? max(array_map('count', $filas)) : 0;
         $totalFilas = count($filas);
         ?>
         <!DOCTYPE html>
@@ -300,6 +330,16 @@ class ConciliacionView {
         <body>
             <?php self::barra(); ?>
             <h1>Mapear columnas del estado de cuenta</h1>
+
+            <?php if ($total > 1): ?>
+                <div class="progreso-archivos">
+                    <?php for ($i = 1; $i <= $total; $i++): ?>
+                        <span class="chip-archivo <?= $i < $numero ? 'hecho' : ($i === $numero ? 'actual' : '') ?>">
+                            <?= $i < $numero ? '✓' : $i ?> Archivo <?= $i ?>
+                        </span>
+                    <?php endfor; ?>
+                </div>
+            <?php endif; ?>
 
             <div class="card">
                 <h2>Vista previa (<?= $totalFilas ?> fila(s) leídas, primeras 15)</h2>
@@ -326,32 +366,25 @@ class ConciliacionView {
                     </table>
                 </div>
                 <p style="font-size:12px;color:var(--sin-datos);margin-top:10px;">
-                    Algunos bancos (ej. BANRURAL) traen varias filas de membrete/metadatos antes de los títulos de columna. Fíjate en qué número de fila empiezan los datos reales (montos y fechas) y anótalo abajo.
-                </p>
-                <p style="font-size:12px;color:var(--sin-datos);margin-top:8px;">
-                    Como monto, elige siempre la columna de <b>créditos</b> — en BANRURAL es "Crédito (+)" y en BANTRAB "CRÉDITOS". Así solo se cargan los ingresos: las filas de débito quedan vacías en esa columna y se omiten solas.
-                    Para referencia, en BANRURAL usa "Referencia" y en BANTRAB "NO. DOCUMENTO" (es informativa: el número que trae la boleta del estudiante lo genera su banco de origen y no coincide con el del estado de cuenta, así que el cruce se hace por fecha + monto + cuenta, no por referencia).
+                    Verifica contra esta vista previa que las columnas precargadas abajo siguen siendo correctas — sobre todo si el banco cambió su formato de export.
                 </p>
             </div>
 
             <div class="card">
-                <h2>Indica qué columna es cada dato</h2>
+                <h2>
+                    Columnas de este archivo
+                    <span class="pill ok" style="margin-left:8px;"><?= htmlspecialchars($nombreBanco) ?></span>
+                </h2>
+                <?php if ($preset === null): ?>
+                    <p class="sin-datos">Este banco no tiene un formato conocido — indica manualmente cada columna.</p>
+                <?php endif; ?>
                 <form method="POST" action="conciliacion.php?action=confirmarImport">
                     <input type="hidden" name="desde" value="<?= htmlspecialchars($desde) ?>">
                     <input type="hidden" name="hasta" value="<?= htmlspecialchars($hasta) ?>">
                     <div class="fila">
                         <div class="campo">
                             <label for="fila_inicio_datos">¿En qué número de fila empiezan los datos?</label>
-                            <input type="number" id="fila_inicio_datos" name="fila_inicio_datos" min="1" max="<?= $totalFilas ?>" value="1" required>
-                        </div>
-                        <div class="campo">
-                            <label for="cuenta">Cuenta bancaria de este estado de cuenta</label>
-                            <select id="cuenta" name="cuenta" required>
-                                <option value="">-- Seleccione --</option>
-                                <?php foreach (DepositosModel::cuentas() as $numero => $banco): ?>
-                                    <option value="<?= htmlspecialchars($numero) ?>"><?= htmlspecialchars($numero) ?> — <?= htmlspecialchars($banco) ?></option>
-                                <?php endforeach; ?>
-                            </select>
+                            <input type="number" id="fila_inicio_datos" name="fila_inicio_datos" min="1" max="<?= $totalFilas ?>" value="<?= $preset['filaInicio'] ?? 1 ?>" required>
                         </div>
                     </div>
                     <div class="fila">
@@ -359,7 +392,7 @@ class ConciliacionView {
                             <label for="col_fecha">Columna de fecha</label>
                             <select id="col_fecha" name="col_fecha" required>
                                 <?php for ($c = 0; $c < $totalColumnas; $c++): ?>
-                                    <option value="<?= $c ?>">Columna <?= self::columnaLetra($c) ?></option>
+                                    <option value="<?= $c ?>" <?= ($preset['colFecha'] ?? null) === $c ? 'selected' : '' ?>>Columna <?= self::columnaLetra($c) ?></option>
                                 <?php endfor; ?>
                             </select>
                         </div>
@@ -367,7 +400,7 @@ class ConciliacionView {
                             <label for="col_monto">Columna de monto: la de CRÉDITOS (dinero que entró)</label>
                             <select id="col_monto" name="col_monto" required>
                                 <?php for ($c = 0; $c < $totalColumnas; $c++): ?>
-                                    <option value="<?= $c ?>">Columna <?= self::columnaLetra($c) ?></option>
+                                    <option value="<?= $c ?>" <?= ($preset['colMonto'] ?? null) === $c ? 'selected' : '' ?>>Columna <?= self::columnaLetra($c) ?></option>
                                 <?php endfor; ?>
                             </select>
                         </div>
@@ -376,7 +409,7 @@ class ConciliacionView {
                             <select id="col_referencia" name="col_referencia">
                                 <option value="">-- Ninguna --</option>
                                 <?php for ($c = 0; $c < $totalColumnas; $c++): ?>
-                                    <option value="<?= $c ?>">Columna <?= self::columnaLetra($c) ?></option>
+                                    <option value="<?= $c ?>" <?= ($preset['colReferencia'] ?? null) === $c ? 'selected' : '' ?>>Columna <?= self::columnaLetra($c) ?></option>
                                 <?php endfor; ?>
                             </select>
                         </div>
@@ -385,17 +418,17 @@ class ConciliacionView {
                         <div class="campo">
                             <label for="formato_fecha">Formato de fecha en el archivo</label>
                             <select id="formato_fecha" name="formato_fecha">
-                                <option value="dmy">DD/MM/AAAA</option>
-                                <option value="mdy">MM/DD/AAAA</option>
-                                <option value="iso">AAAA-MM-DD</option>
-                                <option value="excel_serial">Número de Excel (ej. 45540, no fecha de texto)</option>
+                                <option value="dmy" <?= ($preset['formatoFecha'] ?? 'dmy') === 'dmy' ? 'selected' : '' ?>>DD/MM/AAAA</option>
+                                <option value="mdy" <?= ($preset['formatoFecha'] ?? '') === 'mdy' ? 'selected' : '' ?>>MM/DD/AAAA</option>
+                                <option value="iso" <?= ($preset['formatoFecha'] ?? '') === 'iso' ? 'selected' : '' ?>>AAAA-MM-DD</option>
+                                <option value="excel_serial" <?= ($preset['formatoFecha'] ?? '') === 'excel_serial' ? 'selected' : '' ?>>Número de Excel (ej. 45540, no fecha de texto)</option>
                             </select>
                         </div>
                         <div class="campo">
                             <label for="formato_monto">Formato de número en el archivo</label>
                             <select id="formato_monto" name="formato_monto">
-                                <option value="punto_decimal">1,234.56 (punto decimal)</option>
-                                <option value="coma_decimal">1.234,56 (coma decimal)</option>
+                                <option value="punto_decimal" <?= ($preset['formatoMonto'] ?? 'punto_decimal') === 'punto_decimal' ? 'selected' : '' ?>>1,234.56 (punto decimal)</option>
+                                <option value="coma_decimal" <?= ($preset['formatoMonto'] ?? '') === 'coma_decimal' ? 'selected' : '' ?>>1.234,56 (coma decimal)</option>
                             </select>
                         </div>
                     </div>

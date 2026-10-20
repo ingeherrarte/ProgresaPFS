@@ -10,6 +10,23 @@ class ConciliacionController {
     private const MAX_FILAS = 5000;
     private const MAX_TAMANO_ARCHIVO = 3 * 1024 * 1024;
 
+    // Formato confirmado de cada banco (siempre el mismo export, columnas
+    // 0-based): BANRURAL trae Fecha, Oficina, Descripción, Referencia,
+    // Secuencial, Cheque Propio/Local/Efectivo, Débito(-), Crédito(+), Saldo
+    // Contable, Saldo Disponible (A..J) con encabezado en la fila 5 y datos
+    // desde la 6. BANTRAB trae FECHA, NO. DOCUMENTO, DESCRIPCIÓN, DÉBITOS,
+    // CRÉDITOS, SALDO, con encabezado en la fila 6 y datos desde la 7.
+    private const PRESETS = [
+        '3099203897' => [ // BANRURAL
+            'colFecha' => 0, 'colReferencia' => 3, 'colMonto' => 7, 'filaInicio' => 6,
+            'formatoFecha' => 'dmy', 'formatoMonto' => 'punto_decimal',
+        ],
+        '2870011720' => [ // BANTRAB
+            'colFecha' => 0, 'colReferencia' => 2, 'colMonto' => 9, 'filaInicio' => 7,
+            'formatoFecha' => 'dmy', 'formatoMonto' => 'punto_decimal',
+        ],
+    ];
+
     public function handle(string $action) {
         // Disponible para editor y administrador (igual que anular recibos
         // o editar estudiantes); solo el administrador puede verificar.
@@ -45,13 +62,29 @@ class ConciliacionController {
         return preg_match('/^\d{4}-\d{2}-\d{2}$/', (string)$valor) ? $valor : date('Y-m-d');
     }
 
+    // Default propio para el formulario de SUBIDA (distinto del "Revisar
+    // desde" de la lista de pendientes, que default a 1 de enero para no
+    // esconder histórico atrasado): los estados de cuenta que se suben son
+    // casi siempre de los últimos días, así que partir de hoy-8 evita tener
+    // que mover la fecha a mano cada vez.
+    private function fechaDesdeSubida(?string $valor): string {
+        return preg_match('/^\d{4}-\d{2}-\d{2}$/', (string)$valor) ? $valor : date('Y-m-d', strtotime('-8 days'));
+    }
+
     // Si el usuario invierte el rango (hasta < desde) no se devuelve nunca
     // nada y parece que "no hay pendientes": se intercambian para que el
     // filtro siga siendo útil en vez de mostrar una lista vacía engañosa.
-    private function rango(?string $desde, ?string $hasta): array {
-        $desde = $this->fechaDesde($desde);
-        $hasta = $this->fechaHasta($hasta);
+    private function ordenar(string $desde, string $hasta): array {
         return $hasta < $desde ? [$hasta, $desde] : [$desde, $hasta];
+    }
+
+    private function rango(?string $desde, ?string $hasta): array {
+        return $this->ordenar($this->fechaDesde($desde), $this->fechaHasta($hasta));
+    }
+
+    // Rango específico del formulario de subida (ver fechaDesdeSubida).
+    private function rangoSubida(?string $desde, ?string $hasta): array {
+        return $this->ordenar($this->fechaDesdeSubida($desde), $this->fechaHasta($hasta));
     }
 
     private function form(?string $mensaje = null, ?string $error = null, ?string $desde = null, ?string $hasta = null) {
@@ -59,10 +92,15 @@ class ConciliacionController {
             $desde ?? ($_GET['desde'] ?? null),
             $hasta ?? ($_GET['hasta'] ?? null)
         );
+        // El formulario de subida tiene su propio rango sugerido (ver
+        // fechaDesdeSubida) — se recalcula aparte en vez de reusar $desde,
+        // salvo que venga de un intento de subida real, donde $_POST todavía
+        // trae lo que el usuario puso (o dejó vacío) en ESE formulario.
+        [$desdeSubida, $hastaSubida] = $this->rangoSubida($_POST['desde'] ?? null, $_POST['hasta'] ?? null);
         $db = Conexion::conectar();
         $grupos = ConciliacionModel::sugerencias($db, $desde, $hasta);
         $lineas = ConciliacionModel::lineasEstadoCuenta($db, $desde, $hasta);
-        ConciliacionView::mostrarPrincipal($grupos, $lineas, $mensaje, $error, $desde, $hasta);
+        ConciliacionView::mostrarPrincipal($grupos, $lineas, $mensaje, $error, $desde, $hasta, $desdeSubida, $hastaSubida);
     }
 
     // Detecta separador (',' o ';') por frecuencia en la primera línea, y
@@ -219,59 +257,183 @@ class ConciliacionController {
         return $filas;
     }
 
-    private function subir() {
-        [$desde, $hasta] = $this->rango($_POST['desde'] ?? null, $_POST['hasta'] ?? null);
+    // Mensaje específico por código de error de subida de PHP, en vez del
+    // genérico "está vacío o no se pudo leer" que no dice nada útil cuando
+    // el problema es, por ejemplo, un límite de tamaño del servidor.
+    private function mensajeErrorSubida(int $codigo): string {
+        return match ($codigo) {
+            UPLOAD_ERR_INI_SIZE, UPLOAD_ERR_FORM_SIZE =>
+                "el archivo excede el tamaño máximo que el servidor acepta para una subida.",
+            UPLOAD_ERR_PARTIAL =>
+                "la subida se interrumpió a la mitad (conexión lenta o se cerró la pestaña). Intenta de nuevo.",
+            UPLOAD_ERR_NO_TMP_DIR, UPLOAD_ERR_CANT_WRITE =>
+                "el servidor no pudo guardar el archivo temporalmente. Intenta de nuevo.",
+            UPLOAD_ERR_EXTENSION =>
+                "una extensión de PHP del servidor bloqueó la subida.",
+            default => "no se pudo recibir el archivo (código $codigo).",
+        };
+    }
 
-        if ($_SERVER['REQUEST_METHOD'] !== 'POST' || empty($_FILES['archivo']['tmp_name'])) {
-            $this->form(null, "Selecciona un archivo CSV.", $desde, $hasta);
-            return;
+    // Lee y parsea un archivo subido ($_FILES[$campo]), sea CSV, .xlsx real,
+    // o .xls-que-en-realidad-es-HTML. Centraliza la detección por contenido
+    // (no por extensión) para poder reutilizarla con 'archivo' y 'archivo2'
+    // sin duplicar la lógica de sniffing.
+    private function leerArchivoSubido(string $campo): array {
+        $error = $_FILES[$campo]['error'] ?? UPLOAD_ERR_NO_FILE;
+        if ($error !== UPLOAD_ERR_OK) {
+            throw new RuntimeException($this->mensajeErrorSubida($error));
         }
-        if ($_FILES['archivo']['size'] > self::MAX_TAMANO_ARCHIVO) {
-            $this->form(null, "El archivo supera el tamaño máximo permitido (3 MB).", $desde, $hasta);
-            return;
+        if ($_FILES[$campo]['size'] > self::MAX_TAMANO_ARCHIVO) {
+            throw new RuntimeException("el archivo supera el tamaño máximo permitido (3 MB).");
         }
 
         // No confiamos en la extensión del nombre: varios bancos generan
         // archivos ".xls" que en realidad son tablas HTML, o ".csv" que
         // vienen con otra codificación. Se detecta por el contenido real
         // (magic bytes / sniffing de las primeras líneas).
-        $rutaTemporal = $_FILES['archivo']['tmp_name'];
+        $rutaTemporal = $_FILES[$campo]['tmp_name'];
         $cabecera = file_get_contents($rutaTemporal, false, null, 0, 8);
 
-        try {
-            if (substr($cabecera, 0, 2) === 'PK') {
-                // ZIP real: .xlsx
-                $filas = $this->parsearXlsx($rutaTemporal);
-            } elseif (substr($cabecera, 0, 4) === "\xD0\xCF\x11\xE0") {
-                // OLE2 real: .xls binario legacy (Excel 97-2003), no soportado
-                $this->form(null, "El archivo es un .xls binario real (Excel 97-2003), que no se puede leer directamente. Ábrelo en Excel y guárdalo como .xlsx o CSV.", $desde, $hasta);
-                return;
-            } else {
-                $contenido = file_get_contents($rutaTemporal);
-                $muestra = ltrim($contenido);
-                if (stripos($muestra, '<table') !== false || stripos($muestra, '<html') !== false) {
-                    // Típico de bancos: exportan HTML con extensión .xls
-                    $filas = $this->parsearHtmlTabla($contenido);
-                } else {
-                    $filas = $this->parsearCsv($contenido);
-                }
+        if (substr($cabecera, 0, 2) === 'PK') {
+            // ZIP real: .xlsx
+            $filas = $this->parsearXlsx($rutaTemporal);
+        } elseif (substr($cabecera, 0, 4) === "\xD0\xCF\x11\xE0") {
+            // OLE2 real: .xls binario legacy (Excel 97-2003), no soportado
+            throw new RuntimeException("es un .xls binario real (Excel 97-2003), que no se puede leer directamente. Ábrelo en Excel y guárdalo como .xlsx o CSV.");
+        } else {
+            $contenido = file_get_contents($rutaTemporal);
+
+            // Algunos exports "Web Page" de banca en línea vienen en
+            // UTF-16 (con BOM FF FE / FE FF): el contenido SÍ es HTML, pero
+            // un stripos('<table') sobre los bytes crudos nunca lo
+            // encuentra porque cada carácter ASCII viene intercalado con
+            // bytes NUL ("<\x00t\x00a\x00b\x00l\x00e..."). Sin esta
+            // conversión, el archivo caía al parser de CSV, que no
+            // reconoce nada de eso y termina devolviendo 0 filas —
+            // parecía que el .xls "no se reconocía" cuando en realidad sí
+            // era HTML, solo que en una codificación distinta.
+            if (substr($contenido, 0, 2) === "\xFF\xFE") {
+                $contenido = mb_convert_encoding(substr($contenido, 2), 'UTF-8', 'UTF-16LE');
+            } elseif (substr($contenido, 0, 2) === "\xFE\xFF") {
+                $contenido = mb_convert_encoding(substr($contenido, 2), 'UTF-8', 'UTF-16BE');
             }
-        } catch (Throwable $e) {
-            $this->form(null, "No se pudo leer el archivo: " . $e->getMessage(), $desde, $hasta);
-            return;
+
+            $muestra = ltrim($contenido);
+            if (stripos($muestra, '<table') !== false || stripos($muestra, '<html') !== false) {
+                // Típico de bancos: exportan HTML con extensión .xls
+                $filas = $this->parsearHtmlTabla($contenido);
+            } else {
+                $filas = $this->parsearCsv($contenido);
+            }
         }
 
         if (empty($filas)) {
-            $this->form(null, "El archivo está vacío o no se pudo leer como CSV.", $desde, $hasta);
-            return;
+            throw new RuntimeException("está vacío o no se pudo leer (no se encontró ninguna tabla ni fila de datos reconocible).");
         }
         if (count($filas) > self::MAX_FILAS) {
-            $this->form(null, "El archivo tiene demasiadas filas (máximo " . self::MAX_FILAS . "). Divídelo y sube por partes.", $desde, $hasta);
+            throw new RuntimeException("tiene demasiadas filas (máximo " . self::MAX_FILAS . "). Divídelo y sube por partes.");
+        }
+        return $filas;
+    }
+
+    // Limpia todo el estado de la cola de importación encadenada (ver
+    // subir()/siguienteMapeo()) — se llama en cada salida por error para no
+    // dejar un archivo a medio procesar colgado en la sesión.
+    private function limpiarColaImportacion(): void {
+        unset(
+            $_SESSION['conciliacion_csv'],
+            $_SESSION['conciliacion_cuenta'],
+            $_SESSION['conciliacion_cola'],
+            $_SESSION['conciliacion_total'],
+            $_SESSION['conciliacion_mensajes']
+        );
+    }
+
+    // Muestra el mapeo del siguiente archivo en la cola, o —si ya no quedan—
+    // regresa a la pantalla principal con el resumen de todo lo importado.
+    // BANRURAL y BANTRAB se suben juntos pero se mapean uno tras otro porque
+    // cada uno trae columnas distintas (ver mostrarMapeo en la vista).
+    private function siguienteMapeo(string $desde, string $hasta): void {
+        if (empty($_SESSION['conciliacion_cola'])) {
+            $mensaje = !empty($_SESSION['conciliacion_mensajes'])
+                ? implode(' ', $_SESSION['conciliacion_mensajes'])
+                : null;
+            $this->limpiarColaImportacion();
+            // null,null (no $desde/$hasta explícitos): al terminar una
+            // importación, "Recibos pendientes" debe volver a su propio
+            // default (todo el histórico sin resolver desde el 1 de enero),
+            // no quedarse acotado a los 8 días del formulario de subida —
+            // el formulario de subida recalcula su propio sugerido aparte,
+            // a partir de lo que siga en $_POST de este mismo request.
+            $this->form($mensaje, null, null, null);
             return;
         }
 
-        $_SESSION['conciliacion_csv'] = $filas;
-        ConciliacionView::mostrarMapeo($filas, $desde, $hasta);
+        $item = array_shift($_SESSION['conciliacion_cola']);
+        $_SESSION['conciliacion_csv'] = $item['filas'];
+        $_SESSION['conciliacion_cuenta'] = $item['cuenta'];
+        $numero = $_SESSION['conciliacion_total'] - count($_SESSION['conciliacion_cola']);
+        $preset = self::PRESETS[$item['cuenta']] ?? null;
+        ConciliacionView::mostrarMapeo(
+            $item['filas'], $desde, $hasta, $numero, $_SESSION['conciliacion_total'],
+            DepositosModel::bancoDeCuenta($item['cuenta']) ?? $item['cuenta'], $preset
+        );
+    }
+
+    // Dado que solo hay dos cuentas configuradas, si se conoce la del
+    // primer archivo la del segundo no hace falta preguntarla: es la única
+    // que queda. Si en el futuro se agrega una tercera cuenta, esto deja de
+    // ser inambiguo a propósito (devuelve null) y el segundo archivo exige
+    // su propia selección en vez de adivinar mal.
+    private function otraCuenta(string $cuenta): ?string {
+        $otras = array_values(array_diff(array_keys(DepositosModel::cuentas()), [$cuenta]));
+        return count($otras) === 1 ? $otras[0] : null;
+    }
+
+    private function subir() {
+        [$desde, $hasta] = $this->rangoSubida($_POST['desde'] ?? null, $_POST['hasta'] ?? null);
+
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST' || empty($_FILES['archivo']['tmp_name'])) {
+            $this->form(null, "Selecciona al menos el primer archivo.", $desde, $hasta);
+            return;
+        }
+
+        $cuenta1 = trim($_POST['cuenta1'] ?? '');
+        if (!array_key_exists($cuenta1, DepositosModel::cuentas())) {
+            $this->form(null, "Indica de qué banco es el primer archivo.", $desde, $hasta);
+            return;
+        }
+
+        $cola = [];
+        try {
+            $cola[] = ['filas' => $this->leerArchivoSubido('archivo'), 'cuenta' => $cuenta1];
+        } catch (Throwable $e) {
+            $this->form(null, "Primer archivo: " . $e->getMessage(), $desde, $hasta);
+            return;
+        }
+
+        // El segundo archivo es opcional: BANRURAL y BANTRAB se suben juntos
+        // en el mismo formulario, pero si solo hay un banco que conciliar
+        // ese mes, no hace falta forzar los dos. Su cuenta se infiere sola
+        // (ver otraCuenta) — no se vuelve a preguntar.
+        if (!empty($_FILES['archivo2']['tmp_name'])) {
+            $cuenta2 = $this->otraCuenta($cuenta1);
+            if ($cuenta2 === null) {
+                $this->form(null, "No se pudo determinar automáticamente el banco del segundo archivo. Súbelo por separado.", $desde, $hasta);
+                return;
+            }
+            try {
+                $cola[] = ['filas' => $this->leerArchivoSubido('archivo2'), 'cuenta' => $cuenta2];
+            } catch (Throwable $e) {
+                $this->form(null, "Segundo archivo: " . $e->getMessage(), $desde, $hasta);
+                return;
+            }
+        }
+
+        $_SESSION['conciliacion_cola'] = $cola;
+        $_SESSION['conciliacion_total'] = count($cola);
+        $_SESSION['conciliacion_mensajes'] = [];
+        $this->siguienteMapeo($desde, $hasta);
     }
 
     private function parsearMonto(string $valor, string $formato): ?float {
@@ -320,6 +482,7 @@ class ConciliacionController {
         [$desde, $hasta] = $this->rango($_POST['desde'] ?? null, $_POST['hasta'] ?? null);
 
         if ($_SERVER['REQUEST_METHOD'] !== 'POST' || empty($_SESSION['conciliacion_csv'])) {
+            $this->limpiarColaImportacion();
             $this->form(null, "La sesión de importación expiró, sube el archivo de nuevo.", $desde, $hasta);
             return;
         }
@@ -334,11 +497,15 @@ class ConciliacionController {
         $colReferencia = $_POST['col_referencia'] ?? '';
         $formatoFecha = $_POST['formato_fecha'] ?? 'dmy';
         $formatoMonto = $_POST['formato_monto'] ?? 'punto_decimal';
-        $cuenta = trim($_POST['cuenta'] ?? '');
+        // La cuenta viene de la sesión (fijada en siguienteMapeo al elegir
+        // el banco en el formulario de subida), no de un campo del request:
+        // así no depende de que el cliente mande un valor consistente, y no
+        // hace falta volver a preguntarla aquí.
+        $cuenta = $_SESSION['conciliacion_cuenta'] ?? '';
 
         if (!array_key_exists($cuenta, DepositosModel::cuentas())) {
-            unset($_SESSION['conciliacion_csv']);
-            $this->form(null, "Selecciona una cuenta bancaria válida.", $desde, $hasta);
+            $this->limpiarColaImportacion();
+            $this->form(null, "La sesión de importación expiró, sube el archivo de nuevo.", $desde, $hasta);
             return;
         }
 
@@ -360,9 +527,8 @@ class ConciliacionController {
             $lineas[] = ['fecha' => $fecha, 'monto' => $monto, 'referencia' => $referencia];
         }
 
-        unset($_SESSION['conciliacion_csv']);
-
         if (empty($lineas)) {
+            $this->limpiarColaImportacion();
             $this->form(null, "No se pudo interpretar ninguna fila con el mapeo indicado. Revisa las columnas/formatos seleccionados.", $desde, $hasta);
             return;
         }
@@ -374,7 +540,18 @@ class ConciliacionController {
         if ($filasConError > 0) {
             $mensaje .= " ($filasConError fila(s) no se pudieron leer y se omitieron.)";
         }
-        $this->form($mensaje, null, $desde, $hasta);
+
+        // El número de este archivo dentro de la cola: total menos lo que
+        // queda POR procesar (el archivo actual ya se sacó de la cola en
+        // siguienteMapeo() antes de mostrarse, así que no se resta dos veces).
+        $total = $_SESSION['conciliacion_total'] ?? 1;
+        $restantes = count($_SESSION['conciliacion_cola'] ?? []);
+        $numero = $total - $restantes;
+        $_SESSION['conciliacion_mensajes'] ??= [];
+        $_SESSION['conciliacion_mensajes'][] = $total > 1 ? "Archivo $numero: $mensaje" : $mensaje;
+
+        unset($_SESSION['conciliacion_csv'], $_SESSION['conciliacion_cuenta']);
+        $this->siguienteMapeo($desde, $hasta);
     }
 
     private function verificar() {
