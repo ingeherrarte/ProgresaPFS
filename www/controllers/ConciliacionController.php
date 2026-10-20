@@ -11,11 +11,16 @@ class ConciliacionController {
     private const MAX_TAMANO_ARCHIVO = 3 * 1024 * 1024;
 
     // Formato confirmado de cada banco (siempre el mismo export, columnas
-    // 0-based): BANRURAL trae Fecha, Oficina, Descripción, Referencia,
+    // 0-based). BANRURAL: Fecha, Oficina, Descripción, Referencia,
     // Secuencial, Cheque Propio/Local/Efectivo, Débito(-), Crédito(+), Saldo
-    // Contable, Saldo Disponible (A..J) con encabezado en la fila 5 y datos
-    // desde la 6. BANTRAB trae FECHA, NO. DOCUMENTO, DESCRIPCIÓN, DÉBITOS,
-    // CRÉDITOS, SALDO, con encabezado en la fila 6 y datos desde la 7.
+    // Contable, Saldo Disponible (A..J), encabezado en la fila 5, datos
+    // desde la 6. BANTRAB: visualmente FECHA, NO. DOCUMENTO, DESCRIPCIÓN,
+    // DÉBITOS, CRÉDITOS, SALDO, pero el .xlsx real (exportado con extensión
+    // .xls) usa columnas de relleno angostas entre cada dato visible — las
+    // columnas REALES, confirmadas abriendo el XML de un archivo real
+    // (2026-10-19), son: Fecha=A(0), No.Documento=C(2), Descripción=D(3),
+    // Débitos=H(7), Créditos=J(9), Saldo=K(10); encabezado en la fila 6,
+    // datos desde la 7.
     private const PRESETS = [
         '3099203897' => [ // BANRURAL
             'colFecha' => 0, 'colReferencia' => 3, 'colMonto' => 7, 'filaInicio' => 6,
@@ -144,6 +149,26 @@ class ConciliacionController {
     // Composer, solo ext-zip (agregada en php-config-qa/Dockerfile) y
     // SimpleXML (viene por defecto en la imagen php:8.2-apache). Solo lee
     // la primera hoja, que es lo único que necesita un estado de cuenta.
+    // Un nodo de texto de .xlsx (<si> de sharedStrings o <is> inline) viene
+    // en dos formas válidas: con <t> como hijo directo, o con uno o más
+    // <r><t>...</t></r> ("runs", cuando el texto tiene formato mixto —
+    // común en exports de banca en línea). $nodo->t solo encuentra la
+    // primera forma; sin este fallback a <r><t>, cualquier celda que venga
+    // en la segunda forma se leía como vacía — el síntoma real era que el
+    // archivo entero se reportaba como "vacío o no se pudo leer" porque
+    // CADA celda de texto resolvía a '' y ninguna fila pasaba el filtro de
+    // "no vacía".
+    private function textoDeNodo(SimpleXMLElement $nodo): string {
+        if (isset($nodo->t)) {
+            return (string)$nodo->t;
+        }
+        $texto = '';
+        foreach ($nodo->r as $run) {
+            $texto .= (string)$run->t;
+        }
+        return $texto;
+    }
+
     private function parsearXlsx(string $rutaArchivo): array {
         $zip = new ZipArchive();
         if ($zip->open($rutaArchivo) !== true) {
@@ -155,15 +180,7 @@ class ConciliacionController {
         if ($ssXml !== false) {
             $ss = new SimpleXMLElement($ssXml);
             foreach ($ss->si as $si) {
-                if (isset($si->t)) {
-                    $sharedStrings[] = (string)$si->t;
-                } else {
-                    $texto = '';
-                    foreach ($si->r as $r) {
-                        $texto .= (string)$r->t;
-                    }
-                    $sharedStrings[] = $texto;
-                }
+                $sharedStrings[] = $this->textoDeNodo($si);
             }
         }
 
@@ -208,14 +225,22 @@ class ConciliacionController {
                 if ($tipo === 's') {
                     $valor = $sharedStrings[(int)$c->v] ?? '';
                 } elseif ($tipo === 'inlineStr') {
-                    $valor = (string)($c->is->t ?? '');
+                    $valor = isset($c->is) ? $this->textoDeNodo($c->is) : '';
                 } else {
                     $valor = (string)$c->v;
                 }
                 $celdas[] = trim($valor);
                 $colIndex++;
             }
-            if (!empty(array_filter($celdas, fn($v) => $v !== ''))) {
+            // Solo se descarta una fila si no tenía NINGUNA celda <c>
+            // registrada en el XML — nunca por el contenido (filas con
+            // celdas presentes pero vacías, como separadores entre el
+            // membrete y el encabezado, sí se conservan). De lo contrario
+            // "fila_inicio_datos" deja de corresponder al número real de
+            // fila del archivo: un export con 2 filas de separador en
+            // blanco antes del encabezado desalineaba todo lo que viene
+            // después por esas 2 filas.
+            if (!empty($celdas)) {
                 $filas[] = $celdas;
             }
         }
@@ -437,7 +462,11 @@ class ConciliacionController {
     }
 
     private function parsearMonto(string $valor, string $formato): ?float {
-        $valor = trim($valor);
+        // Quita símbolos de moneda y espacios antes de la limpieza de
+        // miles/decimales — BANTRAB exporta los montos como "Q547.20" /
+        // "Q11,386.92", no como número puro, y is_numeric() los rechaza si
+        // queda la "Q" pegada.
+        $valor = trim(preg_replace('/[Q$\s]/u', '', $valor));
         if ($valor === '') {
             return null;
         }
