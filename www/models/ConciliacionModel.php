@@ -4,12 +4,19 @@ require_once __DIR__ . "/../config/Conexion.php";
 class ConciliacionModel {
 
     // Tolerancia de fecha para cruzar un recibo contra el estado de cuenta:
-    // una transferencia ACH puede acreditarse 1-2 días después de la fecha
+    // una transferencia ACH puede acreditarse 1-2 días DESPUÉS de la fecha
     // de la boleta (fechadep) que digitó el cajero. Sin esta tolerancia,
     // ese desfase deja el recibo en "Falta importar" para siempre aunque
     // la línea correcta ya esté importada, porque las fechas nunca empatan
     // exacto. Es solo para BUSCAR líneas candidatas — nunca se reinterpreta
     // la fecha real de la boleta.
+    //
+    // Solo hacia adelante a propósito: el banco no puede acreditar ANTES de
+    // que la transferencia exista, así que una línea con fecha anterior a
+    // fechadep nunca es una candidata real, por más que el monto coincida
+    // (sería otra transferencia distinta, una coincidencia de monto). Una
+    // ventana simétrica (±N días) ofrecía candidatas imposibles hacia atrás
+    // y añadía ambigüedad que no existe de verdad.
     private const TOLERANCIA_DIAS_ACH = 2;
 
     // Máximo de líneas candidatas que se muestran/ofrecen por recibo. Antes
@@ -51,18 +58,18 @@ class ConciliacionModel {
     // cuenta es candidata, y cada fila ya trae su propio banco para que se
     // distinga en el selector.
     private static function listarCandidatos(PDO $db, string $fecha, $monto, ?string $cuenta): array {
-        $condiciones = ["conciliado = 0", "monto = ?",
-            "fecha BETWEEN DATE_SUB(?, INTERVAL ? DAY) AND DATE_ADD(?, INTERVAL ? DAY)"];
-        $params = [$monto, $fecha, self::TOLERANCIA_DIAS_ACH, $fecha, self::TOLERANCIA_DIAS_ACH];
+        // Solo fecha >= $fecha (nunca antes) hasta +TOLERANCIA_DIAS_ACH.
+        $condiciones = ["conciliado = 0", "monto = ?", "fecha BETWEEN ? AND DATE_ADD(?, INTERVAL ? DAY)"];
+        $params = [$monto, $fecha, $fecha, self::TOLERANCIA_DIAS_ACH];
         if ($cuenta !== null) {
             $condiciones[] = "cuenta = ?";
             $params[] = $cuenta;
         }
-        $params[] = $fecha; // para el ORDER BY ABS(DATEDIFF(...))
+        $params[] = $fecha; // para el ORDER BY DATEDIFF(...) (ya no hace falta ABS: fecha siempre >= $fecha)
         $stmt = $db->prepare(
             "SELECT id, cuenta, fecha, referencia FROM estados_cuenta
              WHERE " . implode(' AND ', $condiciones) . "
-             ORDER BY ABS(DATEDIFF(fecha, ?)), id
+             ORDER BY DATEDIFF(fecha, ?), id
              LIMIT " . self::MAX_CANDIDATOS_MOSTRADOS
         );
         $stmt->execute($params);
