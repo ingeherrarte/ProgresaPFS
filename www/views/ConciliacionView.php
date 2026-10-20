@@ -230,6 +230,7 @@ class ConciliacionView {
                                             <?php $c = $candidatos[0]; ?>
                                             <span class="pill ok">✓</span>
                                             <b><?= htmlspecialchars(DepositosModel::bancoDeCuenta($c['cuenta']) ?? $c['cuenta']) ?></b>
+                                            · Q <?= number_format((float)$c['monto'], 2) ?>
                                             · <?= date('d/m/Y', strtotime($c['fecha'])) ?>
                                             <?php if ($c['referencia']): ?>· ref <?= htmlspecialchars($c['referencia']) ?><?php endif; ?>
                                         <?php else: ?>
@@ -239,6 +240,7 @@ class ConciliacionView {
                                                 <?php foreach ($candidatos as $c): ?>
                                                     <option value="<?= (int)$c['id'] ?>">
                                                         <?= htmlspecialchars(DepositosModel::bancoDeCuenta($c['cuenta']) ?? $c['cuenta']) ?>
+                                                        · Q <?= number_format((float)$c['monto'], 2) ?>
                                                         · <?= date('d/m/Y', strtotime($c['fecha'])) ?>
                                                         <?= $c['referencia'] ? '· ref ' . htmlspecialchars($c['referencia']) : '' ?>
                                                     </option>

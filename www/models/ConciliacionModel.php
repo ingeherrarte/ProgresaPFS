@@ -67,7 +67,7 @@ class ConciliacionModel {
         }
         $params[] = $fecha; // para el ORDER BY DATEDIFF(...) (ya no hace falta ABS: fecha siempre >= $fecha)
         $stmt = $db->prepare(
-            "SELECT id, cuenta, fecha, referencia FROM estados_cuenta
+            "SELECT id, cuenta, fecha, monto, referencia FROM estados_cuenta
              WHERE " . implode(' AND ', $condiciones) . "
              ORDER BY DATEDIFF(fecha, ?), id
              LIMIT " . self::MAX_CANDIDATOS_MOSTRADOS
