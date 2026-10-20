@@ -90,7 +90,7 @@ class ConciliacionView {
         <?php
     }
 
-    public static function mostrarPrincipal(array $grupos, ?string $mensaje, ?string $error, string $desde): void {
+    public static function mostrarPrincipal(array $grupos, array $lineas, ?string $mensaje, ?string $error, string $desde, string $hasta): void {
         $esAdmin = Auth::esAdministrador();
         ?>
         <!DOCTYPE html>
@@ -112,13 +112,22 @@ class ConciliacionView {
 
                 <h2>Subir estado de cuenta (CSV)</h2>
                 <form method="POST" action="conciliacion.php?action=subir" enctype="multipart/form-data">
-                    <input type="hidden" name="desde" value="<?= htmlspecialchars($desde) ?>">
                     <div class="fila">
                         <div class="campo">
                             <label for="archivo">Archivo del banco: CSV, Excel .xlsx, o .xls exportado como tabla HTML (máx. 3 MB)</label>
                             <input type="file" id="archivo" name="archivo"
                                    accept=".csv,text/csv,.xlsx,.xls,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
                                    required>
+                        </div>
+                    </div>
+                    <div class="fila">
+                        <div class="campo" style="max-width:220px;">
+                            <label for="desde_subir">Período del estado de cuenta: desde</label>
+                            <input type="date" id="desde_subir" name="desde" value="<?= htmlspecialchars($desde) ?>">
+                        </div>
+                        <div class="campo" style="max-width:220px;">
+                            <label for="hasta_subir">hasta</label>
+                            <input type="date" id="hasta_subir" name="hasta" value="<?= htmlspecialchars($hasta) ?>">
                         </div>
                     </div>
                     <button type="submit">Subir y mapear columnas →</button>
@@ -132,9 +141,13 @@ class ConciliacionView {
                 <h2>Recibos pendientes de verificar</h2>
                 <form method="GET" action="conciliacion.php" style="margin-bottom:16px;">
                     <div class="fila" style="align-items:flex-end;">
-                        <div class="campo" style="max-width:220px;">
+                        <div class="campo" style="max-width:200px;">
                             <label for="desde">Revisar desde</label>
                             <input type="date" id="desde" name="desde" value="<?= htmlspecialchars($desde) ?>" style="margin-bottom:0;">
+                        </div>
+                        <div class="campo" style="max-width:200px;">
+                            <label for="hasta">hasta</label>
+                            <input type="date" id="hasta" name="hasta" value="<?= htmlspecialchars($hasta) ?>" style="margin-bottom:0;">
                         </div>
                         <div class="campo" style="flex:0 0 auto;">
                             <button type="submit">Filtrar</button>
@@ -188,6 +201,7 @@ class ConciliacionView {
                                                 <input type="hidden" name="monto" value="<?= htmlspecialchars($g['monto']) ?>">
                                                 <input type="hidden" name="cuenta" value="<?= htmlspecialchars($g['cuenta_destino'] ?? '') ?>">
                                                 <input type="hidden" name="desde" value="<?= htmlspecialchars($desde) ?>">
+                                                <input type="hidden" name="hasta" value="<?= htmlspecialchars($hasta) ?>">
                                                 <button type="submit" class="chico">Verificar</button>
                                             </form>
                                         <?php elseif ($g['sugerido']): ?>
@@ -203,13 +217,73 @@ class ConciliacionView {
                     </div>
                 <?php endif; ?>
             </div>
+
+            <div class="card">
+                <h2>Líneas del estado de cuenta en el período (<?= count($lineas) ?>)</h2>
+                <?php if (empty($lineas)): ?>
+                    <p class="sin-datos">No hay líneas importadas en este período. Sube el estado de cuenta de cada banco (BANRURAL y BANTRAB se suben por separado, porque traen columnas distintas).</p>
+                <?php else: ?>
+                    <?php
+                    $conciliadas = count(array_filter($lineas, fn($l) => (int)$l['conciliado'] === 1));
+                    $totalMonto = array_sum(array_map(fn($l) => (float)$l['monto'], $lineas));
+                    ?>
+                    <p style="font-size:12.5px;color:var(--texto-muted);margin-bottom:12px;">
+                        <?= $conciliadas ?> de <?= count($lineas) ?> ya marcadas contra recibo ·
+                        total de créditos cargados: Q <?= number_format($totalMonto, 2) ?>
+                    </p>
+                    <div class="tabla-scroll">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Banco / cuenta</th>
+                                <th>Fecha</th>
+                                <th>Monto</th>
+                                <th>Referencia del banco</th>
+                                <th>Recibo</th>
+                                <th>Estado</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <?php foreach ($lineas as $l): ?>
+                                <tr>
+                                    <td>
+                                        <?= htmlspecialchars(DepositosModel::bancoDeCuenta($l['cuenta']) ?? $l['cuenta']) ?>
+                                        <div class="numeros"><?= htmlspecialchars($l['cuenta']) ?></div>
+                                    </td>
+                                    <td><?= date('d/m/Y', strtotime($l['fecha'])) ?></td>
+                                    <td class="num">Q <?= number_format((float)$l['monto'], 2) ?></td>
+                                    <td><?= $l['referencia'] !== null && $l['referencia'] !== '' ? htmlspecialchars($l['referencia']) : '<span style="color:var(--sin-datos);">—</span>' ?></td>
+                                    <td>
+                                        <?php if ($l['recibo_numero']): ?>
+                                            <a href="recibospfs.php?action=ver&amp;numero=<?= (int)$l['recibo_numero'] ?>" style="color:var(--acento);font-weight:bold;text-decoration:none;">#<?= (int)$l['recibo_numero'] ?></a>
+                                            <?php if ($l['carne']): ?>
+                                                <div class="numeros">carné <?= htmlspecialchars($l['carne']) ?></div>
+                                            <?php endif; ?>
+                                        <?php else: ?>
+                                            <span style="color:var(--sin-datos);">—</span>
+                                        <?php endif; ?>
+                                    </td>
+                                    <td>
+                                        <?php if ((int)$l['conciliado'] === 1): ?>
+                                            <span class="pill ok">Marcada</span>
+                                        <?php else: ?>
+                                            <span class="pill falta">Sin marcar</span>
+                                        <?php endif; ?>
+                                    </td>
+                                </tr>
+                            <?php endforeach; ?>
+                        </tbody>
+                    </table>
+                    </div>
+                <?php endif; ?>
+            </div>
             <?php Tema::script(); ?>
         </body>
         </html>
         <?php
     }
 
-    public static function mostrarMapeo(array $filas, string $desde): void {
+    public static function mostrarMapeo(array $filas, string $desde, string $hasta): void {
         $primeraFila = $filas[0] ?? [];
         $totalColumnas = count($primeraFila);
         $totalFilas = count($filas);
@@ -251,8 +325,12 @@ class ConciliacionView {
                         </tbody>
                     </table>
                 </div>
-                <p style="font-size:12px;color:#888;margin-top:10px;">
+                <p style="font-size:12px;color:var(--sin-datos);margin-top:10px;">
                     Algunos bancos (ej. BANRURAL) traen varias filas de membrete/metadatos antes de los títulos de columna. Fíjate en qué número de fila empiezan los datos reales (montos y fechas) y anótalo abajo.
+                </p>
+                <p style="font-size:12px;color:var(--sin-datos);margin-top:8px;">
+                    Como monto, elige siempre la columna de <b>créditos</b> — en BANRURAL es "Crédito (+)" y en BANTRAB "CRÉDITOS". Así solo se cargan los ingresos: las filas de débito quedan vacías en esa columna y se omiten solas.
+                    Para referencia, en BANRURAL usa "Referencia" y en BANTRAB "NO. DOCUMENTO" (es informativa: el número que trae la boleta del estudiante lo genera su banco de origen y no coincide con el del estado de cuenta, así que el cruce se hace por fecha + monto + cuenta, no por referencia).
                 </p>
             </div>
 
@@ -260,6 +338,7 @@ class ConciliacionView {
                 <h2>Indica qué columna es cada dato</h2>
                 <form method="POST" action="conciliacion.php?action=confirmarImport">
                     <input type="hidden" name="desde" value="<?= htmlspecialchars($desde) ?>">
+                    <input type="hidden" name="hasta" value="<?= htmlspecialchars($hasta) ?>">
                     <div class="fila">
                         <div class="campo">
                             <label for="fila_inicio_datos">¿En qué número de fila empiezan los datos?</label>
@@ -285,7 +364,7 @@ class ConciliacionView {
                             </select>
                         </div>
                         <div class="campo">
-                            <label for="col_monto">Columna de monto</label>
+                            <label for="col_monto">Columna de monto: la de CRÉDITOS (dinero que entró)</label>
                             <select id="col_monto" name="col_monto" required>
                                 <?php for ($c = 0; $c < $totalColumnas; $c++): ?>
                                     <option value="<?= $c ?>">Columna <?= self::columnaLetra($c) ?></option>
@@ -293,7 +372,7 @@ class ConciliacionView {
                             </select>
                         </div>
                         <div class="campo">
-                            <label for="col_referencia">Columna de referencia (opcional)</label>
+                            <label for="col_referencia">Columna de referencia del banco (opcional)</label>
                             <select id="col_referencia" name="col_referencia">
                                 <option value="">-- Ninguna --</option>
                                 <?php for ($c = 0; $c < $totalColumnas; $c++): ?>
@@ -322,7 +401,7 @@ class ConciliacionView {
                     </div>
                     <button type="submit">Confirmar e importar</button>
                     &nbsp;
-                    <a href="conciliacion.php?desde=<?= urlencode($desde) ?>" style="font-size:13px;color:#1a237e;font-weight:bold;">Cancelar</a>
+                    <a href="conciliacion.php?desde=<?= urlencode($desde) ?>&amp;hasta=<?= urlencode($hasta) ?>" style="font-size:13px;color:var(--acento);font-weight:bold;">Cancelar</a>
                 </form>
             </div>
             <?php Tema::script(); ?>

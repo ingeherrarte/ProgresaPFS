@@ -9,15 +9,19 @@ class ConciliacionModel {
     // indistinguibles entre sí, y no hace falta distinguirlas (el efecto
     // en caja es el mismo). numeros trae los números de recibo del grupo
     // para poder mostrarlos y para el UPDATE al verificar.
-    // $desde acota la revisión a partir de esa fecha (inclusive) — la
-    // migración marcó como 'pendiente' por default a TODO el histórico
-    // existente, y no tiene sentido revisar años anteriores contra el
-    // estado de cuenta actual.
-    public static function pendientesAgrupados(PDO $db, string $desde): array {
-        // fechadep <= CURDATE(): un depósito no puede tener fecha futura.
-        // Hay filas legacy con typos de digitación (años tipo 2052, 2041)
-        // que sin este filtro contaminan la lista de pendientes porque
-        // "en el futuro" también cumple fechadep >= $desde.
+    // $desde/$hasta acotan la revisión al período que se está conciliando
+    // (normalmente el que cubre el estado de cuenta subido) — la migración
+    // marcó como 'pendiente' por default a TODO el histórico existente, y
+    // no tiene sentido revisar años anteriores contra el estado de cuenta
+    // actual.
+    public static function pendientesAgrupados(PDO $db, string $desde, string $hasta): array {
+        // Dos topes superiores a propósito, con razones distintas:
+        // - fechadep <= CURDATE() es un invariante del dato: un depósito no
+        //   puede tener fecha futura, y hay filas legacy con typos de
+        //   digitación (años tipo 2052, 2041) que sin este filtro contaminan
+        //   la lista porque "en el futuro" también cumple fechadep >= $desde.
+        //   Se queda aunque el usuario pida un $hasta futuro.
+        // - fechadep <= $hasta es el período que el usuario quiere revisar.
         //
         // Se agrupa también por cuenta_destino (cuál cuenta propia recibió
         // la transferencia) para no cruzar por error una transferencia a
@@ -29,11 +33,11 @@ class ConciliacionModel {
                     GROUP_CONCAT(numero ORDER BY numero) AS numeros
              FROM recibospfs
              WHERE deposito > 0 AND estado_transferencia = 'pendiente' AND anulado = 0
-                   AND fechadep >= ? AND fechadep <= CURDATE()
+                   AND fechadep >= ? AND fechadep <= ? AND fechadep <= CURDATE()
              GROUP BY fechadep, deposito, cuenta_destino
              ORDER BY fechadep DESC, deposito DESC"
         );
-        $stmt->execute([$desde]);
+        $stmt->execute([$desde, $hasta]);
         return $stmt->fetchAll(PDO::FETCH_ASSOC);
     }
 
@@ -71,8 +75,8 @@ class ConciliacionModel {
     // Combina ambos lados: cada grupo pendiente trae cuántas líneas del
     // estado de cuenta hay disponibles con esa misma fecha+monto, para que
     // la vista pueda mostrar "sugerido" (alcanza) o "falta" (no alcanza).
-    public static function sugerencias(PDO $db, string $desde): array {
-        $pendientes = self::pendientesAgrupados($db, $desde);
+    public static function sugerencias(PDO $db, string $desde, string $hasta): array {
+        $pendientes = self::pendientesAgrupados($db, $desde, $hasta);
         $disponibles = self::disponiblesAgrupados($db);
 
         foreach ($pendientes as &$grupo) {
@@ -89,6 +93,23 @@ class ConciliacionModel {
         unset($grupo);
 
         return $pendientes;
+    }
+
+    // Líneas del estado de cuenta ya importadas dentro del período, con el
+    // recibo contra el que quedó marcada cada una (NULL si sigue pendiente).
+    // Es el equivalente de la hoja de Excel donde se anotaba a mano el No.
+    // de recibo a la par de cada línea del banco.
+    public static function lineasEstadoCuenta(PDO $db, string $desde, string $hasta): array {
+        $stmt = $db->prepare(
+            "SELECT ec.id, ec.cuenta, ec.fecha, ec.monto, ec.referencia,
+                    ec.conciliado, ec.recibo_numero, r.carne
+             FROM estados_cuenta ec
+             LEFT JOIN recibospfs r ON r.numero = ec.recibo_numero
+             WHERE ec.fecha >= ? AND ec.fecha <= ?
+             ORDER BY ec.cuenta, ec.fecha, ec.id"
+        );
+        $stmt->execute([$desde, $hasta]);
+        return $stmt->fetchAll(PDO::FETCH_ASSOC);
     }
 
     // Verifica un grupo completo: toma tantas líneas de estados_cuenta como

@@ -39,11 +39,30 @@ class ConciliacionController {
         return preg_match('/^\d{4}-\d{2}-\d{2}$/', (string)$valor) ? $valor : date('Y-01-01');
     }
 
-    private function form(?string $mensaje = null, ?string $error = null, ?string $desde = null) {
-        $desde = $this->fechaDesde($desde ?? ($_GET['desde'] ?? null));
+    // Default: hoy. El rango normal de trabajo es el período que cubre el
+    // estado de cuenta que se acaba de subir (ej. 01/10 al 15/10).
+    private function fechaHasta(?string $valor): string {
+        return preg_match('/^\d{4}-\d{2}-\d{2}$/', (string)$valor) ? $valor : date('Y-m-d');
+    }
+
+    // Si el usuario invierte el rango (hasta < desde) no se devuelve nunca
+    // nada y parece que "no hay pendientes": se intercambian para que el
+    // filtro siga siendo útil en vez de mostrar una lista vacía engañosa.
+    private function rango(?string $desde, ?string $hasta): array {
+        $desde = $this->fechaDesde($desde);
+        $hasta = $this->fechaHasta($hasta);
+        return $hasta < $desde ? [$hasta, $desde] : [$desde, $hasta];
+    }
+
+    private function form(?string $mensaje = null, ?string $error = null, ?string $desde = null, ?string $hasta = null) {
+        [$desde, $hasta] = $this->rango(
+            $desde ?? ($_GET['desde'] ?? null),
+            $hasta ?? ($_GET['hasta'] ?? null)
+        );
         $db = Conexion::conectar();
-        $grupos = ConciliacionModel::sugerencias($db, $desde);
-        ConciliacionView::mostrarPrincipal($grupos, $mensaje, $error, $desde);
+        $grupos = ConciliacionModel::sugerencias($db, $desde, $hasta);
+        $lineas = ConciliacionModel::lineasEstadoCuenta($db, $desde, $hasta);
+        ConciliacionView::mostrarPrincipal($grupos, $lineas, $mensaje, $error, $desde, $hasta);
     }
 
     // Detecta separador (',' o ';') por frecuencia en la primera línea, y
@@ -201,14 +220,14 @@ class ConciliacionController {
     }
 
     private function subir() {
-        $desde = $this->fechaDesde($_POST['desde'] ?? null);
+        [$desde, $hasta] = $this->rango($_POST['desde'] ?? null, $_POST['hasta'] ?? null);
 
         if ($_SERVER['REQUEST_METHOD'] !== 'POST' || empty($_FILES['archivo']['tmp_name'])) {
-            $this->form(null, "Selecciona un archivo CSV.", $desde);
+            $this->form(null, "Selecciona un archivo CSV.", $desde, $hasta);
             return;
         }
         if ($_FILES['archivo']['size'] > self::MAX_TAMANO_ARCHIVO) {
-            $this->form(null, "El archivo supera el tamaño máximo permitido (3 MB).", $desde);
+            $this->form(null, "El archivo supera el tamaño máximo permitido (3 MB).", $desde, $hasta);
             return;
         }
 
@@ -225,7 +244,7 @@ class ConciliacionController {
                 $filas = $this->parsearXlsx($rutaTemporal);
             } elseif (substr($cabecera, 0, 4) === "\xD0\xCF\x11\xE0") {
                 // OLE2 real: .xls binario legacy (Excel 97-2003), no soportado
-                $this->form(null, "El archivo es un .xls binario real (Excel 97-2003), que no se puede leer directamente. Ábrelo en Excel y guárdalo como .xlsx o CSV.", $desde);
+                $this->form(null, "El archivo es un .xls binario real (Excel 97-2003), que no se puede leer directamente. Ábrelo en Excel y guárdalo como .xlsx o CSV.", $desde, $hasta);
                 return;
             } else {
                 $contenido = file_get_contents($rutaTemporal);
@@ -238,21 +257,21 @@ class ConciliacionController {
                 }
             }
         } catch (Throwable $e) {
-            $this->form(null, "No se pudo leer el archivo: " . $e->getMessage(), $desde);
+            $this->form(null, "No se pudo leer el archivo: " . $e->getMessage(), $desde, $hasta);
             return;
         }
 
         if (empty($filas)) {
-            $this->form(null, "El archivo está vacío o no se pudo leer como CSV.", $desde);
+            $this->form(null, "El archivo está vacío o no se pudo leer como CSV.", $desde, $hasta);
             return;
         }
         if (count($filas) > self::MAX_FILAS) {
-            $this->form(null, "El archivo tiene demasiadas filas (máximo " . self::MAX_FILAS . "). Divídelo y sube por partes.", $desde);
+            $this->form(null, "El archivo tiene demasiadas filas (máximo " . self::MAX_FILAS . "). Divídelo y sube por partes.", $desde, $hasta);
             return;
         }
 
         $_SESSION['conciliacion_csv'] = $filas;
-        ConciliacionView::mostrarMapeo($filas, $desde);
+        ConciliacionView::mostrarMapeo($filas, $desde, $hasta);
     }
 
     private function parsearMonto(string $valor, string $formato): ?float {
@@ -298,10 +317,10 @@ class ConciliacionController {
     }
 
     private function confirmarImport() {
-        $desde = $this->fechaDesde($_POST['desde'] ?? null);
+        [$desde, $hasta] = $this->rango($_POST['desde'] ?? null, $_POST['hasta'] ?? null);
 
         if ($_SERVER['REQUEST_METHOD'] !== 'POST' || empty($_SESSION['conciliacion_csv'])) {
-            $this->form(null, "La sesión de importación expiró, sube el archivo de nuevo.", $desde);
+            $this->form(null, "La sesión de importación expiró, sube el archivo de nuevo.", $desde, $hasta);
             return;
         }
 
@@ -319,7 +338,7 @@ class ConciliacionController {
 
         if (!array_key_exists($cuenta, DepositosModel::cuentas())) {
             unset($_SESSION['conciliacion_csv']);
-            $this->form(null, "Selecciona una cuenta bancaria válida.", $desde);
+            $this->form(null, "Selecciona una cuenta bancaria válida.", $desde, $hasta);
             return;
         }
 
@@ -344,7 +363,7 @@ class ConciliacionController {
         unset($_SESSION['conciliacion_csv']);
 
         if (empty($lineas)) {
-            $this->form(null, "No se pudo interpretar ninguna fila con el mapeo indicado. Revisa las columnas/formatos seleccionados.", $desde);
+            $this->form(null, "No se pudo interpretar ninguna fila con el mapeo indicado. Revisa las columnas/formatos seleccionados.", $desde, $hasta);
             return;
         }
 
@@ -355,11 +374,11 @@ class ConciliacionController {
         if ($filasConError > 0) {
             $mensaje .= " ($filasConError fila(s) no se pudieron leer y se omitieron.)";
         }
-        $this->form($mensaje, null, $desde);
+        $this->form($mensaje, null, $desde, $hasta);
     }
 
     private function verificar() {
-        $desde = $this->fechaDesde($_POST['desde'] ?? null);
+        [$desde, $hasta] = $this->rango($_POST['desde'] ?? null, $_POST['hasta'] ?? null);
 
         if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
             header("Location: conciliacion.php");
@@ -374,7 +393,7 @@ class ConciliacionController {
         $monto = (float)($_POST['monto'] ?? 0);
         $cuenta = trim($_POST['cuenta'] ?? '') ?: null;
         if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $fecha) || $monto <= 0) {
-            $this->form(null, "Datos de verificación inválidos.", $desde);
+            $this->form(null, "Datos de verificación inválidos.", $desde, $hasta);
             return;
         }
 
@@ -382,15 +401,15 @@ class ConciliacionController {
         $resultado = ConciliacionModel::verificarGrupo($db, $fecha, $monto, $cuenta, Auth::usuarioActual());
 
         if ($resultado === null) {
-            $this->form(null, "Ya no hay suficientes líneas disponibles en el estado de cuenta para ese grupo (puede que alguien más lo haya verificado, o falte importar más líneas).", $desde);
+            $this->form(null, "Ya no hay suficientes líneas disponibles en el estado de cuenta para ese grupo (puede que alguien más lo haya verificado, o falte importar más líneas).", $desde, $hasta);
             return;
         }
         if ($resultado === 0) {
-            $this->form(null, "Ese grupo ya no tiene recibos pendientes.", $desde);
+            $this->form(null, "Ese grupo ya no tiene recibos pendientes.", $desde, $hasta);
             return;
         }
 
-        $this->form("$resultado recibo(s) verificados correctamente.", null, $desde);
+        $this->form("$resultado recibo(s) verificados correctamente.", null, $desde, $hasta);
     }
 }
 ?>
