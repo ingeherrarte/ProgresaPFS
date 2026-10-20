@@ -23,11 +23,11 @@ class ConciliacionController {
     // datos desde la 7.
     private const PRESETS = [
         '3099203897' => [ // BANRURAL
-            'colFecha' => 0, 'colReferencia' => 3, 'colMonto' => 7, 'filaInicio' => 6,
+            'colFecha' => 0, 'colDescripcion' => 2, 'colReferencia' => 3, 'colMonto' => 7, 'filaInicio' => 6,
             'formatoFecha' => 'dmy', 'formatoMonto' => 'punto_decimal',
         ],
         '2870011720' => [ // BANTRAB
-            'colFecha' => 0, 'colReferencia' => 2, 'colMonto' => 9, 'filaInicio' => 7,
+            'colFecha' => 0, 'colDescripcion' => 3, 'colReferencia' => 2, 'colMonto' => 9, 'filaInicio' => 7,
             'formatoFecha' => 'dmy', 'formatoMonto' => 'punto_decimal',
         ],
     ];
@@ -535,6 +535,7 @@ class ConciliacionController {
         $colFecha = (int)($_POST['col_fecha'] ?? -1);
         $colMonto = (int)($_POST['col_monto'] ?? -1);
         $colReferencia = $_POST['col_referencia'] ?? '';
+        $colDescripcion = $_POST['col_descripcion'] ?? '';
         $formatoFecha = $_POST['formato_fecha'] ?? 'dmy';
         $formatoMonto = $_POST['formato_monto'] ?? 'punto_decimal';
         // La cuenta viene de la sesión (fijada en siguienteMapeo al elegir
@@ -564,7 +565,10 @@ class ConciliacionController {
             $referencia = ($colReferencia !== '' && isset($fila[(int)$colReferencia]))
                 ? mb_substr($fila[(int)$colReferencia], 0, 255)
                 : null;
-            $lineas[] = ['fecha' => $fecha, 'monto' => $monto, 'referencia' => $referencia];
+            $descripcion = ($colDescripcion !== '' && isset($fila[(int)$colDescripcion]))
+                ? mb_substr($fila[(int)$colDescripcion], 0, 255)
+                : null;
+            $lineas[] = ['fecha' => $fecha, 'monto' => $monto, 'referencia' => $referencia, 'descripcion' => $descripcion];
         }
 
         if (empty($lineas)) {

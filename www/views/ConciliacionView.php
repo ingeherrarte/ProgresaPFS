@@ -232,6 +232,7 @@ class ConciliacionView {
                                             <b><?= htmlspecialchars(DepositosModel::bancoDeCuenta($c['cuenta']) ?? $c['cuenta']) ?></b>
                                             · <?= date('d/m/Y', strtotime($c['fecha'])) ?>
                                             <?php if ($c['referencia']): ?>· ref <?= htmlspecialchars($c['referencia']) ?><?php endif; ?>
+                                            <?php if ($c['descripcion']): ?>· <?= htmlspecialchars($c['descripcion']) ?><?php endif; ?>
                                             · Q <?= number_format((float)$c['monto'], 2) ?>
                                         <?php else: ?>
                                             <span class="pill falta">⚠ <?= count($candidatos) ?> candidatas — elige una</span>
@@ -242,6 +243,7 @@ class ConciliacionView {
                                                         <?= htmlspecialchars(DepositosModel::bancoDeCuenta($c['cuenta']) ?? $c['cuenta']) ?>
                                                         · <?= date('d/m/Y', strtotime($c['fecha'])) ?>
                                                         <?= $c['referencia'] ? '· ref ' . htmlspecialchars($c['referencia']) : '' ?>
+                                                        <?= $c['descripcion'] ? '· ' . htmlspecialchars($c['descripcion']) : '' ?>
                                                         · Q <?= number_format((float)$c['monto'], 2) ?>
                                                     </option>
                                                 <?php endforeach; ?>
@@ -495,6 +497,15 @@ class ConciliacionView {
                                 <option value="">-- Ninguna --</option>
                                 <?php for ($c = 0; $c < $totalColumnas; $c++): ?>
                                     <option value="<?= $c ?>" <?= ($preset['colReferencia'] ?? null) === $c ? 'selected' : '' ?>>Columna <?= self::columnaLetra($c) ?></option>
+                                <?php endfor; ?>
+                            </select>
+                        </div>
+                        <div class="campo">
+                            <label for="col_descripcion">Columna de descripción del banco (opcional)</label>
+                            <select id="col_descripcion" name="col_descripcion">
+                                <option value="">-- Ninguna --</option>
+                                <?php for ($c = 0; $c < $totalColumnas; $c++): ?>
+                                    <option value="<?= $c ?>" <?= ($preset['colDescripcion'] ?? null) === $c ? 'selected' : '' ?>>Columna <?= self::columnaLetra($c) ?></option>
                                 <?php endfor; ?>
                             </select>
                         </div>

@@ -67,7 +67,7 @@ class ConciliacionModel {
         }
         $params[] = $fecha; // para el ORDER BY DATEDIFF(...) (ya no hace falta ABS: fecha siempre >= $fecha)
         $stmt = $db->prepare(
-            "SELECT id, cuenta, fecha, monto, referencia FROM estados_cuenta
+            "SELECT id, cuenta, fecha, monto, referencia, descripcion FROM estados_cuenta
              WHERE " . implode(' AND ', $condiciones) . "
              ORDER BY DATEDIFF(fecha, ?), id
              LIMIT " . self::MAX_CANDIDATOS_MOSTRADOS
@@ -259,11 +259,11 @@ class ConciliacionModel {
 
     public static function importarLineas(PDO $db, array $lineas, string $cuenta, string $usuario): int {
         $stmt = $db->prepare(
-            "INSERT INTO estados_cuenta (cuenta, fecha, monto, referencia, importado_por) VALUES (?, ?, ?, ?, ?)"
+            "INSERT INTO estados_cuenta (cuenta, fecha, monto, referencia, descripcion, importado_por) VALUES (?, ?, ?, ?, ?, ?)"
         );
         $insertadas = 0;
         foreach ($lineas as $linea) {
-            $stmt->execute([$cuenta, $linea['fecha'], $linea['monto'], $linea['referencia'] ?? null, $usuario]);
+            $stmt->execute([$cuenta, $linea['fecha'], $linea['monto'], $linea['referencia'] ?? null, $linea['descripcion'] ?? null, $usuario]);
             $insertadas++;
         }
         return $insertadas;
