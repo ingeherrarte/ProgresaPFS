@@ -301,9 +301,11 @@ class ConciliacionModel {
         $stmt = $db->prepare(
             "SELECT ec.id, ec.cuenta, ec.fecha, ec.monto, ec.referencia, ec.descripcion, ec.conciliado, ec.recibo_numero,
                     r.carne AS carne_automatico,
-                    (SELECT GROUP_CONCAT(cv.recibo_numero SEPARATOR ', ') FROM conciliacion_vinculos cv WHERE cv.estado_cuenta_id = ec.id) AS recibos_manuales
+                    (SELECT GROUP_CONCAT(cv.recibo_numero SEPARATOR ', ') FROM conciliacion_vinculos cv WHERE cv.estado_cuenta_id = ec.id) AS recibos_manuales,
+                    d.nodeposito AS deposito_propio, d.responsable AS deposito_responsable, d.efectivo AS deposito_efectivo
              FROM estados_cuenta ec
              LEFT JOIN recibospfs r ON r.numero = ec.recibo_numero
+             LEFT JOIN depositos d ON d.nodeposito = ec.referencia AND d.cuenta = ec.cuenta
              WHERE " . implode(' AND ', $condiciones) . "
              ORDER BY ec.fecha DESC, ec.id DESC
              LIMIT 300"

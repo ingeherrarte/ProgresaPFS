@@ -783,7 +783,8 @@ class ConciliacionView {
                         </thead>
                         <tbody>
                             <?php foreach ($movimientos as $m): ?>
-                                <tr class="<?= (int)$m['conciliado'] === 1 ? 'fila-ok' : ((int)$m['recibo_numero'] || $m['recibos_manuales'] ? 'fila-falta' : '') ?>">
+                                <?php $explicadaComoDeposito = !$m['recibo_numero'] && !$m['recibos_manuales'] && $m['deposito_propio']; ?>
+                                <tr class="<?= (int)$m['conciliado'] === 1 || $explicadaComoDeposito ? 'fila-ok' : ((int)$m['recibo_numero'] || $m['recibos_manuales'] ? 'fila-falta' : '') ?>">
                                     <td><?= htmlspecialchars(DepositosModel::bancoDeCuenta($m['cuenta']) ?? $m['cuenta']) ?></td>
                                     <td><?= date('d/m/Y', strtotime($m['fecha'])) ?></td>
                                     <td class="num">Q <?= number_format((float)$m['monto'], 2) ?></td>
@@ -794,6 +795,8 @@ class ConciliacionView {
                                             <span class="pill ok">✓ Marcada</span>
                                         <?php elseif ($m['recibos_manuales']): ?>
                                             <span class="pill falta">⟳ Parcial</span>
+                                        <?php elseif ($explicadaComoDeposito): ?>
+                                            <span class="pill ok">🏢 Depósito propio</span>
                                         <?php else: ?>
                                             <span class="pill falta">✗ Sin marcar</span>
                                         <?php endif; ?>
@@ -806,6 +809,14 @@ class ConciliacionView {
                                             <?php foreach (explode(', ', $m['recibos_manuales']) as $numRecibo): ?>
                                                 <a href="recibospfs.php?action=ver&amp;numero=<?= (int)$numRecibo ?>" style="color:var(--acento);font-weight:bold;text-decoration:none;">#<?= (int)$numRecibo ?></a>
                                             <?php endforeach; ?>
+                                        <?php elseif ($explicadaComoDeposito): ?>
+                                            <div class="numeros">
+                                                boleta #<?= htmlspecialchars($m['deposito_propio']) ?><br>
+                                                responsable: <?= htmlspecialchars($m['deposito_responsable']) ?><br>
+                                                <?php if (abs((float)$m['deposito_efectivo'] - (float)$m['monto']) > 0.01): ?>
+                                                    <span style="color:var(--estado-falta-texto);">⚠ boleta Q<?= number_format((float)$m['deposito_efectivo'], 2) ?>, banco Q<?= number_format((float)$m['monto'], 2) ?></span>
+                                                <?php endif; ?>
+                                            </div>
                                         <?php else: ?>
                                             <span style="color:var(--sin-datos);">—</span>
                                         <?php endif; ?>
