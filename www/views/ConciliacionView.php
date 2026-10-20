@@ -201,7 +201,7 @@ class ConciliacionView {
                                 <th>Fecha depósito</th>
                                 <th>Monto</th>
                                 <th>Cuenta destino</th>
-                                <th>Recibos pendientes</th>
+                                <th style="max-width:120px;">Recibos pendientes</th>
                                 <th>Líneas candidatas en el banco</th>
                                 <th>Estado</th>
                                 <th>Acción</th>
@@ -229,9 +229,9 @@ class ConciliacionView {
                                             <span style="color:var(--sin-datos);">(sin dato)</span>
                                         <?php endif; ?>
                                     </td>
-                                    <td>
+                                    <td style="max-width:120px;">
                                         <?= (int)$g['cantidad'] ?>
-                                        <div class="numeros">recibos: <?= htmlspecialchars($g['numeros']) ?></div>
+                                        <div class="numeros" style="overflow-wrap:break-word;">recibos: <?= htmlspecialchars(str_replace(',', ', ', $g['numeros'])) ?></div>
                                     </td>
                                     <td>
                                         <?php if (empty($g['candidatos'])): ?>
