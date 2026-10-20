@@ -3,79 +3,53 @@ require_once __DIR__ . "/../config/Conexion.php";
 
 class ConciliacionModel {
 
-    // Recibos con pago por depósito/transferencia aún no verificados,
-    // agrupados por (fecha, monto): no se intenta emparejar recibo por
-    // recibo porque dos transferencias del mismo día y mismo monto son
-    // indistinguibles entre sí, y no hace falta distinguirlas (el efecto
-    // en caja es el mismo). numeros trae los números de recibo del grupo
-    // para poder mostrarlos y para el UPDATE al verificar.
-    // $desde/$hasta acotan la revisión al período que se está conciliando
-    // (normalmente el que cubre el estado de cuenta subido) — la migración
-    // marcó como 'pendiente' por default a TODO el histórico existente, y
-    // no tiene sentido revisar años anteriores contra el estado de cuenta
-    // actual.
-    public static function pendientesAgrupados(PDO $db, string $desde, string $hasta): array {
-        // Dos topes superiores a propósito, con razones distintas:
-        // - fechadep <= CURDATE() es un invariante del dato: un depósito no
-        //   puede tener fecha futura, y hay filas legacy con typos de
-        //   digitación (años tipo 2052, 2041) que sin este filtro contaminan
-        //   la lista porque "en el futuro" también cumple fechadep >= $desde.
-        //   Se queda aunque el usuario pida un $hasta futuro.
-        // - fechadep <= $hasta es el período que el usuario quiere revisar.
-        //
-        // Se agrupa también por cuenta_destino (cuál cuenta propia recibió
-        // la transferencia) para no cruzar por error una transferencia a
-        // BANRURAL con otra a BANTRAB que coincida en fecha y monto. Es
-        // NULL para todo el histórico anterior a que existiera esta
-        // columna: esos grupos quedan igual que antes (ver clave()).
-        $stmt = $db->prepare(
-            "SELECT fechadep AS fecha, deposito AS monto, cuenta_destino, COUNT(*) AS cantidad,
-                    GROUP_CONCAT(numero ORDER BY numero) AS numeros
-             FROM recibospfs
-             WHERE deposito > 0 AND estado_transferencia = 'pendiente' AND anulado = 0
-                   AND fechadep >= ? AND fechadep <= ? AND fechadep <= CURDATE()
-             GROUP BY fechadep, deposito, cuenta_destino
-             ORDER BY fechadep DESC, deposito DESC"
-        );
-        $stmt->execute([$desde, $hasta]);
-        return $stmt->fetchAll(PDO::FETCH_ASSOC);
-    }
-
     // Tolerancia de fecha para cruzar un recibo contra el estado de cuenta:
     // una transferencia ACH puede acreditarse 1-2 días después de la fecha
     // de la boleta (fechadep) que digitó el cajero. Sin esta tolerancia,
     // ese desfase deja el recibo en "Falta importar" para siempre aunque
     // la línea correcta ya esté importada, porque las fechas nunca empatan
-    // exacto. Es solo para BUSCAR líneas disponibles — pendientesAgrupados
-    // sigue agrupando por la fecha EXACTA de la boleta (es el dato real).
+    // exacto. Es solo para BUSCAR líneas candidatas — nunca se reinterpreta
+    // la fecha real de la boleta.
     private const TOLERANCIA_DIAS_ACH = 2;
 
-    // Cuenta, para un grupo pendiente puntual, cuántas líneas del estado de
-    // cuenta sin conciliar hay dentro de ±TOLERANCIA_DIAS_ACH de su fecha,
-    // con el mismo monto y cuenta. Sin cuenta_destino conocida (histórico
-    // previo a esa columna), cualquier cuenta cuenta — igual que antes de
-    // que existiera la columna.
-    private static function contarDisponibles(PDO $db, string $fecha, $monto, ?string $cuenta): int {
+    // Máximo de líneas candidatas que se muestran/ofrecen por recibo. Antes
+    // esto alimentaba un botón de "Verificar" en bloque sobre un GRUPO de
+    // recibos con fecha+monto+cuenta idénticos, eligiendo en silencio cuál
+    // línea le tocaba a cuál recibo cuando había más candidatas que
+    // recibos (confuso: no quedaba claro cuál correspondía a cuál, y el
+    // admin no podía elegir). Ahora cada recibo se revisa y verifica por
+    // separado, con su propio selector de línea cuando hay más de una
+    // candidata — nunca se asigna en silencio.
+    private const MAX_CANDIDATOS_MOSTRADOS = 20;
+
+    // Recibos pendientes de verificar, UNO POR FILA (no agrupados por
+    // fecha+monto). $desde/$hasta acotan el período que se está conciliando
+    // (normalmente el que cubre el estado de cuenta subido) — la migración
+    // marcó 'pendiente' por default a TODO el histórico, y no tiene sentido
+    // revisar años anteriores contra el estado de cuenta actual aquí (para
+    // eso está la búsqueda manual, sin límite de fecha).
+    public static function pendientesIndividuales(PDO $db, string $desde, string $hasta): array {
+        // fechadep <= CURDATE() es un invariante del dato (no al revés de lo
+        // que pida $hasta): un depósito no puede tener fecha futura, y hay
+        // filas legacy con typos de digitación (años tipo 2052, 2041) que
+        // sin este filtro contaminan la lista.
         $stmt = $db->prepare(
-            "SELECT COUNT(*) FROM estados_cuenta
-             WHERE conciliado = 0 AND monto = ?
-                   AND fecha BETWEEN DATE_SUB(?, INTERVAL ? DAY) AND DATE_ADD(?, INTERVAL ? DAY)
-                   AND (? IS NULL OR cuenta = ?)"
+            "SELECT numero, carne, fechadep AS fecha, deposito AS monto, cuenta_destino
+             FROM recibospfs
+             WHERE deposito > 0 AND estado_transferencia = 'pendiente' AND anulado = 0
+                   AND fechadep >= ? AND fechadep <= ? AND fechadep <= CURDATE()
+             ORDER BY fechadep DESC, numero"
         );
-        $stmt->execute([$monto, $fecha, self::TOLERANCIA_DIAS_ACH, $fecha, self::TOLERANCIA_DIAS_ACH, $cuenta, $cuenta]);
-        return (int)$stmt->fetchColumn();
+        $stmt->execute([$desde, $hasta]);
+        return $stmt->fetchAll(PDO::FETCH_ASSOC);
     }
 
-    // Máximo de líneas candidatas que se muestran por grupo — es una ayuda
-    // visual para que el admin compare antes de confirmar, no la fuente de
-    // verdad del conteo (eso lo sigue haciendo contarDisponibles()).
-    private const MAX_CANDIDATOS_MOSTRADOS = 6;
-
-    // Lista las líneas candidatas (banco, fecha, referencia) dentro de la
-    // tolerancia ACH — en vez de un número o un desglose abstracto, el
-    // admin ve directamente QUÉ línea(s) real(es) respaldarían el cruce
-    // antes de hacer clic en "Verificar". Limitada a un puñado de
-    // resultados (si hay más, la vista avisa "+N más").
+    // Lista las líneas candidatas (id, banco, fecha, referencia) dentro de
+    // la tolerancia ACH para UN recibo puntual — el admin elige cuál usar
+    // cuando hay más de una (nunca se asigna automáticamente si hay
+    // ambigüedad). Sin cuenta_destino conocida (histórico), cualquier
+    // cuenta es candidata, y cada fila ya trae su propio banco para que se
+    // distinga en el selector.
     private static function listarCandidatos(PDO $db, string $fecha, $monto, ?string $cuenta): array {
         $condiciones = ["conciliado = 0", "monto = ?",
             "fecha BETWEEN DATE_SUB(?, INTERVAL ? DAY) AND DATE_ADD(?, INTERVAL ? DAY)"];
@@ -86,7 +60,7 @@ class ConciliacionModel {
         }
         $params[] = $fecha; // para el ORDER BY ABS(DATEDIFF(...))
         $stmt = $db->prepare(
-            "SELECT cuenta, fecha, referencia FROM estados_cuenta
+            "SELECT id, cuenta, fecha, referencia FROM estados_cuenta
              WHERE " . implode(' AND ', $condiciones) . "
              ORDER BY ABS(DATEDIFF(fecha, ?)), id
              LIMIT " . self::MAX_CANDIDATOS_MOSTRADOS
@@ -95,20 +69,16 @@ class ConciliacionModel {
         return $stmt->fetchAll(PDO::FETCH_ASSOC);
     }
 
-    // Agrega a cada grupo pendiente cuántas líneas del estado de cuenta hay
-    // disponibles (dentro de la tolerancia ACH) y una muestra de cuáles son,
-    // para que la vista pueda mostrar "sugerido" (alcanza) o "falta" (no
-    // alcanza) Y dejar que el admin vea las líneas reales antes de
-    // confirmar. "sugerido" es solo una sugerencia — verificarGrupo() hace
-    // su propio chequeo con bloqueo al confirmar.
-    public static function sugerencias(PDO $db, string $desde, string $hasta): array {
-        $pendientes = self::pendientesAgrupados($db, $desde, $hasta);
-        foreach ($pendientes as &$grupo) {
-            $grupo['disponibles'] = self::contarDisponibles($db, $grupo['fecha'], $grupo['monto'], $grupo['cuenta_destino']);
-            $grupo['sugerido'] = $grupo['disponibles'] >= (int)$grupo['cantidad'];
-            $grupo['candidatos'] = self::listarCandidatos($db, $grupo['fecha'], $grupo['monto'], $grupo['cuenta_destino']);
+    // Combina ambos: cada recibo pendiente trae su propia lista de líneas
+    // candidatas, para que la vista arme un selector por recibo en vez de
+    // un conteo o un grupo. Es la función que alimenta la pantalla
+    // principal de Conciliación.
+    public static function pendientesConCandidatos(PDO $db, string $desde, string $hasta): array {
+        $pendientes = self::pendientesIndividuales($db, $desde, $hasta);
+        foreach ($pendientes as &$r) {
+            $r['candidatos'] = self::listarCandidatos($db, $r['fecha'], $r['monto'], $r['cuenta_destino']);
         }
-        unset($grupo);
+        unset($r);
 
         return $pendientes;
     }
@@ -137,99 +107,12 @@ class ConciliacionModel {
         return $stmt->fetchAll(PDO::FETCH_ASSOC);
     }
 
-    // Verifica un grupo completo: toma tantas líneas de estados_cuenta como
-    // recibos pendientes haya en (fecha, monto) y las empareja 1:1 (el
-    // orden dentro del grupo es arbitrario a propósito, ver comentario en
-    // pendientesAgrupados). Todo dentro de una transacción con FOR UPDATE
-    // para que dos administradores no verifiquen el mismo grupo a la vez.
-    // Devuelve el número de recibos verificados, o null si ya no alcanza
-    // (alguien más consumió las líneas del estado de cuenta primero).
-    public static function verificarGrupo(PDO $db, string $fecha, float $monto, ?string $cuenta, string $usuario): ?int {
-        $db->beginTransaction();
-        try {
-            // $cuenta null: grupo legacy sin cuenta_destino conocida — se
-            // acota solo por fecha+monto (comportamiento de antes de que
-            // existiera la columna) y las líneas del estado de cuenta se
-            // toman de cualquier cuenta, igual que en disponiblesAgrupados().
-            $condicionRecibo = "fechadep = ? AND deposito = ? AND estado_transferencia = 'pendiente' AND anulado = 0";
-            $paramsRecibo = [$fecha, $monto];
-            if ($cuenta !== null) {
-                $condicionRecibo .= " AND cuenta_destino = ?";
-                $paramsRecibo[] = $cuenta;
-            } else {
-                $condicionRecibo .= " AND cuenta_destino IS NULL";
-            }
-
-            $stmtRecibos = $db->prepare("SELECT numero FROM recibospfs WHERE $condicionRecibo FOR UPDATE");
-            $stmtRecibos->execute($paramsRecibo);
-            $numeros = $stmtRecibos->fetchAll(PDO::FETCH_COLUMN);
-
-            if (empty($numeros)) {
-                $db->rollBack();
-                return 0;
-            }
-
-            // Misma tolerancia que en sugerencias()/contarDisponibles(): una
-            // transferencia ACH puede acreditarse 1-2 días después de la
-            // fecha de la boleta. Se ordena por cercanía a la fecha real del
-            // recibo (ABS(DATEDIFF)) para preferir siempre la línea más
-            // probable en vez de una casualidad de monto más alejada.
-            $condicionLinea = "fecha BETWEEN DATE_SUB(?, INTERVAL ? DAY) AND DATE_ADD(?, INTERVAL ? DAY) AND monto = ? AND conciliado = 0";
-            $paramsLinea = [$fecha, self::TOLERANCIA_DIAS_ACH, $fecha, self::TOLERANCIA_DIAS_ACH, $monto];
-            if ($cuenta !== null) {
-                $condicionLinea .= " AND cuenta = ?";
-                $paramsLinea[] = $cuenta;
-            }
-            $paramsLinea[] = $fecha; // para el ORDER BY ABS(DATEDIFF(...))
-
-            $stmtLineas = $db->prepare(
-                "SELECT id, cuenta FROM estados_cuenta
-                 WHERE $condicionLinea
-                 ORDER BY ABS(DATEDIFF(fecha, ?)), id LIMIT " . count($numeros) . " FOR UPDATE"
-            );
-            $stmtLineas->execute($paramsLinea);
-            $lineas = $stmtLineas->fetchAll(PDO::FETCH_ASSOC);
-
-            if (count($lineas) < count($numeros)) {
-                $db->rollBack();
-                return null;
-            }
-
-            // $cuenta null: el recibo no sabía a qué banco entró. Al
-            // verificar queda claro (la línea que realmente lo cubrió), así
-            // que se rellena cuenta_destino en vez de dejarlo "(sin dato)"
-            // para siempre — de lo contrario este mismo hueco se repite en
-            // cada futura conciliación.
-            $stmtMarcarRecibo = $cuenta !== null
-                ? $db->prepare("UPDATE recibospfs SET estado_transferencia = 'verificado', verificado_por = ?, fecha_verificacion = NOW() WHERE numero = ?")
-                : $db->prepare("UPDATE recibospfs SET estado_transferencia = 'verificado', verificado_por = ?, fecha_verificacion = NOW(), cuenta_destino = ? WHERE numero = ?");
-            $stmtMarcarLinea = $db->prepare(
-                "UPDATE estados_cuenta SET conciliado = 1, recibo_numero = ? WHERE id = ?"
-            );
-
-            foreach ($numeros as $i => $numero) {
-                if ($cuenta !== null) {
-                    $stmtMarcarRecibo->execute([$usuario, $numero]);
-                } else {
-                    $stmtMarcarRecibo->execute([$usuario, $lineas[$i]['cuenta'], $numero]);
-                }
-                $stmtMarcarLinea->execute([$numero, $lineas[$i]['id']]);
-            }
-
-            $db->commit();
-            return count($numeros);
-        } catch (Throwable $e) {
-            $db->rollBack();
-            throw $e;
-        }
-    }
-
     // Búsqueda libre de recibos pendientes (para vincular a mano cuando el
     // cruce automático no aplica: un depósito de un período muy anterior,
     // o una transferencia que cubre varios recibos a la vez). A diferencia
-    // de pendientesAgrupados(), NO agrupa por fecha+monto exactos ni acota
-    // por rango de fechas — es justo lo que permite encontrar un recibo
-    // "fuera del período" que la lista normal no muestra.
+    // de pendientesIndividuales(), NO acota por rango de fechas — es justo
+    // lo que permite encontrar un recibo "fuera del período" que la lista
+    // normal no muestra.
     public static function buscarRecibosPendientes(PDO $db, string $carne, ?float $monto): array {
         $condiciones = ["deposito > 0", "estado_transferencia = 'pendiente'", "anulado = 0"];
         $params = [];
@@ -345,8 +228,7 @@ class ConciliacionModel {
             );
             // COALESCE(cuenta_destino, ?): si ya tenía cuenta_destino, se
             // respeta (no debería cambiar); si era NULL (histórico), se
-            // rellena con la cuenta real de la línea, igual que en
-            // verificarGrupo().
+            // rellena con la cuenta real de la línea que se acaba de usar.
             $stmtMarcarRecibo = $db->prepare(
                 "UPDATE recibospfs SET estado_transferencia = 'verificado', verificado_por = ?, fecha_verificacion = NOW(), cuenta_destino = COALESCE(cuenta_destino, ?) WHERE numero = ?"
             );

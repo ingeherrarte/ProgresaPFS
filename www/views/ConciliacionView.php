@@ -105,7 +105,7 @@ class ConciliacionView {
         <?php
     }
 
-    public static function mostrarPrincipal(array $grupos, array $lineas, ?string $mensaje, ?string $error, string $desde, string $hasta, string $desdeSubida, string $hastaSubida): void {
+    public static function mostrarPrincipal(array $pendientes, array $lineas, ?string $mensaje, ?string $error, string $desde, string $hasta, string $desdeSubida, string $hastaSubida): void {
         $esAdmin = Auth::esAdministrador();
         ?>
         <!DOCTYPE html>
@@ -191,107 +191,81 @@ class ConciliacionView {
                         </div>
                     </div>
                 </form>
-                <?php if (empty($grupos)): ?>
+                <?php if (empty($pendientes)): ?>
                     <p class="sin-datos">No hay recibos pagados por depósito/transferencia pendientes de verificar.</p>
                 <?php else: ?>
                     <div class="tabla-scroll">
                     <table>
                         <thead>
                             <tr>
+                                <th>Recibo</th>
                                 <th>Fecha depósito</th>
                                 <th>Monto</th>
                                 <th>Cuenta destino</th>
-                                <th style="max-width:120px;">Recibos pendientes</th>
-                                <th>Líneas candidatas en el banco</th>
-                                <th>Estado</th>
+                                <th>Línea del banco a usar</th>
                                 <th>Acción</th>
                             </tr>
                         </thead>
                         <tbody>
-                            <?php foreach ($grupos as $g): ?>
-                                <?php
-                                // Solo se usarán tantas líneas como recibos haya en el grupo
-                                // (verificarGrupo toma las primeras N por cercanía de fecha) —
-                                // si hay más candidatas que recibos, el resto NO se toca.
-                                // Calculado una vez por fila, se usa tanto en la columna de
-                                // candidatas como en el mensaje de confirmación de "Verificar".
-                                $usados = array_slice($g['candidatos'], 0, (int)$g['cantidad']);
-                                $extrasMostradas = array_slice($g['candidatos'], (int)$g['cantidad']);
-                                $extrasNoMostradas = max(0, $g['disponibles'] - count($g['candidatos']));
-                                ?>
-                                <tr class="<?= $g['sugerido'] ? 'fila-ok' : 'fila-falta' ?>">
-                                    <td><?= date('d/m/Y', strtotime($g['fecha'])) ?></td>
-                                    <td class="num">Q <?= number_format($g['monto'], 2) ?></td>
+                            <?php foreach ($pendientes as $r): ?>
+                                <?php $candidatos = $r['candidatos']; ?>
+                                <tr class="<?= !empty($candidatos) ? 'fila-ok' : 'fila-falta' ?>">
                                     <td>
-                                        <?php if ($g['cuenta_destino']): ?>
-                                            <?= htmlspecialchars(DepositosModel::bancoDeCuenta($g['cuenta_destino']) ?? $g['cuenta_destino']) ?>
+                                        <a href="recibospfs.php?action=ver&amp;numero=<?= (int)$r['numero'] ?>" target="_blank" rel="noopener" style="color:var(--acento);font-weight:bold;text-decoration:none;">#<?= (int)$r['numero'] ?></a>
+                                        <div class="numeros">carné <?= htmlspecialchars($r['carne']) ?></div>
+                                    </td>
+                                    <td><?= date('d/m/Y', strtotime($r['fecha'])) ?></td>
+                                    <td class="num">Q <?= number_format($r['monto'], 2) ?></td>
+                                    <td>
+                                        <?php if ($r['cuenta_destino']): ?>
+                                            <?= htmlspecialchars(DepositosModel::bancoDeCuenta($r['cuenta_destino']) ?? $r['cuenta_destino']) ?>
                                         <?php else: ?>
                                             <span style="color:var(--sin-datos);">(sin dato)</span>
                                         <?php endif; ?>
                                     </td>
-                                    <td style="max-width:120px;">
-                                        <?= (int)$g['cantidad'] ?>
-                                        <div class="numeros" style="overflow-wrap:break-word;">recibos: <?= htmlspecialchars(str_replace(',', ', ', $g['numeros'])) ?></div>
-                                    </td>
                                     <td>
-                                        <?php if (empty($g['candidatos'])): ?>
-                                            <span style="color:var(--sin-datos);">—</span>
-                                        <?php else: ?>
-                                            <div class="numeros" style="color:var(--texto);line-height:1.6;">
-                                                <?php foreach ($usados as $c): ?>
-                                                    <b><?= htmlspecialchars(DepositosModel::bancoDeCuenta($c['cuenta']) ?? $c['cuenta']) ?></b>
-                                                    · <?= date('d/m/Y', strtotime($c['fecha'])) ?>
-                                                    <?php if ($c['referencia']): ?>· ref <?= htmlspecialchars($c['referencia']) ?><?php endif; ?>
-                                                    <br>
-                                                <?php endforeach; ?>
-                                                <?php if (!empty($extrasMostradas) || $extrasNoMostradas > 0): ?>
-                                                    <span style="color:var(--sin-datos);">
-                                                        + <?= count($extrasMostradas) + max(0, $extrasNoMostradas) ?> línea(s) más disponible(s) (no se usan en este cruce, quedan libres para otro recibo)
-                                                    </span>
-                                                <?php endif; ?>
-                                            </div>
-                                        <?php endif; ?>
-                                    </td>
-                                    <td>
-                                        <?php if ($g['sugerido']): ?>
-                                            <span class="pill ok">✓ Sugerido</span>
-                                        <?php else: ?>
+                                        <?php if (empty($candidatos)): ?>
                                             <span class="pill falta">✗ Falta importar</span>
+                                        <?php elseif (count($candidatos) === 1): ?>
+                                            <?php $c = $candidatos[0]; ?>
+                                            <span class="pill ok">✓</span>
+                                            <b><?= htmlspecialchars(DepositosModel::bancoDeCuenta($c['cuenta']) ?? $c['cuenta']) ?></b>
+                                            · <?= date('d/m/Y', strtotime($c['fecha'])) ?>
+                                            <?php if ($c['referencia']): ?>· ref <?= htmlspecialchars($c['referencia']) ?><?php endif; ?>
+                                        <?php else: ?>
+                                            <span class="pill falta">⚠ <?= count($candidatos) ?> candidatas — elige una</span>
+                                            <select name="estado_cuenta_id" form="form_verificar_<?= (int)$r['numero'] ?>" style="margin:4px 0 0;" required>
+                                                <option value="" selected disabled>-- Elige la línea --</option>
+                                                <?php foreach ($candidatos as $c): ?>
+                                                    <option value="<?= (int)$c['id'] ?>">
+                                                        <?= htmlspecialchars(DepositosModel::bancoDeCuenta($c['cuenta']) ?? $c['cuenta']) ?>
+                                                        · <?= date('d/m/Y', strtotime($c['fecha'])) ?>
+                                                        <?= $c['referencia'] ? '· ref ' . htmlspecialchars($c['referencia']) : '' ?>
+                                                    </option>
+                                                <?php endforeach; ?>
+                                            </select>
                                         <?php endif; ?>
                                     </td>
                                     <td>
-                                        <?php if ($g['sugerido'] && $esAdmin): ?>
+                                        <?php if (!empty($candidatos) && $esAdmin): ?>
                                             <?php
-                                            // El confirm() nativo repite SOLO las líneas que
-                                            // realmente se van a usar (las mismas $usados de la
-                                            // columna de candidatas, no todas las disponibles) —
-                                            // mostrar una candidata que no se va a tocar ahí daba a
-                                            // entender que se estaban asignando varias transferencias
-                                            // a un solo recibo.
-                                            $detalle = '';
-                                            foreach ($usados as $c) {
-                                                $banco = DepositosModel::bancoDeCuenta($c['cuenta']) ?? $c['cuenta'];
-                                                $detalle .= "\n- $banco " . date('d/m/Y', strtotime($c['fecha']))
-                                                    . ($c['referencia'] ? " ref {$c['referencia']}" : '');
-                                            }
-                                            $totalExtras = count($extrasMostradas) + $extrasNoMostradas;
-                                            $notaExtras = $totalExtras > 0
-                                                ? "\n\n(Hay $totalExtras línea(s) más con la misma fecha/monto; el sistema elige automáticamente la más cercana en fecha y las demás quedan libres para otro recibo.)"
-                                                : '';
-                                            $mensajeConfirm = "¿Confirmas que esta(s) " . (int)$g['cantidad'] . " transferencia(s) del "
-                                                . date('d/m/Y', strtotime($g['fecha'])) . " por Q " . number_format($g['monto'], 2)
-                                                . " corresponden a:" . $detalle . $notaExtras;
+                                            $banco = DepositosModel::bancoDeCuenta($candidatos[0]['cuenta']) ?? $candidatos[0]['cuenta'];
+                                            $mensajeConfirm = count($candidatos) === 1
+                                                ? "¿Confirmas que el recibo #{$r['numero']} (Q " . number_format($r['monto'], 2) . ") corresponde a la línea de $banco del "
+                                                    . date('d/m/Y', strtotime($candidatos[0]['fecha'])) . "?"
+                                                : "¿Confirmas vincular el recibo #{$r['numero']} (Q " . number_format($r['monto'], 2) . ") con la línea seleccionada en el menú?";
                                             $onsubmit = 'return confirm(' . json_encode($mensajeConfirm, JSON_UNESCAPED_UNICODE) . ');';
                                             ?>
-                                            <form method="POST" action="conciliacion.php?action=verificar" onsubmit="<?= htmlspecialchars($onsubmit) ?>">
-                                                <input type="hidden" name="fecha" value="<?= htmlspecialchars($g['fecha']) ?>">
-                                                <input type="hidden" name="monto" value="<?= htmlspecialchars($g['monto']) ?>">
-                                                <input type="hidden" name="cuenta" value="<?= htmlspecialchars($g['cuenta_destino'] ?? '') ?>">
+                                            <form id="form_verificar_<?= (int)$r['numero'] ?>" method="POST" action="conciliacion.php?action=verificar" onsubmit="<?= htmlspecialchars($onsubmit) ?>">
+                                                <input type="hidden" name="numero_recibo" value="<?= (int)$r['numero'] ?>">
+                                                <?php if (count($candidatos) === 1): ?>
+                                                    <input type="hidden" name="estado_cuenta_id" value="<?= (int)$candidatos[0]['id'] ?>">
+                                                <?php endif; ?>
                                                 <input type="hidden" name="desde" value="<?= htmlspecialchars($desde) ?>">
                                                 <input type="hidden" name="hasta" value="<?= htmlspecialchars($hasta) ?>">
                                                 <button type="submit" class="chico">Verificar</button>
                                             </form>
-                                        <?php elseif ($g['sugerido']): ?>
+                                        <?php elseif (!empty($candidatos)): ?>
                                             <span class="pill falta">Requiere admin</span>
                                         <?php else: ?>
                                             —

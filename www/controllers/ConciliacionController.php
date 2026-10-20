@@ -109,14 +109,14 @@ class ConciliacionController {
         // trae lo que el usuario puso (o dejó vacío) en ESE formulario.
         [$desdeSubida, $hastaSubida] = $this->rangoSubida($_POST['desde'] ?? null, $_POST['hasta'] ?? null);
         $db = Conexion::conectar();
-        $grupos = ConciliacionModel::sugerencias($db, $desde, $hasta);
+        $pendientes = ConciliacionModel::pendientesConCandidatos($db, $desde, $hasta);
         // "Líneas del estado de cuenta" usa el rango de SUBIDA (más angosto,
         // el período que se acaba de trabajar), no el de "Recibos
         // pendientes" (que se queda amplio a propósito para no esconder
         // backlog atrasado) — mostrar aquí todo el año hacía la tabla
         // inútil para revisar "¿mi importación de hoy quedó bien?".
         $lineas = ConciliacionModel::lineasEstadoCuenta($db, $desdeSubida, $hastaSubida);
-        ConciliacionView::mostrarPrincipal($grupos, $lineas, $mensaje, $error, $desde, $hasta, $desdeSubida, $hastaSubida);
+        ConciliacionView::mostrarPrincipal($pendientes, $lineas, $mensaje, $error, $desde, $hasta, $desdeSubida, $hastaSubida);
     }
 
     // Detecta separador (',' o ';') por frecuencia en la primera línea, y
@@ -594,6 +594,11 @@ class ConciliacionController {
         $this->siguienteMapeo($desde, $hasta);
     }
 
+    // Verifica UN recibo contra la línea del banco que el admin eligió
+    // explícitamente (selector por recibo en la vista — nunca se asigna en
+    // silencio cuando hay varias candidatas). Reusa vincularManual(): es el
+    // mismo motor transaccional de la vinculación manual, solo que aquí
+    // siempre con un único recibo.
     private function verificar() {
         [$desde, $hasta] = $this->rango($_POST['desde'] ?? null, $_POST['hasta'] ?? null);
 
@@ -606,27 +611,22 @@ class ConciliacionController {
             exit;
         }
 
-        $fecha = $_POST['fecha'] ?? '';
-        $monto = (float)($_POST['monto'] ?? 0);
-        $cuenta = trim($_POST['cuenta'] ?? '') ?: null;
-        if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $fecha) || $monto <= 0) {
-            $this->form(null, "Datos de verificación inválidos.", $desde, $hasta);
+        $numeroRecibo = (int)($_POST['numero_recibo'] ?? 0);
+        $estadoCuentaId = (int)($_POST['estado_cuenta_id'] ?? 0);
+        if ($numeroRecibo <= 0 || $estadoCuentaId <= 0) {
+            $this->form(null, "Selecciona una línea del banco para este recibo antes de verificar.", $desde, $hasta);
             return;
         }
 
         $db = Conexion::conectar();
-        $resultado = ConciliacionModel::verificarGrupo($db, $fecha, $monto, $cuenta, Auth::usuarioActual());
+        $resultado = ConciliacionModel::vincularManual($db, $estadoCuentaId, [$numeroRecibo], Auth::usuarioActual());
 
-        if ($resultado === null) {
-            $this->form(null, "Ya no hay suficientes líneas disponibles en el estado de cuenta para ese grupo (puede que alguien más lo haya verificado, o falte importar más líneas).", $desde, $hasta);
-            return;
-        }
-        if ($resultado === 0) {
-            $this->form(null, "Ese grupo ya no tiene recibos pendientes.", $desde, $hasta);
+        if (!$resultado['ok']) {
+            $this->form(null, $resultado['error'], $desde, $hasta);
             return;
         }
 
-        $this->form("$resultado recibo(s) verificados correctamente.", null, $desde, $hasta);
+        $this->form("Recibo #$numeroRecibo verificado correctamente.", null, $desde, $hasta);
     }
 
     // Pantalla de vinculación manual: para una transferencia de un período
