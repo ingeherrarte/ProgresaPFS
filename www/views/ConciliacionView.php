@@ -211,6 +211,13 @@ class ConciliacionView {
                                             <?= htmlspecialchars(DepositosModel::bancoDeCuenta($g['cuenta_destino']) ?? $g['cuenta_destino']) ?>
                                         <?php else: ?>
                                             <span style="color:var(--sin-datos);">(sin dato)</span>
+                                            <?php if (!empty($g['disponibles_por_cuenta'])): ?>
+                                                <div class="numeros">
+                                                    <?php foreach ($g['disponibles_por_cuenta'] as $numCuenta => $cant): ?>
+                                                        <?= htmlspecialchars(DepositosModel::bancoDeCuenta($numCuenta) ?? $numCuenta) ?>: <?= $cant ?><br>
+                                                    <?php endforeach; ?>
+                                                </div>
+                                            <?php endif; ?>
                                         <?php endif; ?>
                                     </td>
                                     <td>

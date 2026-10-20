@@ -66,6 +66,25 @@ class ConciliacionModel {
         return (int)$stmt->fetchColumn();
     }
 
+    // Para un grupo sin cuenta_destino conocida (histórico), desglosa las
+    // líneas disponibles POR BANCO — sin esto, "2 disponibles" no dice de
+    // cuál de los dos bancos vienen, y no hay forma de saber en qué pestaña
+    // buscar ni qué pasaría al verificar.
+    private static function contarDisponiblesPorCuenta(PDO $db, string $fecha, $monto): array {
+        $stmt = $db->prepare(
+            "SELECT cuenta, COUNT(*) AS cantidad FROM estados_cuenta
+             WHERE conciliado = 0 AND monto = ?
+                   AND fecha BETWEEN DATE_SUB(?, INTERVAL ? DAY) AND DATE_ADD(?, INTERVAL ? DAY)
+             GROUP BY cuenta"
+        );
+        $stmt->execute([$monto, $fecha, self::TOLERANCIA_DIAS_ACH, $fecha, self::TOLERANCIA_DIAS_ACH]);
+        $porCuenta = [];
+        foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $fila) {
+            $porCuenta[$fila['cuenta']] = (int)$fila['cantidad'];
+        }
+        return $porCuenta;
+    }
+
     // Agrega a cada grupo pendiente cuántas líneas del estado de cuenta hay
     // disponibles (dentro de la tolerancia ACH), para que la vista pueda
     // mostrar "sugerido" (alcanza) o "falta" (no alcanza). Es solo una
@@ -76,6 +95,9 @@ class ConciliacionModel {
         foreach ($pendientes as &$grupo) {
             $grupo['disponibles'] = self::contarDisponibles($db, $grupo['fecha'], $grupo['monto'], $grupo['cuenta_destino']);
             $grupo['sugerido'] = $grupo['disponibles'] >= (int)$grupo['cantidad'];
+            $grupo['disponibles_por_cuenta'] = $grupo['cuenta_destino']
+                ? null
+                : self::contarDisponiblesPorCuenta($db, $grupo['fecha'], $grupo['monto']);
         }
         unset($grupo);
 
@@ -145,28 +167,37 @@ class ConciliacionModel {
             $paramsLinea[] = $fecha; // para el ORDER BY ABS(DATEDIFF(...))
 
             $stmtLineas = $db->prepare(
-                "SELECT id FROM estados_cuenta
+                "SELECT id, cuenta FROM estados_cuenta
                  WHERE $condicionLinea
                  ORDER BY ABS(DATEDIFF(fecha, ?)), id LIMIT " . count($numeros) . " FOR UPDATE"
             );
             $stmtLineas->execute($paramsLinea);
-            $ids = $stmtLineas->fetchAll(PDO::FETCH_COLUMN);
+            $lineas = $stmtLineas->fetchAll(PDO::FETCH_ASSOC);
 
-            if (count($ids) < count($numeros)) {
+            if (count($lineas) < count($numeros)) {
                 $db->rollBack();
                 return null;
             }
 
-            $stmtMarcarRecibo = $db->prepare(
-                "UPDATE recibospfs SET estado_transferencia = 'verificado', verificado_por = ?, fecha_verificacion = NOW() WHERE numero = ?"
-            );
+            // $cuenta null: el recibo no sabía a qué banco entró. Al
+            // verificar queda claro (la línea que realmente lo cubrió), así
+            // que se rellena cuenta_destino en vez de dejarlo "(sin dato)"
+            // para siempre — de lo contrario este mismo hueco se repite en
+            // cada futura conciliación.
+            $stmtMarcarRecibo = $cuenta !== null
+                ? $db->prepare("UPDATE recibospfs SET estado_transferencia = 'verificado', verificado_por = ?, fecha_verificacion = NOW() WHERE numero = ?")
+                : $db->prepare("UPDATE recibospfs SET estado_transferencia = 'verificado', verificado_por = ?, fecha_verificacion = NOW(), cuenta_destino = ? WHERE numero = ?");
             $stmtMarcarLinea = $db->prepare(
                 "UPDATE estados_cuenta SET conciliado = 1, recibo_numero = ? WHERE id = ?"
             );
 
             foreach ($numeros as $i => $numero) {
-                $stmtMarcarRecibo->execute([$usuario, $numero]);
-                $stmtMarcarLinea->execute([$numero, $ids[$i]]);
+                if ($cuenta !== null) {
+                    $stmtMarcarRecibo->execute([$usuario, $numero]);
+                } else {
+                    $stmtMarcarRecibo->execute([$usuario, $lineas[$i]['cuenta'], $numero]);
+                }
+                $stmtMarcarLinea->execute([$numero, $lineas[$i]['id']]);
             }
 
             $db->commit();
