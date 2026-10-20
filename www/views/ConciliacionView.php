@@ -172,6 +172,7 @@ class ConciliacionView {
                 <h2>
                     Recibos pendientes de verificar
                     <a href="conciliacion.php?action=buscarManual" style="font-size:12.5px;font-weight:normal;margin-left:10px;color:var(--acento);">Vincular manualmente un recibo →</a>
+                    <a href="conciliacion.php?action=movimientos" style="font-size:12.5px;font-weight:normal;margin-left:10px;color:var(--acento);">Ver movimientos del banco →</a>
                 </h2>
                 <p style="font-size:12px;color:var(--sin-datos);margin:-4px 0 12px;">
                     Úsalo cuando el cruce automático no aplica: una transferencia de un período muy anterior, o un depósito que cubre varios recibos a la vez (ej. una empresa paga por 2 estudiantes con la misma transferencia).
@@ -682,6 +683,117 @@ class ConciliacionView {
                 </form>
             </div>
             <?php endif; ?>
+            <?php Tema::script(); ?>
+        </body>
+        </html>
+        <?php
+    }
+
+    // Navegador libre de todo lo importado: responde "¿esta transferencia
+    // ya está en el sistema?" sin depender de preguntarle a alguien que
+    // revise la base de datos a mano.
+    public static function mostrarMovimientos(array $movimientos, string $desde, string $hasta, ?string $cuenta, string $texto): void {
+        ?>
+        <!DOCTYPE html>
+        <html lang="es">
+        <head>
+            <meta charset="UTF-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1">
+            <title>Movimientos del banco — CETECPRO</title>
+            <?php Tema::scriptInicial(); ?>
+            <?php self::estilos(); ?>
+        </head>
+        <body>
+            <?php self::barra(); ?>
+            <h1>Movimientos del banco</h1>
+
+            <div class="card">
+                <a href="conciliacion.php" style="font-size:13px;color:var(--acento);font-weight:bold;">← Volver a Conciliación</a>
+                <form method="GET" action="conciliacion.php" style="margin-top:14px;">
+                    <input type="hidden" name="action" value="movimientos">
+                    <div class="fila" style="align-items:flex-end;">
+                        <div class="campo" style="max-width:180px;">
+                            <label for="cuenta">Banco</label>
+                            <select id="cuenta" name="cuenta" style="margin-bottom:0;">
+                                <option value="">-- Cualquiera --</option>
+                                <?php foreach (DepositosModel::cuentas() as $numeroCuenta => $banco): ?>
+                                    <option value="<?= htmlspecialchars($numeroCuenta) ?>" <?= $cuenta === $numeroCuenta ? 'selected' : '' ?>><?= htmlspecialchars($banco) ?></option>
+                                <?php endforeach; ?>
+                            </select>
+                        </div>
+                        <div class="campo" style="max-width:180px;">
+                            <label for="desde">Desde</label>
+                            <input type="date" id="desde" name="desde" value="<?= htmlspecialchars($desde) ?>" style="margin-bottom:0;">
+                        </div>
+                        <div class="campo" style="max-width:180px;">
+                            <label for="hasta">Hasta</label>
+                            <input type="date" id="hasta" name="hasta" value="<?= htmlspecialchars($hasta) ?>" style="margin-bottom:0;">
+                        </div>
+                        <div class="campo">
+                            <label for="texto">Buscar en referencia/descripción</label>
+                            <input type="text" id="texto" name="texto" value="<?= htmlspecialchars($texto) ?>" style="margin-bottom:0;" placeholder="ej. 1831133185 o ACH">
+                        </div>
+                        <div class="campo" style="flex:0 0 auto;">
+                            <button type="submit">Buscar</button>
+                        </div>
+                    </div>
+                </form>
+            </div>
+
+            <div class="card">
+                <h2>Resultados (<?= count($movimientos) ?><?= count($movimientos) === 300 ? '+, mostrando los primeros 300' : '' ?>)</h2>
+                <?php if (empty($movimientos)): ?>
+                    <p class="sin-datos">No hay movimientos con esos filtros. Si buscas una referencia específica y no aparece, esa línea aún no se ha importado al sistema.</p>
+                <?php else: ?>
+                    <div class="tabla-scroll">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Banco</th>
+                                <th>Fecha</th>
+                                <th>Monto</th>
+                                <th>Referencia</th>
+                                <th>Descripción</th>
+                                <th>Estado</th>
+                                <th>Recibo(s)</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <?php foreach ($movimientos as $m): ?>
+                                <tr class="<?= (int)$m['conciliado'] === 1 ? 'fila-ok' : ((int)$m['recibo_numero'] || $m['recibos_manuales'] ? 'fila-falta' : '') ?>">
+                                    <td><?= htmlspecialchars(DepositosModel::bancoDeCuenta($m['cuenta']) ?? $m['cuenta']) ?></td>
+                                    <td><?= date('d/m/Y', strtotime($m['fecha'])) ?></td>
+                                    <td class="num">Q <?= number_format((float)$m['monto'], 2) ?></td>
+                                    <td><?= $m['referencia'] ? htmlspecialchars($m['referencia']) : '<span style="color:var(--sin-datos);">—</span>' ?></td>
+                                    <td><?= $m['descripcion'] ? htmlspecialchars($m['descripcion']) : '<span style="color:var(--sin-datos);">—</span>' ?></td>
+                                    <td>
+                                        <?php if ((int)$m['conciliado'] === 1): ?>
+                                            <span class="pill ok">✓ Marcada</span>
+                                        <?php elseif ($m['recibos_manuales']): ?>
+                                            <span class="pill falta">⟳ Parcial</span>
+                                        <?php else: ?>
+                                            <span class="pill falta">✗ Sin marcar</span>
+                                        <?php endif; ?>
+                                    </td>
+                                    <td>
+                                        <?php if ($m['recibo_numero']): ?>
+                                            <a href="recibospfs.php?action=ver&amp;numero=<?= (int)$m['recibo_numero'] ?>" style="color:var(--acento);font-weight:bold;text-decoration:none;">#<?= (int)$m['recibo_numero'] ?></a>
+                                            <?php if ($m['carne_automatico']): ?><div class="numeros">carné <?= htmlspecialchars($m['carne_automatico']) ?></div><?php endif; ?>
+                                        <?php elseif ($m['recibos_manuales']): ?>
+                                            <?php foreach (explode(', ', $m['recibos_manuales']) as $numRecibo): ?>
+                                                <a href="recibospfs.php?action=ver&amp;numero=<?= (int)$numRecibo ?>" style="color:var(--acento);font-weight:bold;text-decoration:none;">#<?= (int)$numRecibo ?></a>
+                                            <?php endforeach; ?>
+                                        <?php else: ?>
+                                            <span style="color:var(--sin-datos);">—</span>
+                                        <?php endif; ?>
+                                    </td>
+                                </tr>
+                            <?php endforeach; ?>
+                        </tbody>
+                    </table>
+                    </div>
+                <?php endif; ?>
+            </div>
             <?php Tema::script(); ?>
         </body>
         </html>

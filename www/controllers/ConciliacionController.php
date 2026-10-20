@@ -53,6 +53,9 @@ class ConciliacionController {
             case 'vincularManual':
                 $this->vincularManualAccion();
                 break;
+            case 'movimientos':
+                $this->movimientos();
+                break;
             case 'form':
             default:
                 $this->form();
@@ -578,9 +581,12 @@ class ConciliacionController {
         }
 
         $db = Conexion::conectar();
-        $insertadas = ConciliacionModel::importarLineas($db, $lineas, $cuenta, Auth::usuarioActual());
+        $resultadoImport = ConciliacionModel::importarLineas($db, $lineas, $cuenta, Auth::usuarioActual());
 
-        $mensaje = "Se importaron $insertadas líneas del estado de cuenta.";
+        $mensaje = "Se importaron {$resultadoImport['insertadas']} líneas del estado de cuenta.";
+        if ($resultadoImport['omitidas'] > 0) {
+            $mensaje .= " ({$resultadoImport['omitidas']} ya existían de una importación anterior y se omitieron, sin duplicar.)";
+        }
         if ($filasConError > 0) {
             $mensaje .= " ($filasConError fila(s) no se pudieron leer y se omitieron.)";
         }
@@ -692,6 +698,21 @@ class ConciliacionController {
 
         $mensaje = count($numerosRecibo) . " recibo(s) vinculado(s) correctamente por Q" . number_format($resultado['asignado'], 2) . ".";
         $this->buscarManual($mensaje, null, $carne, $montoRecibo, $cuentaLinea, $montoLinea);
+    }
+
+    // Navegador libre de todo lo importado — responde "¿esta transferencia
+    // ya está en el sistema?" sin tener que revisar la base de datos a
+    // mano. Sin límite de fecha propio (usa $this->rango, igual que
+    // "Revisar desde" de la pantalla principal) y con búsqueda de texto
+    // libre en referencia/descripción.
+    private function movimientos() {
+        [$desde, $hasta] = $this->rango($_GET['desde'] ?? null, $_GET['hasta'] ?? null);
+        $cuenta = trim($_GET['cuenta'] ?? '') ?: null;
+        $texto = trim($_GET['texto'] ?? '');
+
+        $db = Conexion::conectar();
+        $movimientos = ConciliacionModel::buscarMovimientos($db, $cuenta, $desde, $hasta, $texto);
+        ConciliacionView::mostrarMovimientos($movimientos, $desde, $hasta, $cuenta, $texto);
     }
 }
 ?>

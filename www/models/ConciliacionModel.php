@@ -257,16 +257,59 @@ class ConciliacionModel {
         }
     }
 
-    public static function importarLineas(PDO $db, array $lineas, string $cuenta, string $usuario): int {
+    // INSERT IGNORE + la restricción única (cuenta, fecha, monto, referencia)
+    // hacen que re-subir el mismo estado de cuenta sea seguro: una línea ya
+    // importada se omite en silencio en vez de duplicarse. Pasó en vivo el
+    // 2026-10-20 (el mismo archivo se subió dos veces, duplicando 51 líneas
+    // reales sin aviso) — ahora el mismo re-upload simplemente no agrega
+    // nada nuevo, y permite "completar" un archivo que la primera vez dejó
+    // alguna fila fuera por un error de parseo puntual.
+    // Devuelve ['insertadas' => N, 'omitidas' => M] (M = ya existían).
+    public static function importarLineas(PDO $db, array $lineas, string $cuenta, string $usuario): array {
         $stmt = $db->prepare(
-            "INSERT INTO estados_cuenta (cuenta, fecha, monto, referencia, descripcion, importado_por) VALUES (?, ?, ?, ?, ?, ?)"
+            "INSERT IGNORE INTO estados_cuenta (cuenta, fecha, monto, referencia, descripcion, importado_por) VALUES (?, ?, ?, ?, ?, ?)"
         );
         $insertadas = 0;
+        $omitidas = 0;
         foreach ($lineas as $linea) {
             $stmt->execute([$cuenta, $linea['fecha'], $linea['monto'], $linea['referencia'] ?? null, $linea['descripcion'] ?? null, $usuario]);
-            $insertadas++;
+            if ($stmt->rowCount() > 0) {
+                $insertadas++;
+            } else {
+                $omitidas++;
+            }
         }
-        return $insertadas;
+        return ['insertadas' => $insertadas, 'omitidas' => $omitidas];
+    }
+
+    // Navegador libre de TODO lo importado (sin acotarse al período de
+    // subida ni a un recibo puntual) — para responder "¿esta transferencia
+    // ya está en el sistema?" sin tener que revisar la base de datos a
+    // mano. $texto busca en referencia y descripción a la vez.
+    public static function buscarMovimientos(PDO $db, ?string $cuenta, string $desde, string $hasta, string $texto): array {
+        $condiciones = ["ec.fecha >= ?", "ec.fecha <= ?"];
+        $params = [$desde, $hasta];
+        if ($cuenta !== null) {
+            $condiciones[] = "ec.cuenta = ?";
+            $params[] = $cuenta;
+        }
+        if ($texto !== '') {
+            $condiciones[] = "(ec.referencia LIKE ? OR ec.descripcion LIKE ?)";
+            $params[] = '%' . $texto . '%';
+            $params[] = '%' . $texto . '%';
+        }
+        $stmt = $db->prepare(
+            "SELECT ec.id, ec.cuenta, ec.fecha, ec.monto, ec.referencia, ec.descripcion, ec.conciliado, ec.recibo_numero,
+                    r.carne AS carne_automatico,
+                    (SELECT GROUP_CONCAT(cv.recibo_numero SEPARATOR ', ') FROM conciliacion_vinculos cv WHERE cv.estado_cuenta_id = ec.id) AS recibos_manuales
+             FROM estados_cuenta ec
+             LEFT JOIN recibospfs r ON r.numero = ec.recibo_numero
+             WHERE " . implode(' AND ', $condiciones) . "
+             ORDER BY ec.fecha DESC, ec.id DESC
+             LIMIT 300"
+        );
+        $stmt->execute($params);
+        return $stmt->fetchAll(PDO::FETCH_ASSOC);
     }
 }
 ?>
