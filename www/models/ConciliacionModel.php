@@ -338,5 +338,64 @@ class ConciliacionModel {
         $stmt->execute($params);
         return $stmt->fetchAll(PDO::FETCH_ASSOC);
     }
+
+    // Clasifica cada línea del banco en el período con EXISTS correlacionados
+    // (no JOIN+GROUP BY) a propósito: una línea con varios vínculos
+    // manuales (pago dividido) daría una fila por vínculo si se usara JOIN,
+    // inflando el SUM(monto) — EXISTS solo pregunta "¿tiene al menos uno?",
+    // nunca duplica la fila.
+    private const CLASIFICACION_SQL = "
+        CASE
+            WHEN ec.conciliado = 1 THEN 'marcada'
+            WHEN EXISTS(SELECT 1 FROM conciliacion_vinculos cv WHERE cv.estado_cuenta_id = ec.id) THEN 'parcial'
+            WHEN EXISTS(SELECT 1 FROM depositos d WHERE d.nodeposito = ec.referencia AND d.cuenta = ec.cuenta) THEN 'deposito_propio'
+            ELSE 'sin_marcar'
+        END";
+
+    // Totales por estado (cantidad y monto) de las líneas del banco en el
+    // período — "sin_marcar" es la métrica clave: probablemente son
+    // estudiantes que ya transfirieron pero no han venido a pedir su
+    // recibo, o depósitos propios sin boleta ingresada todavía.
+    public static function resumenMovimientos(PDO $db, string $desde, string $hasta, ?string $cuenta): array {
+        $condiciones = ["ec.fecha >= ?", "ec.fecha <= ?"];
+        $params = [$desde, $hasta];
+        if ($cuenta !== null) {
+            $condiciones[] = "ec.cuenta = ?";
+            $params[] = $cuenta;
+        }
+        $stmt = $db->prepare(
+            "SELECT " . self::CLASIFICACION_SQL . " AS estado, COUNT(*) AS cantidad, SUM(ec.monto) AS total
+             FROM estados_cuenta ec
+             WHERE " . implode(' AND ', $condiciones) . "
+             GROUP BY estado"
+        );
+        $stmt->execute($params);
+        $porEstado = ['marcada' => ['cantidad' => 0, 'total' => 0.0], 'parcial' => ['cantidad' => 0, 'total' => 0.0],
+            'deposito_propio' => ['cantidad' => 0, 'total' => 0.0], 'sin_marcar' => ['cantidad' => 0, 'total' => 0.0]];
+        foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $fila) {
+            $porEstado[$fila['estado']] = ['cantidad' => (int)$fila['cantidad'], 'total' => (float)$fila['total']];
+        }
+        return $porEstado;
+    }
+
+    // Tendencia de "sin marcar" por mes (últimos N meses, independiente del
+    // filtro del reporte) — para ver si el rezago crece, se mantiene o baja
+    // en el tiempo, no solo un corte puntual.
+    public static function tendenciaSinMarcar(PDO $db, ?string $cuenta, int $meses = 6): array {
+        $condiciones = [self::CLASIFICACION_SQL . " = 'sin_marcar'", "ec.fecha >= DATE_SUB(CURDATE(), INTERVAL ? MONTH)"];
+        $params = [$meses];
+        if ($cuenta !== null) {
+            $condiciones[] = "ec.cuenta = ?";
+            $params[] = $cuenta;
+        }
+        $stmt = $db->prepare(
+            "SELECT DATE_FORMAT(ec.fecha, '%Y-%m') AS mes, COUNT(*) AS cantidad, SUM(ec.monto) AS total
+             FROM estados_cuenta ec
+             WHERE " . implode(' AND ', $condiciones) . "
+             GROUP BY mes ORDER BY mes"
+        );
+        $stmt->execute($params);
+        return $stmt->fetchAll(PDO::FETCH_ASSOC);
+    }
 }
 ?>

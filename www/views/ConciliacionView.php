@@ -61,6 +61,20 @@ class ConciliacionView {
             .pill.ok { background: var(--estado-ok-bg); color: var(--estado-ok-texto); }
             .pill.falta { background: var(--estado-falta-bg); color: var(--estado-falta-texto); }
             .pill.propio { background: var(--estado-propio-bg); color: var(--estado-propio-texto); }
+            .viz-tooltip {
+                position: fixed; display: none; pointer-events: none; z-index: 50;
+                background: #0b0b0b; color: #fff; font-size: 12px; line-height: 1.5;
+                padding: 8px 10px; border-radius: 5px; max-width: 240px;
+                box-shadow: 0 2px 10px rgba(0,0,0,.25);
+            }
+            .tabla-toggle {
+                font-size: 12.5px; color: var(--acento); font-weight: bold; cursor: pointer;
+                background: none; border: none; padding: 0; margin-top: 10px; text-decoration: underline;
+            }
+            table.datos { border-collapse: collapse; width: 100%; font-size: 12.5px; }
+            table.datos th, table.datos td { border: 1px solid var(--tabla-borde); padding: 6px 9px; text-align: left; }
+            table.datos th { background: var(--tabla-header-bg); color: var(--tabla-header-texto); }
+            table.datos td.num { text-align: right; font-variant-numeric: tabular-nums; }
             tr.fila-ok td { background: var(--fila-ok-bg); }
             tr.fila-falta td { background: var(--fila-falta-bg); }
             tr.fila-propio td { background: var(--fila-propio-bg); }
@@ -839,7 +853,65 @@ class ConciliacionView {
     // Reporte de avance: qué se ha verificado y cuándo, con totales por
     // banco y un desglose automático/manual — responde "¿cómo va quedando
     // el trabajo de conciliación?" sin tener que contar a mano.
-    public static function mostrarReporte(array $verificados, string $desde, string $hasta, ?string $cuenta): void {
+    // Gráfica de barras verticales: monto "sin marcar" por mes, últimos N
+    // meses — para ver si el rezago de posibles pagos sin reportar crece,
+    // se mantiene o baja en el tiempo, no solo un corte puntual del filtro
+    // del reporte. Mismo patrón de marca (barras redondeadas, hover con
+    // tooltip, color ámbar = mismo que la pill "Sin marcar") que el resto
+    // del proyecto (ver Dashboard).
+    private static function graficaTendenciaSinMarcar(array $tendencia): string {
+        $ancho = 760; $alto = 220;
+        $margenIzq = 58; $margenDer = 16; $margenArriba = 16; $margenAbajo = 30;
+        $anchoPlot = $ancho - $margenIzq - $margenDer;
+        $altoPlot = $alto - $margenArriba - $margenAbajo;
+
+        if (empty($tendencia)) {
+            return '';
+        }
+
+        $max = max(array_column($tendencia, 'total'));
+        $max = $max > 0 ? $max * 1.15 : 100; // 15% de aire arriba de la barra más alta
+
+        $n = count($tendencia);
+        $anchoBanda = $anchoPlot / $n;
+        $anchoBarra = min(40, $anchoBanda * 0.5);
+
+        $svg = '<svg viewBox="0 0 ' . $ancho . ' ' . $alto . '" role="img" aria-label="Monto sin marcar por mes" style="width:100%;height:auto;font-family:inherit;">';
+        $svg .= '<rect x="0" y="0" width="' . $ancho . '" height="' . $alto . '" fill="var(--bg-tarjeta)"/>';
+
+        for ($i = 0; $i <= 3; $i++) {
+            $y = $margenArriba + $altoPlot - ($altoPlot * $i / 3);
+            $valor = $max * $i / 3;
+            $svg .= '<line x1="' . $margenIzq . '" y1="' . round($y, 1) . '" x2="' . ($ancho - $margenDer) . '" y2="' . round($y, 1) . '" stroke="var(--tabla-borde)" stroke-width="1"/>';
+            $etiqueta = $valor >= 1000 ? 'Q' . number_format($valor / 1000, 1) . 'K' : 'Q' . number_format($valor, 0);
+            $svg .= '<text x="' . ($margenIzq - 8) . '" y="' . round($y + 3, 1) . '" text-anchor="end" font-size="10.5" fill="var(--sin-datos)">' . $etiqueta . '</text>';
+        }
+
+        foreach ($tendencia as $idx => $fila) {
+            $xCentro = $margenIzq + $anchoBanda * $idx + $anchoBanda / 2;
+            $xBarra = $xCentro - $anchoBarra / 2;
+            $valor = (float)$fila['total'];
+            $altoBarra = $max > 0 ? ($valor / $max) * $altoPlot : 0;
+            $y = $margenArriba + $altoPlot - $altoBarra;
+            $r = min(4, $anchoBarra / 2, $altoBarra / 2);
+
+            $mesTexto = date('M Y', strtotime($fila['mes'] . '-01'));
+            $titulo = ucfirst($mesTexto) . ': Q' . number_format($valor, 2) . ' (' . (int)$fila['cantidad'] . ' línea(s))';
+
+            // rx redondea las 4 esquinas (no solo las de arriba) — aceptable
+            // aquí porque las barras son cortas y angostas; se evita si la
+            // barra es más baja que 2×radio, para no deformarla.
+            $rx = $altoBarra >= $r * 2 ? round($r, 1) : 0;
+            $svg .= '<rect x="' . round($xBarra, 1) . '" y="' . round($y, 1) . '" width="' . round($anchoBarra, 1) . '" height="' . round(max(1, $altoBarra), 1) . '" rx="' . $rx . '" fill="var(--estado-falta-texto)" class="viz-mark" tabindex="0" data-tooltip="' . htmlspecialchars($titulo) . '"><title>' . htmlspecialchars($titulo) . '</title></rect>';
+
+            $svg .= '<text x="' . round($xCentro, 1) . '" y="' . ($alto - 10) . '" text-anchor="middle" font-size="10.5" fill="var(--sin-datos)">' . htmlspecialchars(ucfirst($mesTexto)) . '</text>';
+        }
+
+        $svg .= '</svg>';
+        return $svg;
+    }
+
+    public static function mostrarReporte(array $verificados, string $desde, string $hasta, ?string $cuenta, array $resumenMovimientos, array $tendenciaSinMarcar): void {
         $totalMonto = array_sum(array_column($verificados, 'monto'));
         $porBanco = [];
         foreach ($verificados as $v) {
@@ -914,6 +986,57 @@ class ConciliacionView {
             </div>
 
             <div class="card">
+                <h2>Estado de las líneas del banco (mismo período del filtro)</h2>
+                <p style="font-size:12px;color:var(--sin-datos);margin:-4px 0 14px;">
+                    "Sin marcar" son probablemente estudiantes que ya transfirieron pero aún no han venido a pedir su recibo, o depósitos propios cuya boleta todavía no se ha ingresado.
+                </p>
+                <div class="kpis" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:16px;">
+                    <div class="kpi" style="background:var(--estado-ok-bg);border-radius:8px;padding:16px 18px;">
+                        <div style="font-size:12px;font-weight:bold;color:var(--estado-ok-texto);margin-bottom:6px;">✓ Marcadas</div>
+                        <div style="font-size:24px;font-weight:600;color:var(--estado-ok-texto);"><?= $resumenMovimientos['marcada']['cantidad'] ?></div>
+                        <div style="font-size:12px;color:var(--estado-ok-texto);">Q <?= number_format($resumenMovimientos['marcada']['total'], 2) ?></div>
+                    </div>
+                    <div class="kpi" style="background:var(--estado-propio-bg);border-radius:8px;padding:16px 18px;">
+                        <div style="font-size:12px;font-weight:bold;color:var(--estado-propio-texto);margin-bottom:6px;">🏢 Depósito propio</div>
+                        <div style="font-size:24px;font-weight:600;color:var(--estado-propio-texto);"><?= $resumenMovimientos['deposito_propio']['cantidad'] ?></div>
+                        <div style="font-size:12px;color:var(--estado-propio-texto);">Q <?= number_format($resumenMovimientos['deposito_propio']['total'], 2) ?></div>
+                    </div>
+                    <div class="kpi" style="background:var(--estado-falta-bg);border-radius:8px;padding:16px 18px;">
+                        <div style="font-size:12px;font-weight:bold;color:var(--estado-falta-texto);margin-bottom:6px;">⟳ Parcial</div>
+                        <div style="font-size:24px;font-weight:600;color:var(--estado-falta-texto);"><?= $resumenMovimientos['parcial']['cantidad'] ?></div>
+                        <div style="font-size:12px;color:var(--estado-falta-texto);">Q <?= number_format($resumenMovimientos['parcial']['total'], 2) ?></div>
+                    </div>
+                    <div class="kpi" style="background:var(--estado-falta-bg);border-radius:8px;padding:16px 18px;border:2px solid var(--estado-falta-borde);">
+                        <div style="font-size:12px;font-weight:bold;color:var(--estado-falta-texto);margin-bottom:6px;">✗ Sin marcar</div>
+                        <div style="font-size:24px;font-weight:600;color:var(--estado-falta-texto);"><?= $resumenMovimientos['sin_marcar']['cantidad'] ?></div>
+                        <div style="font-size:12px;color:var(--estado-falta-texto);">Q <?= number_format($resumenMovimientos['sin_marcar']['total'], 2) ?></div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="card">
+                <h2>Tendencia de líneas sin marcar (últimos 6 meses)</h2>
+                <?php if (empty($tendenciaSinMarcar)): ?>
+                    <p class="sin-datos">No hay líneas sin marcar en los últimos 6 meses.</p>
+                <?php else: ?>
+                    <?= self::graficaTendenciaSinMarcar($tendenciaSinMarcar) ?>
+                    <button type="button" class="tabla-toggle" onclick="document.getElementById('tablaTendencia').hidden = !document.getElementById('tablaTendencia').hidden">Ver tabla de datos</button>
+                    <table class="datos" id="tablaTendencia" hidden style="margin-top:10px;">
+                        <thead><tr><th>Mes</th><th>Líneas sin marcar</th><th>Monto</th></tr></thead>
+                        <tbody>
+                            <?php foreach ($tendenciaSinMarcar as $t): ?>
+                                <tr>
+                                    <td><?= htmlspecialchars(ucfirst(date('M Y', strtotime($t['mes'] . '-01')))) ?></td>
+                                    <td class="num"><?= (int)$t['cantidad'] ?></td>
+                                    <td class="num">Q <?= number_format((float)$t['total'], 2) ?></td>
+                                </tr>
+                            <?php endforeach; ?>
+                        </tbody>
+                    </table>
+                <?php endif; ?>
+            </div>
+
+            <div class="card">
                 <h2>Detalle</h2>
                 <?php if (empty($verificados)): ?>
                     <p class="sin-datos">No hay recibos verificados en este período.</p>
@@ -956,6 +1079,26 @@ class ConciliacionView {
                     </div>
                 <?php endif; ?>
             </div>
+            <div class="viz-tooltip" id="vizTooltip"></div>
+            <script>
+                const tooltip = document.getElementById('vizTooltip');
+                function mostrarTooltip(ev, texto) {
+                    tooltip.textContent = texto;
+                    tooltip.style.display = 'block';
+                    const x = ev.clientX ?? ev.target.getBoundingClientRect().right;
+                    const y = ev.clientY ?? ev.target.getBoundingClientRect().top;
+                    tooltip.style.left = Math.min(x + 14, window.innerWidth - 250) + 'px';
+                    tooltip.style.top = Math.max(y - 10, 10) + 'px';
+                }
+                function ocultarTooltip() { tooltip.style.display = 'none'; }
+                document.querySelectorAll('.viz-mark').forEach(el => {
+                    const texto = el.getAttribute('data-tooltip');
+                    el.addEventListener('pointermove', ev => mostrarTooltip(ev, texto));
+                    el.addEventListener('pointerleave', ocultarTooltip);
+                    el.addEventListener('focus', ev => mostrarTooltip(ev, texto));
+                    el.addEventListener('blur', ocultarTooltip);
+                });
+            </script>
             <?php Tema::script(); ?>
         </body>
         </html>

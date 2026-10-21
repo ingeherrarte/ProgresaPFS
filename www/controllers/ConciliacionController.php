@@ -735,7 +735,9 @@ class ConciliacionController {
 
         $db = Conexion::conectar();
         $verificados = ConciliacionModel::recibosVerificados($db, $desde, $hasta, $cuenta);
-        ConciliacionView::mostrarReporte($verificados, $desde, $hasta, $cuenta);
+        $resumenMovimientos = ConciliacionModel::resumenMovimientos($db, $desde, $hasta, $cuenta);
+        $tendenciaSinMarcar = ConciliacionModel::tendenciaSinMarcar($db, $cuenta);
+        ConciliacionView::mostrarReporte($verificados, $desde, $hasta, $cuenta, $resumenMovimientos, $tendenciaSinMarcar);
     }
 }
 ?>
