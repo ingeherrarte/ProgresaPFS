@@ -33,6 +33,11 @@ class Tema {
             --acento: #1a237e; --borde-input: #ccc; --sombra-tarjeta: rgba(0,0,0,.1);
             --tabla-borde: #ddd; --tabla-header-bg: #1a237e; --tabla-header-texto: #fff;
             --sin-datos: #888; --fila-alterna: #f5f7ff;
+            --estado-ok-bg: #e8f5e9; --estado-ok-texto: #2e7d32; --estado-ok-borde: #81c784;
+            --estado-falta-bg: #fff8e1; --estado-falta-texto: #f57f17; --estado-falta-borde: #ffd54f;
+            --fila-ok-bg: #f1f8f2; --fila-falta-bg: #fffdf2;
+            --estado-propio-bg: #e0f7f5; --estado-propio-texto: #00786b; --estado-propio-borde: #4db6ac;
+            --fila-propio-bg: #edfbfa;
         }
         <?php self::bloqueOscuro(); ?>
         <?php
@@ -56,6 +61,11 @@ class Tema {
         --acento: #8c9eff; --borde-input: #3a3f4b; --sombra-tarjeta: rgba(0,0,0,.4);
         --tabla-borde: #3a3f4b; --tabla-header-bg: #2b3350; --tabla-header-texto: #e8e9ec;
         --sin-datos: #8a909b; --fila-alterna: #262b38;
+        --estado-ok-bg: #1b3a24; --estado-ok-texto: #81c995; --estado-ok-borde: #2e7d32;
+        --estado-falta-bg: #3a2f10; --estado-falta-texto: #ffcc66; --estado-falta-borde: #8a6d1a;
+        --fila-ok-bg: #182019; --fila-falta-bg: #221d10;
+        --estado-propio-bg: #0d3d38; --estado-propio-texto: #4dd9cb; --estado-propio-borde: #00786b;
+        --fila-propio-bg: #0f2422;
         <?php
     }
 
