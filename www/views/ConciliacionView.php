@@ -60,8 +60,10 @@ class ConciliacionView {
             }
             .pill.ok { background: var(--estado-ok-bg); color: var(--estado-ok-texto); }
             .pill.falta { background: var(--estado-falta-bg); color: var(--estado-falta-texto); }
+            .pill.propio { background: var(--estado-propio-bg); color: var(--estado-propio-texto); }
             tr.fila-ok td { background: var(--fila-ok-bg); }
             tr.fila-falta td { background: var(--fila-falta-bg); }
+            tr.fila-propio td { background: var(--fila-propio-bg); }
             .numeros { font-size: 11.5px; color: var(--sin-datos); margin-top: 2px; }
             .progreso-archivos { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 18px; }
             .chip-archivo {
@@ -784,7 +786,7 @@ class ConciliacionView {
                         <tbody>
                             <?php foreach ($movimientos as $m): ?>
                                 <?php $explicadaComoDeposito = !$m['recibo_numero'] && !$m['recibos_manuales'] && $m['deposito_propio']; ?>
-                                <tr class="<?= (int)$m['conciliado'] === 1 || $explicadaComoDeposito ? 'fila-ok' : ((int)$m['recibo_numero'] || $m['recibos_manuales'] ? 'fila-falta' : '') ?>">
+                                <tr class="<?= $explicadaComoDeposito ? 'fila-propio' : ((int)$m['conciliado'] === 1 ? 'fila-ok' : ((int)$m['recibo_numero'] || $m['recibos_manuales'] ? 'fila-falta' : '')) ?>">
                                     <td><?= htmlspecialchars(DepositosModel::bancoDeCuenta($m['cuenta']) ?? $m['cuenta']) ?></td>
                                     <td><?= date('d/m/Y', strtotime($m['fecha'])) ?></td>
                                     <td class="num">Q <?= number_format((float)$m['monto'], 2) ?></td>
@@ -796,7 +798,7 @@ class ConciliacionView {
                                         <?php elseif ($m['recibos_manuales']): ?>
                                             <span class="pill falta">⟳ Parcial</span>
                                         <?php elseif ($explicadaComoDeposito): ?>
-                                            <span class="pill ok">🏢 Depósito propio</span>
+                                            <span class="pill propio">🏢 Depósito propio</span>
                                         <?php else: ?>
                                             <span class="pill falta">✗ Sin marcar</span>
                                         <?php endif; ?>
