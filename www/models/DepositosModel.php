@@ -49,5 +49,39 @@ class DepositosModel {
         $stmt->execute();
         return $stmt->fetchAll(PDO::FETCH_ASSOC);
     }
+
+    public static function obtenerPorNumero(PDO $db, string $nodeposito): ?array {
+        $stmt = $db->prepare("SELECT * FROM depositos WHERE nodeposito = ?");
+        $stmt->execute([$nodeposito]);
+        $fila = $stmt->fetch(PDO::FETCH_ASSOC);
+        return $fila ?: null;
+    }
+
+    // No hay columna `id`: nodeposito es la llave única real, así que la
+    // edición identifica el registro por su número ORIGINAL y permite
+    // corregirlo también (quedó mal digitado alguna vez). Devuelve true,
+    // 'duplicado' (el nuevo número ya pertenece a otro depósito) o false.
+    public static function actualizar(PDO $db, string $nodepositoOriginal, array $datos): bool|string {
+        $sql = "UPDATE depositos SET
+            nodeposito = ?, fechadep = ?, cuenta = ?, banco = ?, correspondiente = ?,
+            efectivo = ?, chpropio = ?, chotrobanco = ?, responsable = ?
+            WHERE nodeposito = ?";
+        $stmt = $db->prepare($sql);
+
+        try {
+            $stmt->execute([
+                $datos['nodeposito'], $datos['fechadep'], $datos['cuenta'], $datos['banco'],
+                $datos['correspondiente'], $datos['efectivo'], $datos['chpropio'], $datos['chotrobanco'],
+                $datos['responsable'], $nodepositoOriginal,
+            ]);
+            return true;
+        } catch (PDOException $e) {
+            if ($e->getCode() === '23000') {
+                return 'duplicado';
+            }
+            error_log("Error al actualizar depósito: " . $e->getMessage());
+            return false;
+        }
+    }
 }
 ?>
