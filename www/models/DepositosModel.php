@@ -70,6 +70,7 @@ class DepositosModel {
         'chpropio' => 'Cheque propio banco',
         'chotrobanco' => 'Cheque otros bancos',
         'responsable' => 'Responsable',
+        'foto_boleta' => 'Foto de la boleta',
     ];
 
     private const CAMPOS_MONTO = ['efectivo', 'chpropio', 'chotrobanco'];
@@ -120,13 +121,13 @@ class DepositosModel {
 
         $stmt = $db->prepare(
             "UPDATE depositos SET fechadep = ?, cuenta = ?, banco = ?, correspondiente = ?,
-                efectivo = ?, chpropio = ?, chotrobanco = ? , responsable = ?
+                efectivo = ?, chpropio = ?, chotrobanco = ? , responsable = ?, foto_boleta = ?
              WHERE nodeposito = ?"
         );
         $stmt->execute([
             $datos['fechadep'], $datos['cuenta'], $datos['banco'], $datos['correspondiente'],
             $datos['efectivo'], $datos['chpropio'], $datos['chotrobanco'], $datos['responsable'],
-            $nodeposito,
+            $datos['foto_boleta'], $nodeposito,
         ]);
 
         if ($stmt->rowCount() === 0) {

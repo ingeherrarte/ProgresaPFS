@@ -686,7 +686,7 @@ class AdminView {
                         <div style="color:#777">El número de depósito no se puede editar aquí (es la llave con la que se busca). Si se digitó mal, bórralo y vuelve a capturarlo.</div>
                     </div>
 
-                    <form method="POST" action="admin.php?action=editar_deposito_guardar">
+                    <form method="POST" action="admin.php?action=editar_deposito_guardar" enctype="multipart/form-data">
                         <input type="hidden" name="nodeposito" value="<?= htmlspecialchars($deposito['nodeposito']) ?>">
 
                         <fieldset>
@@ -730,6 +730,22 @@ class AdminView {
                                 <div class="campo">
                                     <label for="responsable">Responsable</label>
                                     <input type="text" id="responsable" name="responsable" maxlength="30" value="<?= $texto('responsable') ?>" required>
+                                </div>
+                            </div>
+                            <div class="fila">
+                                <div class="campo">
+                                    <label for="foto_boleta">Foto de la boleta</label>
+                                    <?php if (!empty($deposito['foto_boleta'])): ?>
+                                        <div style="margin-bottom:6px;">
+                                            <a href="uploads/depositos/<?= urlencode($deposito['foto_boleta']) ?>" target="_blank" rel="noopener">Ver foto actual</a>
+                                        </div>
+                                    <?php else: ?>
+                                        <div style="margin-bottom:6px;color:var(--texto-muted);">Este depósito no tiene foto.</div>
+                                    <?php endif; ?>
+                                    <input type="file" id="foto_boleta" name="foto_boleta" accept="image/jpeg,image/png,image/webp">
+                                    <div style="font-size:11px;color:var(--texto-muted);margin-top:4px;">
+                                        Solo si la foto subida originalmente no era la correcta — deja este campo vacío para conservar la que ya tiene.
+                                    </div>
                                 </div>
                             </div>
                         </fieldset>
