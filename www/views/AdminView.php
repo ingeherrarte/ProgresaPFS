@@ -146,6 +146,10 @@ class AdminView {
                             <div class="icono">🧾</div>
                             <div class="titulo">Editar Recibo</div>
                         </a>
+                        <a class="acceso" href="admin.php?action=editar_deposito">
+                            <div class="icono">🏦</div>
+                            <div class="titulo">Editar Depósito</div>
+                        </a>
                         <a class="acceso" href="usuarios.php">
                             <div class="icono">👥</div>
                             <div class="titulo">Gestionar Usuarios</div>
@@ -617,6 +621,167 @@ class AdminView {
                     recalcularTotales();
                 </script>
             <?php endif; ?>
+            <?php Tema::script(); ?>
+        </body>
+        </html>
+        <?php
+    }
+
+    // Mismo patrón que mostrarEditarRecibo(): búsqueda primero, formulario
+    // de edición solo si se encontró, motivo + contraseña obligatorios, e
+    // historial de cambios debajo. nodeposito nunca se edita aquí (ver
+    // DepositosModel::$camposEditables) — es la llave con la que se busca.
+    public static function mostrarEditarDeposito(string $nodepositoBuscado, ?array $deposito, array $historial, array $errores, ?string $mensaje = null): void {
+        $texto = fn($campo, $default = '') => htmlspecialchars((string)($deposito[$campo] ?? $default));
+        $cuentaSel = $deposito['cuenta'] ?? '';
+        ?>
+        <!DOCTYPE html>
+        <html lang="es">
+        <head>
+            <meta charset="UTF-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1">
+            <title>Editar Depósito — CETECPRO</title>
+            <?php Tema::scriptInicial(); ?>
+            <?php self::estilos(); ?>
+        </head>
+        <body>
+            <?php self::barra(); ?>
+            <h1>Editar Depósito</h1>
+
+            <div class="card">
+                <?php if ($mensaje): ?>
+                    <div class="exito">✅ <?= htmlspecialchars($mensaje) ?></div>
+                <?php endif; ?>
+
+                <?php if (!empty($errores)): ?>
+                    <div class="errores">
+                        ⚠️ <ul>
+                            <?php foreach ($errores as $e): ?>
+                                <li><?= htmlspecialchars($e) ?></li>
+                            <?php endforeach; ?>
+                        </ul>
+                    </div>
+                <?php endif; ?>
+
+                <form method="GET" action="admin.php">
+                    <input type="hidden" name="action" value="editar_deposito">
+                    <div class="fila">
+                        <div class="campo">
+                            <label for="nodeposito">No. de depósito</label>
+                            <input type="text" id="nodeposito" name="nodeposito" inputmode="numeric" value="<?= htmlspecialchars($nodepositoBuscado) ?>" autofocus>
+                        </div>
+                        <div>
+                            <button type="submit">Buscar</button>
+                        </div>
+                    </div>
+                </form>
+
+                <?php if ($deposito): ?>
+                    <div class="resumen-recibo">
+                        <div><b>Depósito No.</b> <?= htmlspecialchars($deposito['nodeposito']) ?></div>
+                        <div><b>Registrado por:</b> <?= $texto('usuario') ?></div>
+                        <div><b>Hora de registro:</b> <?= $deposito['horaregistro'] ? date('d/m/Y H:i', strtotime($deposito['horaregistro'])) : 'sin registro' ?></div>
+                        <div style="color:#777">El número de depósito no se puede editar aquí (es la llave con la que se busca). Si se digitó mal, bórralo y vuelve a capturarlo.</div>
+                    </div>
+
+                    <form method="POST" action="admin.php?action=editar_deposito_guardar">
+                        <input type="hidden" name="nodeposito" value="<?= htmlspecialchars($deposito['nodeposito']) ?>">
+
+                        <fieldset>
+                            <legend>Datos del depósito</legend>
+                            <div class="fila">
+                                <div class="campo">
+                                    <label for="fechadep">Fecha de depósito</label>
+                                    <input type="date" id="fechadep" name="fechadep" value="<?= $texto('fechadep') ?>" required>
+                                </div>
+                                <div class="campo">
+                                    <label for="cuenta">Cuenta</label>
+                                    <select id="cuenta" name="cuenta" required>
+                                        <option value="">-- Seleccione --</option>
+                                        <?php foreach (DepositosModel::cuentas() as $numero => $banco): ?>
+                                            <option value="<?= htmlspecialchars($numero) ?>" <?= $numero === $cuentaSel ? 'selected' : '' ?>>
+                                                <?= htmlspecialchars($numero) ?> — <?= htmlspecialchars($banco) ?>
+                                            </option>
+                                        <?php endforeach; ?>
+                                    </select>
+                                </div>
+                                <div class="campo">
+                                    <label for="correspondiente">Correspondiente a</label>
+                                    <input type="date" id="correspondiente" name="correspondiente" value="<?= $texto('correspondiente') ?>" required>
+                                </div>
+                            </div>
+                            <div class="fila">
+                                <div class="campo">
+                                    <label for="efectivo">Efectivo</label>
+                                    <input type="number" id="efectivo" name="efectivo" step="0.01" min="0" value="<?= $texto('efectivo', '0.00') ?>">
+                                </div>
+                                <div class="campo">
+                                    <label for="chpropio">Cheque propio banco</label>
+                                    <input type="number" id="chpropio" name="chpropio" step="0.01" min="0" value="<?= $texto('chpropio', '0.00') ?>">
+                                </div>
+                                <div class="campo">
+                                    <label for="chotrobanco">Cheque otros bancos</label>
+                                    <input type="number" id="chotrobanco" name="chotrobanco" step="0.01" min="0" value="<?= $texto('chotrobanco', '0.00') ?>">
+                                </div>
+                            </div>
+                            <div class="fila">
+                                <div class="campo">
+                                    <label for="responsable">Responsable</label>
+                                    <input type="text" id="responsable" name="responsable" maxlength="30" value="<?= $texto('responsable') ?>" required>
+                                </div>
+                            </div>
+                        </fieldset>
+
+                        <fieldset>
+                            <legend>Confirmar cambios</legend>
+                            <div class="fila">
+                                <div class="campo">
+                                    <label for="motivo">Motivo de la edición</label>
+                                    <input type="text" id="motivo" name="motivo" maxlength="200" required>
+                                </div>
+                            </div>
+                            <div class="fila">
+                                <div class="campo">
+                                    <label for="password_actual">Tu contraseña</label>
+                                    <input type="password" id="password_actual" name="password_actual" required>
+                                </div>
+                            </div>
+                        </fieldset>
+
+                        <button type="submit">Guardar cambios</button>
+                    </form>
+                <?php endif; ?>
+
+                <?php if (!empty($historial)): ?>
+                    <fieldset style="margin-top:24px">
+                        <legend>Ediciones anteriores</legend>
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Fecha</th>
+                                    <th>Usuario</th>
+                                    <th>Campo</th>
+                                    <th>Antes</th>
+                                    <th>Después</th>
+                                    <th>Motivo</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <?php foreach ($historial as $h): ?>
+                                    <tr>
+                                        <td><?= date('d/m/Y H:i', strtotime($h['fecha'])) ?></td>
+                                        <td><?= htmlspecialchars($h['usuario']) ?></td>
+                                        <td><?= htmlspecialchars(DepositosModel::etiquetaCampo($h['campo'])) ?></td>
+                                        <td class="valor-anterior"><?= htmlspecialchars($h['valor_anterior']) ?></td>
+                                        <td class="valor-nuevo"><?= htmlspecialchars($h['valor_nuevo']) ?></td>
+                                        <td><?= htmlspecialchars($h['motivo']) ?></td>
+                                    </tr>
+                                <?php endforeach; ?>
+                            </tbody>
+                        </table>
+                    </fieldset>
+                <?php endif; ?>
+            </div>
             <?php Tema::script(); ?>
         </body>
         </html>

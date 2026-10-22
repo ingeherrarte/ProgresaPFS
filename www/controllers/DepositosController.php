@@ -15,14 +15,6 @@ class DepositosController {
                 $this->guardar();
                 break;
 
-            case 'editar':
-                $this->editar();
-                break;
-
-            case 'actualizar':
-                $this->actualizar();
-                break;
-
             case 'form':
             default:
                 $this->form();
@@ -30,20 +22,10 @@ class DepositosController {
         }
     }
 
-    // Edición restringida a administrador: corrige errores de digitación
-    // (montos, fecha, número de depósito) en un registro ya guardado.
-    private function requerirAdministrador(): void {
-        if (!Auth::esAdministrador()) {
-            header("Location: inicio.php?error=permiso");
-            exit;
-        }
-    }
-
     private function form(array $errores = [], array $data = []) {
         $db = Conexion::conectar();
         $recientes = DepositosModel::obtenerRecientes($db);
-        $mensajes = ['creado' => 'Depósito guardado correctamente.', 'actualizado' => 'Depósito actualizado correctamente.'];
-        $mensaje = empty($errores) ? ($mensajes[$_GET['msg'] ?? ''] ?? null) : null;
+        $mensaje = (empty($errores) && ($_GET['msg'] ?? '') === 'creado') ? 'Depósito guardado correctamente.' : null;
         DepositosView::mostrarFormulario($errores, $data, $recientes, $mensaje);
     }
 
@@ -157,67 +139,6 @@ class DepositosController {
         }
 
         header("Location: depositos.php?msg=creado");
-        exit;
-    }
-
-    private function editar(array $errores = [], array $data = []) {
-        $this->requerirAdministrador();
-
-        $nodeposito = trim($_GET['nodeposito'] ?? $data['nodeposito_original'] ?? '');
-        $db = Conexion::conectar();
-        $deposito = DepositosModel::obtenerPorNumero($db, $nodeposito);
-        if (!$deposito) {
-            header("Location: depositos.php");
-            exit;
-        }
-
-        $data = $data ?: $deposito;
-        $data['nodeposito_original'] = $nodeposito;
-        DepositosView::mostrarEdicion($errores, $data, $deposito);
-    }
-
-    private function actualizar() {
-        $this->requerirAdministrador();
-
-        if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
-            header("Location: depositos.php");
-            exit;
-        }
-
-        $nodepositoOriginal = trim($_POST['nodeposito_original'] ?? '');
-        $errores = $this->validar($_POST);
-
-        if (!empty($errores)) {
-            $this->editar($errores, $_POST);
-            return;
-        }
-
-        $cuenta = trim($_POST['cuenta']);
-        $datos = [
-            'nodeposito' => trim($_POST['nodeposito']),
-            'fechadep' => $_POST['fechadep'],
-            'cuenta' => $cuenta,
-            'banco' => DepositosModel::bancoDeCuenta($cuenta),
-            'correspondiente' => $_POST['correspondiente'],
-            'efectivo' => (float)$_POST['efectivo'],
-            'chpropio' => (float)$_POST['chpropio'],
-            'chotrobanco' => (float)$_POST['chotrobanco'],
-            'responsable' => trim($_POST['responsable']),
-        ];
-
-        $db = Conexion::conectar();
-        $resultado = DepositosModel::actualizar($db, $nodepositoOriginal, $datos);
-
-        if ($resultado === 'duplicado') {
-            $this->editar(["Ya existe otro depósito registrado con el número {$datos['nodeposito']}."], $_POST);
-            return;
-        }
-        if ($resultado === false) {
-            $this->editar(["No se pudo actualizar el depósito. Intente de nuevo."], $_POST);
-            return;
-        }
-
-        header("Location: depositos.php?msg=actualizado");
         exit;
     }
 }

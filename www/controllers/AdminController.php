@@ -2,6 +2,7 @@
 require_once "models/RecibosPfsModel.php";
 require_once "models/UsuarioModel.php";
 require_once "models/EstudiantesPfsModel.php";
+require_once "models/DepositosModel.php";
 require_once "models/BackupModel.php";
 require_once "views/AdminView.php";
 require_once __DIR__ . "/../helpers/Auth.php";
@@ -81,6 +82,19 @@ class AdminController {
             case 'editar_recibo_guardar':
                 Auth::requerirRol([Auth::ROL_ADMINISTRADOR]);
                 $this->editarReciboGuardar();
+                break;
+
+            // Igual que editar_recibo: un depósito ya registrado es un
+            // documento financiero (ver depositos_ediciones.sql), así que
+            // queda restringido al rol administrador.
+            case 'editar_deposito':
+                Auth::requerirRol([Auth::ROL_ADMINISTRADOR]);
+                $this->editarDepositoBuscar();
+                break;
+
+            case 'editar_deposito_guardar':
+                Auth::requerirRol([Auth::ROL_ADMINISTRADOR]);
+                $this->editarDepositoGuardar();
                 break;
 
             // Sin requerirRol(): disponible para cualquier usuario con
@@ -366,6 +380,91 @@ class AdminController {
 
         $msg = empty($cambios) ? 'sin_cambios' : 'actualizado';
         header("Location: admin.php?action=editar_recibo&numero=$numero&msg=$msg&cambios=" . count($cambios));
+        exit;
+    }
+
+    private function editarDepositoBuscar() {
+        $nodeposito = trim($_GET['nodeposito'] ?? '');
+        $db = Conexion::conectar();
+        $deposito = null;
+        $historial = [];
+        $errores = [];
+
+        if ($nodeposito !== '') {
+            $deposito = DepositosModel::obtenerPorNumero($db, $nodeposito);
+            if (!$deposito) {
+                $errores[] = "No existe ningún depósito con ese número.";
+            } else {
+                $historial = DepositosModel::historialEdiciones($db, $nodeposito);
+            }
+        }
+
+        $mensaje = null;
+        if ($deposito) {
+            if (($_GET['msg'] ?? '') === 'actualizado') {
+                $cambios = max(1, (int)($_GET['cambios'] ?? 1));
+                $mensaje = "El depósito se actualizó correctamente ($cambios campo(s) modificado(s)).";
+            } elseif (($_GET['msg'] ?? '') === 'sin_cambios') {
+                $mensaje = "No se modificó ningún campo: los datos enviados son idénticos a los guardados.";
+            }
+        }
+
+        AdminView::mostrarEditarDeposito($nodeposito, $deposito, $historial, $errores, $mensaje);
+    }
+
+    // Igual que editarReciboGuardar(): se vuelve a pedir la contraseña para
+    // que editar un depósito no sea posible con solo dejar la sesión
+    // abierta, y el motivo queda obligatorio en la bitácora.
+    private function editarDepositoGuardar() {
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+            header("Location: admin.php?action=editar_deposito");
+            exit;
+        }
+
+        $nodeposito = trim($_POST['nodeposito'] ?? '');
+        $password = $_POST['password_actual'] ?? '';
+
+        $db = Conexion::conectar();
+        $deposito = DepositosModel::obtenerPorNumero($db, $nodeposito);
+        if (!$deposito) {
+            header("Location: admin.php?action=editar_deposito");
+            exit;
+        }
+
+        $cuenta = trim($_POST['cuenta'] ?? '');
+        $post = $_POST;
+        $post['banco'] = DepositosModel::bancoDeCuenta($cuenta) ?? '';
+
+        $errores = DepositosModel::validarEdicion($post);
+        if (!UsuarioModel::verificar(Auth::usuarioActual(), $password)) {
+            $errores[] = "La contraseña no es correcta.";
+        }
+
+        if (!empty($errores)) {
+            AdminView::mostrarEditarDeposito(
+                $nodeposito,
+                array_merge($deposito, $_POST),
+                DepositosModel::historialEdiciones($db, $nodeposito),
+                $errores
+            );
+            return;
+        }
+
+        $datos = [
+            'fechadep' => $post['fechadep'],
+            'cuenta' => $cuenta,
+            'banco' => $post['banco'],
+            'correspondiente' => $post['correspondiente'],
+            'efectivo' => (float)$post['efectivo'],
+            'chpropio' => (float)$post['chpropio'],
+            'chotrobanco' => (float)$post['chotrobanco'],
+            'responsable' => trim($post['responsable']),
+        ];
+
+        $cambios = DepositosModel::actualizar($db, $nodeposito, $datos, trim($_POST['motivo']), Auth::usuarioActual());
+
+        $msg = empty($cambios) ? 'sin_cambios' : 'actualizado';
+        header("Location: admin.php?action=editar_deposito&nodeposito=" . urlencode($nodeposito) . "&msg=$msg&cambios=" . count($cambios));
         exit;
     }
 
