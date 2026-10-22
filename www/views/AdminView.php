@@ -74,9 +74,11 @@ class AdminView {
             .totales span.coincide { color: #2e7d32; font-weight: bold; }
             table { border-collapse: collapse; width: 100%; font-size: 12px; }
             th, td { border: 1px solid var(--tabla-borde); padding: 6px 8px; text-align: left; }
-            th { background: var(--tabla-header-bg); color: var(--tabla-header-texto); }
+            th { background: var(--tabla-header-bg); color: var(--tabla-header-texto); white-space: nowrap; }
             td { color: var(--texto); }
             tbody tr:nth-child(even) { background: var(--fila-alterna); }
+            .tabla-scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+            .sin-datos { color: var(--texto-muted); font-style: italic; padding: 8px 0; }
             .valor-anterior { color: #b71c1c; }
             .valor-nuevo { color: #2e7d32; font-weight: bold; }
             .aviso-fecha {
@@ -754,10 +756,12 @@ class AdminView {
 
                 <?php if (!empty($historial)): ?>
                     <fieldset style="margin-top:24px">
-                        <legend>Ediciones anteriores</legend>
+                        <legend><?= $deposito ? 'Ediciones anteriores' : 'Bitácora — últimas ediciones de depósitos' ?></legend>
+                        <div class="tabla-scroll">
                         <table>
                             <thead>
                                 <tr>
+                                    <?php if (!$deposito): ?><th>No. Depósito</th><?php endif; ?>
                                     <th>Fecha</th>
                                     <th>Usuario</th>
                                     <th>Campo</th>
@@ -769,6 +773,9 @@ class AdminView {
                             <tbody>
                                 <?php foreach ($historial as $h): ?>
                                     <tr>
+                                        <?php if (!$deposito): ?>
+                                            <td><a href="admin.php?action=editar_deposito&amp;nodeposito=<?= urlencode($h['nodeposito']) ?>"><?= htmlspecialchars($h['nodeposito']) ?></a></td>
+                                        <?php endif; ?>
                                         <td><?= date('d/m/Y H:i', strtotime($h['fecha'])) ?></td>
                                         <td><?= htmlspecialchars($h['usuario']) ?></td>
                                         <td><?= htmlspecialchars(DepositosModel::etiquetaCampo($h['campo'])) ?></td>
@@ -779,7 +786,10 @@ class AdminView {
                                 <?php endforeach; ?>
                             </tbody>
                         </table>
+                        </div>
                     </fieldset>
+                <?php elseif (!$deposito): ?>
+                    <p class="sin-datos">Todavía no se ha editado ningún depósito.</p>
                 <?php endif; ?>
             </div>
             <?php Tema::script(); ?>

@@ -397,6 +397,11 @@ class AdminController {
             } else {
                 $historial = DepositosModel::historialEdiciones($db, $nodeposito);
             }
+        } else {
+            // Sin búsqueda todavía: se muestra la bitácora completa en vez
+            // de dejar la pantalla vacía, para no tener que adivinar qué
+            // número buscar si solo se quiere ver qué se ha corregido.
+            $historial = DepositosModel::edicionesRecientes($db);
         }
 
         $mensaje = null;

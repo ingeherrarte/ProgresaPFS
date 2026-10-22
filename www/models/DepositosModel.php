@@ -153,6 +153,20 @@ class DepositosModel {
         return $stmt->fetchAll(PDO::FETCH_ASSOC);
     }
 
+    // A diferencia de historialEdiciones() (un depósito a la vez), esto
+    // es la bitácora completa: se muestra en "Editar Depósito" cuando
+    // todavía no se ha buscado ningún número, para poder ver de un vistazo
+    // qué depósitos se han corregido sin tener que adivinar cuál buscar.
+    public static function edicionesRecientes(PDO $db, int $limite = 50): array {
+        $stmt = $db->prepare(
+            "SELECT nodeposito, campo, valor_anterior, valor_nuevo, motivo, usuario, fecha
+             FROM depositos_ediciones ORDER BY fecha DESC, id DESC LIMIT ?"
+        );
+        $stmt->bindValue(1, $limite, PDO::PARAM_INT);
+        $stmt->execute();
+        return $stmt->fetchAll(PDO::FETCH_ASSOC);
+    }
+
     // Mismas reglas que al crear (ver DepositosController::validar),
     // adaptadas a edición: aquí además es obligatorio el motivo, que queda
     // en la bitácora junto con el valor anterior de cada campo modificado.
