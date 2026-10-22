@@ -337,6 +337,33 @@ class RecibosPfsModel {
         return $stmt->fetchAll(PDO::FETCH_ASSOC);
     }
 
+    // A diferencia de historialEdiciones() (un recibo a la vez), esto es la
+    // bitácora completa: se muestra en "Editar Recibo" cuando todavía no se
+    // ha buscado ningún número, igual que DepositosModel::edicionesRecientes().
+    public static function edicionesRecientes(PDO $db, int $limite = 50): array {
+        $stmt = $db->prepare(
+            "SELECT numero, campo, valor_anterior, valor_nuevo, motivo, usuario, fecha
+             FROM recibospfs_ediciones ORDER BY fecha DESC, id DESC LIMIT ?"
+        );
+        $stmt->bindValue(1, $limite, PDO::PARAM_INT);
+        $stmt->execute();
+        return $stmt->fetchAll(PDO::FETCH_ASSOC);
+    }
+
+    // Lista (no solo el agregado de anuladosDelAnio) de los recibos
+    // anulados más recientes, sin importar el año — para "Anular Recibo"
+    // cuando todavía no se ha buscado ningún número.
+    public static function anuladosRecientes(PDO $db, int $limite = 50): array {
+        $stmt = $db->prepare(
+            "SELECT numero, carne, (efectivo + deposito + cheque) AS total,
+                    motivo_anulacion, anulado_por, fecha_anulacion
+             FROM recibospfs WHERE anulado = 1 ORDER BY fecha_anulacion DESC LIMIT ?"
+        );
+        $stmt->bindValue(1, $limite, PDO::PARAM_INT);
+        $stmt->execute();
+        return $stmt->fetchAll(PDO::FETCH_ASSOC);
+    }
+
     // Detalle + resumen por concepto de un día específico (reemplazo de
     // cierrehoy_new.php). Se usa DATE(horaregistro) = :fecha con un
     // parámetro enlazado, en vez de interpolar la fecha en el SQL.

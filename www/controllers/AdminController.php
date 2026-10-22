@@ -126,6 +126,7 @@ class AdminController {
         $numero = trim($_GET['numero'] ?? '');
         $recibo = null;
         $errores = [];
+        $anuladosRecientes = [];
 
         if ($numero !== '') {
             if (!ctype_digit($numero)) {
@@ -140,9 +141,13 @@ class AdminController {
                         . date('d/m/Y H:i', strtotime($recibo['fecha_anulacion'])) . ".";
                 }
             }
+        } else {
+            // Sin búsqueda todavía: se muestran los últimos anulados en vez
+            // de dejar la pantalla vacía (ver RecibosPfsModel::anuladosRecientes()).
+            $anuladosRecientes = RecibosPfsModel::anuladosRecientes(Conexion::conectar());
         }
 
-        AdminView::mostrarAnular($numero, $recibo, $errores);
+        AdminView::mostrarAnular($numero, $recibo, $errores, $anuladosRecientes);
     }
 
     // La contraseña se vuelve a pedir aquí (re-autenticación) para que
@@ -193,6 +198,7 @@ class AdminController {
         $db = Conexion::conectar();
         $estudiante = null;
         $errores = [];
+        $editadosRecientemente = [];
 
         if ($carnet !== '') {
             if (!ctype_digit($carnet)) {
@@ -203,13 +209,18 @@ class AdminController {
                     $errores[] = "No existe ningún estudiante con ese carné.";
                 }
             }
+        } else {
+            // Sin búsqueda todavía: se muestran los últimos estudiantes
+            // editados en vez de dejar la pantalla vacía (ver
+            // EstudiantesPfsModel::editadosRecientemente()).
+            $editadosRecientemente = EstudiantesPfsModel::editadosRecientemente($db);
         }
 
         $mensaje = ($estudiante && ($_GET['msg'] ?? '') === 'actualizado')
             ? "Los datos del estudiante se actualizaron correctamente."
             : null;
 
-        AdminView::mostrarEditarEstudiante($carnet, $estudiante, EstudiantesPfsModel::obtenerCursos($db), $errores, $mensaje);
+        AdminView::mostrarEditarEstudiante($carnet, $estudiante, EstudiantesPfsModel::obtenerCursos($db), $errores, $mensaje, $editadosRecientemente);
     }
 
     // Igual que anularConfirmar(): la contraseña se vuelve a pedir aquí para
@@ -272,6 +283,10 @@ class AdminController {
                     }
                 }
             }
+        } else {
+            // Sin búsqueda todavía: se muestra la bitácora completa (ver
+            // RecibosPfsModel::edicionesRecientes()), igual que en Depósitos.
+            $historial = RecibosPfsModel::edicionesRecientes($db);
         }
 
         $mensaje = null;
