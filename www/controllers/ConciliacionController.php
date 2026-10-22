@@ -44,6 +44,12 @@ class ConciliacionController {
             case 'confirmarImport':
                 $this->confirmarImport();
                 break;
+            case 'mapeo':
+                $this->continuarMapeo();
+                break;
+            case 'cancelarMapeo':
+                $this->cancelarMapeo();
+                break;
             case 'verificar':
                 $this->verificar();
                 break;
@@ -122,7 +128,17 @@ class ConciliacionController {
         // backlog atrasado) — mostrar aquí todo el año hacía la tabla
         // inútil para revisar "¿mi importación de hoy quedó bien?".
         $lineas = ConciliacionModel::lineasEstadoCuenta($db, $desdeSubida, $hastaSubida);
-        ConciliacionView::mostrarPrincipal($pendientes, $lineas, $mensaje, $error, $desde, $hasta, $desdeSubida, $hastaSubida);
+
+        // Si el admin se fue a verificar algo a media importación (ver
+        // continuarMapeo/cancelarMapeo), se ofrece retomarla aquí en vez de
+        // dejarla silenciosamente abandonada en la sesión.
+        $pendienteMapeo = !empty($_SESSION['conciliacion_csv']) ? [
+            'numero' => ($_SESSION['conciliacion_total'] ?? 1) - count($_SESSION['conciliacion_cola'] ?? []),
+            'total' => $_SESSION['conciliacion_total'] ?? 1,
+            'banco' => DepositosModel::bancoDeCuenta($_SESSION['conciliacion_cuenta'] ?? '') ?? ($_SESSION['conciliacion_cuenta'] ?? ''),
+        ] : null;
+
+        ConciliacionView::mostrarPrincipal($pendientes, $lineas, $mensaje, $error, $desde, $hasta, $desdeSubida, $hastaSubida, $pendienteMapeo);
     }
 
     // Detecta separador (',' o ';') por frecuencia en la primera línea, y
@@ -163,8 +179,8 @@ class ConciliacionController {
     }
 
     // Un .xlsx es un ZIP con XML adentro: no hace falta PhpSpreadsheet ni
-    // Composer, solo ext-zip (agregada en php-config-qa/Dockerfile) y
-    // SimpleXML (viene por defecto en la imagen php:8.2-apache). Solo lee
+    // Composer, solo ext-zip (agregada al Dockerfile de QA y de producción)
+    // y SimpleXML (viene por defecto en la imagen php:8.2-apache). Solo lee
     // la primera hoja, que es lo único que necesita un estado de cuenta.
     // Un nodo de texto de .xlsx (<si> de sharedStrings o <is> inline) viene
     // en dos formas válidas: con <t> como hijo directo, o con uno o más
@@ -475,7 +491,44 @@ class ConciliacionController {
         $_SESSION['conciliacion_cola'] = $cola;
         $_SESSION['conciliacion_total'] = count($cola);
         $_SESSION['conciliacion_mensajes'] = [];
+        // Se guardan aparte de la cola para poder reconstruir la pantalla de
+        // mapeo por GET (ver continuarMapeo()) sin depender de que el
+        // formulario de confirmarImport siga mandándolos en campos ocultos.
+        $_SESSION['conciliacion_desde'] = $desde;
+        $_SESSION['conciliacion_hasta'] = $hasta;
         $this->siguienteMapeo($desde, $hasta);
+    }
+
+    // Reabre la pantalla de mapeo del archivo que se está procesando SIN
+    // sacarlo de la cola (a diferencia de siguienteMapeo) — permite que el
+    // usuario se vaya a revisar "Movimientos del banco" o "Recibos
+    // pendientes" a media importación y regrese exactamente donde quedó.
+    private function continuarMapeo(): void {
+        if (empty($_SESSION['conciliacion_csv'])) {
+            header("Location: conciliacion.php");
+            exit;
+        }
+
+        $desde = $_SESSION['conciliacion_desde'] ?? $this->fechaDesde(null);
+        $hasta = $_SESSION['conciliacion_hasta'] ?? $this->fechaHasta(null);
+        $cuenta = $_SESSION['conciliacion_cuenta'] ?? '';
+        $total = $_SESSION['conciliacion_total'] ?? 1;
+        $numero = $total - count($_SESSION['conciliacion_cola'] ?? []);
+        $preset = self::PRESETS[$cuenta] ?? null;
+
+        ConciliacionView::mostrarMapeo(
+            $_SESSION['conciliacion_csv'], $desde, $hasta, $numero, $total,
+            DepositosModel::bancoDeCuenta($cuenta) ?? $cuenta, $preset
+        );
+    }
+
+    // A diferencia de "Volver" (que deja la importación intacta para
+    // retomarla con continuarMapeo), esto SÍ descarta el archivo pendiente.
+    private function cancelarMapeo(): void {
+        [$desde, $hasta] = $this->rango($_GET['desde'] ?? null, $_GET['hasta'] ?? null);
+        $this->limpiarColaImportacion();
+        header("Location: conciliacion.php?desde=" . urlencode($desde) . "&hasta=" . urlencode($hasta));
+        exit;
     }
 
     private function parsearMonto(string $valor, string $formato): ?float {

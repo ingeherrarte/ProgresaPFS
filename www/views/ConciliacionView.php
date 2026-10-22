@@ -47,6 +47,11 @@ class ConciliacionView {
                 background: #e8f5e9; border: 1px solid #81c784; color: #2e7d32;
                 padding: 10px 14px; border-radius: 4px; margin-bottom: 18px; font-size: 13px;
             }
+            .aviso-pendiente {
+                background: #fff8e1; border: 1px solid #ffca28; color: #8d6e00;
+                padding: 14px 20px; font-size: 13.5px;
+            }
+            .aviso-pendiente a { color: var(--acento); font-weight: bold; text-decoration: none; }
             .tabla-scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; }
             table { border-collapse: collapse; width: 100%; font-size: 13px; }
             th, td { border: 1px solid var(--tabla-borde); padding: 8px 10px; text-align: left; }
@@ -131,7 +136,7 @@ class ConciliacionView {
         <?php
     }
 
-    public static function mostrarPrincipal(array $pendientes, array $lineas, ?string $mensaje, ?string $error, string $desde, string $hasta, string $desdeSubida, string $hastaSubida): void {
+    public static function mostrarPrincipal(array $pendientes, array $lineas, ?string $mensaje, ?string $error, string $desde, string $hasta, string $desdeSubida, string $hastaSubida, ?array $pendienteMapeo = null): void {
         $esAdmin = Auth::esAdministrador();
         ?>
         <!DOCTYPE html>
@@ -146,6 +151,14 @@ class ConciliacionView {
         <body>
             <?php self::barra(); ?>
             <h1>Conciliación de Transferencias</h1>
+
+            <?php if ($pendienteMapeo): ?>
+                <div class="card aviso-pendiente">
+                    📄 Tienes un archivo de <b><?= htmlspecialchars($pendienteMapeo['banco']) ?></b> a medio mapear
+                    (<?= $pendienteMapeo['numero'] ?> de <?= $pendienteMapeo['total'] ?>) — puedes seguir revisando y continuar cuando quieras.
+                    <a href="conciliacion.php?action=mapeo" style="margin-left:8px;">Continuar mapeo →</a>
+                </div>
+            <?php endif; ?>
 
             <div class="card">
                 <?php if ($mensaje): ?><div class="exito">✅ <?= htmlspecialchars($mensaje) ?></div><?php endif; ?>
@@ -570,8 +583,13 @@ class ConciliacionView {
                     </div>
                     <button type="submit">Confirmar e importar</button>
                     &nbsp;
-                    <a href="conciliacion.php?desde=<?= urlencode($desde) ?>&amp;hasta=<?= urlencode($hasta) ?>" style="font-size:13px;color:var(--acento);font-weight:bold;">Cancelar</a>
+                    <a href="conciliacion.php?desde=<?= urlencode($desde) ?>&amp;hasta=<?= urlencode($hasta) ?>" style="font-size:13px;color:var(--acento);font-weight:bold;">⬅ Volver</a>
+                    &nbsp;
+                    <a href="conciliacion.php?action=cancelarMapeo&amp;desde=<?= urlencode($desde) ?>&amp;hasta=<?= urlencode($hasta) ?>" style="font-size:13px;color:var(--sin-datos);">Cancelar esta importación</a>
                 </form>
+                <p style="font-size:12px;color:var(--sin-datos);margin-top:10px;">
+                    "⬅ Volver" no pierde este archivo — puedes ir a revisar "Movimientos del banco" o "Recibos pendientes" y retomar el mapeo desde la pantalla principal.
+                </p>
             </div>
             <?php Tema::script(); ?>
         </body>

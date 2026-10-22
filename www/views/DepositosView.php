@@ -38,6 +38,9 @@ class DepositosView {
                     background: var(--bg-tarjeta); max-width: 900px; margin: 0 auto 24px;
                     border-radius: 6px; padding: 24px 28px; box-shadow: 0 1px 4px var(--sombra-tarjeta);
                 }
+                /* El listado tiene 11 columnas y necesita más ancho que el
+                   formulario para no forzar scroll horizontal en pantallas grandes. */
+                .card-ancha { max-width: 1300px; }
                 fieldset { border: 1px solid var(--borde-input); border-radius: 6px; padding: 14px 18px; margin-bottom: 18px; }
                 legend { font-size: 13px; font-weight: bold; color: var(--acento); padding: 0 6px; }
                 /* Mobile-first: un campo por renglón, más fácil de llenar con el
@@ -169,7 +172,7 @@ class DepositosView {
                 </form>
             </div>
 
-            <div class="card">
+            <div class="card card-ancha">
                 <h2>Últimos depósitos registrados</h2>
                 <?php if (empty($recientes)): ?>
                     <p class="sin-datos">No hay depósitos registrados.</p>
