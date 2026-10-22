@@ -542,7 +542,7 @@ class RecibosPfsView {
                 <?php endif; ?>
 
                 <?php if ($depositar): ?>
-                    <div class="aviso">Debe depositar en cuenta monetaria BANTRAB 2870 01172 0 — CENTRO TECNICO PROGRESISTA</div>
+                    <div class="aviso">Debe depositar en cuenta monetaria BANRURAL 3099203897 — CENTRO TECNICO PROGRESISTA</div>
                 <?php endif; ?>
 
                 <div class="total">Total: Q <?= number_format($totalCargos, 2) ?></div>
