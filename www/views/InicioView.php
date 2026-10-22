@@ -146,7 +146,7 @@ class InicioView {
                 <div class="cambiar-vista">
                     <a href="inicio.php?vista=dashboard">Ver como resumen con estadísticas →</a>
                     &nbsp;·&nbsp;
-                    <a href="inicio.php?vista=moderno">Ver estilo moderno (Laravel/Vue) →</a>
+                    <a href="inicio.php">Ver panel principal →</a>
                 </div>
             </div>
             <?php Tema::script(); ?>
@@ -155,10 +155,8 @@ class InicioView {
         <?php
     }
 
-    // Vista alterna tipo panel admin (estilo Laravel/Vue: sidebar + topbar) para
-    // que el usuario compare cómo se vería el sistema con ese look. No
-    // reemplaza las vistas existentes (simple/dashboard), es una tercera
-    // opción a la que se accede desde el link "Ver estilo moderno".
+    // Panel principal (sidebar + topbar, estilo Nuxt/Vue) — vista por defecto
+    // de inicio.php. "simple" y "dashboard" siguen disponibles vía ?vista=.
     private static array $navItems = [
         ['icono' => '🧑‍🎓', 'titulo' => 'Nuevo Estudiante', 'href' => 'estudiantespfs.php?action=form'],
         ['icono' => '🔎', 'titulo' => 'Buscar Estudiante', 'href' => 'estudiantespfs.php'],
@@ -184,80 +182,100 @@ class InicioView {
             <meta name="viewport" content="width=device-width, initial-scale=1">
             <title>Inicio — CETECPRO</title>
             <style>
+                :root {
+                    --brand: #6366f1;
+                    --brand-dark: #4f46e5;
+                    --bg: #f8fafc;
+                    --surface: #ffffff;
+                    --border: #e5e7eb;
+                    --text: #0f172a;
+                    --text-muted: #64748b;
+                    --radius-lg: 16px;
+                    --radius-md: 12px;
+                    --shadow-sm: 0 1px 2px rgba(15,23,42,.04), 0 1px 3px rgba(15,23,42,.06);
+                    --shadow-md: 0 8px 24px rgba(15,23,42,.08);
+                }
                 * { box-sizing: border-box; margin: 0; padding: 0; }
                 body {
-                    font-family: -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-                    background: #f1f5f9; color: #1e293b;
+                    font-family: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+                    background: var(--bg); color: var(--text);
                     display: flex; min-height: 100vh;
+                    -webkit-font-smoothing: antialiased;
                 }
                 a { text-decoration: none; color: inherit; }
 
                 /* Sidebar */
                 .sidebar {
-                    width: 250px; flex-shrink: 0; background: #1e1b3a;
+                    width: 260px; flex-shrink: 0; background: #16142b;
                     color: #cbd5e1; display: flex; flex-direction: column;
                     position: sticky; top: 0; height: 100vh;
                 }
                 .marca {
                     display: flex; align-items: center; gap: 10px;
-                    padding: 22px 20px; font-size: 18px; font-weight: 800; color: #fff;
-                    border-bottom: 1px solid rgba(255,255,255,.08);
+                    padding: 24px 22px; font-size: 16.5px; font-weight: 700; color: #fff;
+                    letter-spacing: -.01em;
+                    border-bottom: 1px solid rgba(255,255,255,.06);
                 }
-                .marca .punto { width: 10px; height: 10px; border-radius: 50%; background: #6366f1; }
-                .nav { flex: 1; padding: 14px 10px; overflow-y: auto; }
+                .marca .punto {
+                    width: 9px; height: 9px; border-radius: 50%; background: var(--brand);
+                    box-shadow: 0 0 0 4px rgba(99,102,241,.25);
+                }
+                .nav { flex: 1; padding: 16px 12px; overflow-y: auto; }
                 .nav-item {
-                    display: flex; align-items: center; gap: 12px;
-                    padding: 10px 14px; border-radius: 8px; font-size: 13.5px; font-weight: 600;
-                    margin-bottom: 2px; transition: background .12s, color .12s;
+                    display: flex; align-items: center; gap: 11px;
+                    padding: 9px 12px; border-radius: 10px; font-size: 13.5px; font-weight: 500;
+                    margin-bottom: 2px; color: #cbd5e1; transition: background .12s, color .12s;
                 }
-                .nav-item .icono { font-size: 16px; width: 20px; text-align: center; }
-                .nav-item:hover { background: rgba(255,255,255,.06); color: #fff; }
-                .sidebar-footer { padding: 14px 20px; border-top: 1px solid rgba(255,255,255,.08); font-size: 12px; }
-                .sidebar-footer a { color: #a5b4fc; font-weight: 700; }
+                .nav-item .icono { font-size: 15px; width: 18px; text-align: center; opacity: .9; }
+                .nav-item:hover { background: rgba(255,255,255,.07); color: #fff; }
+                .sidebar-footer { padding: 16px 22px; border-top: 1px solid rgba(255,255,255,.06); font-size: 12.5px; }
+                .sidebar-footer a { color: #a5b4fc; font-weight: 600; display: flex; align-items: center; gap: 6px; }
+                .sidebar-footer a:hover { color: #c7d2fe; }
 
                 /* Main */
                 .main { flex: 1; min-width: 0; }
                 .topbar {
-                    background: #fff; border-bottom: 1px solid #e2e8f0;
-                    padding: 14px 28px; display: flex; align-items: center; justify-content: space-between;
+                    background: var(--surface); border-bottom: 1px solid var(--border);
+                    padding: 16px 30px; display: flex; align-items: center; justify-content: space-between;
                     position: sticky; top: 0; z-index: 5;
                 }
-                .topbar h1 { font-size: 17px; color: #0f172a; }
+                .topbar h1 { font-size: 16.5px; font-weight: 700; color: var(--text); letter-spacing: -.01em; }
                 .topbar .breadcrumb { font-size: 12px; color: #94a3b8; margin-top: 2px; }
                 .usuario-chip {
                     display: flex; align-items: center; gap: 10px; font-size: 13px; color: #475569;
                 }
                 .avatar {
-                    width: 32px; height: 32px; border-radius: 50%; background: #6366f1; color: #fff;
+                    width: 32px; height: 32px; border-radius: 50%; background: var(--brand); color: #fff;
                     display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 13px;
                 }
                 .logout-btn {
-                    font-size: 12px; font-weight: 700; color: #6366f1; border: 1px solid #e0e7ff;
-                    padding: 6px 12px; border-radius: 8px; background: #eef2ff;
+                    font-size: 12px; font-weight: 600; color: var(--brand); border: 1px solid #e0e7ff;
+                    padding: 6px 12px; border-radius: var(--radius-md); background: #eef2ff;
+                    transition: background .12s;
                 }
                 .logout-btn:hover { background: #e0e7ff; }
 
-                .contenido { padding: 26px 28px 40px; }
+                .contenido { padding: 28px 30px 40px; max-width: 1180px; }
                 .errores {
                     background: #fef2f2; border: 1px solid #fecaca; color: #b91c1c;
-                    padding: 10px 14px; border-radius: 8px; margin-bottom: 18px; font-size: 13px;
+                    padding: 10px 14px; border-radius: var(--radius-md); margin-bottom: 18px; font-size: 13px;
                 }
 
                 .stat-grid {
                     display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
-                    gap: 18px; margin-bottom: 30px;
+                    gap: 18px; margin-bottom: 32px;
                 }
                 .stat-card {
-                    background: #fff; border-radius: 14px; padding: 18px 20px;
-                    box-shadow: 0 1px 2px rgba(15,23,42,.06); border: 1px solid #eef1f6;
+                    background: var(--surface); border-radius: var(--radius-lg); padding: 18px 20px;
+                    box-shadow: var(--shadow-sm); border: 1px solid var(--border);
                 }
                 .stat-card .top { display: flex; justify-content: space-between; align-items: flex-start; }
-                .stat-card .etiqueta { font-size: 12px; color: #64748b; font-weight: 600; }
+                .stat-card .etiqueta { font-size: 12px; color: var(--text-muted); font-weight: 600; }
                 .stat-card .badge {
                     width: 34px; height: 34px; border-radius: 10px; display: flex; align-items: center;
                     justify-content: center; font-size: 16px;
                 }
-                .stat-card .valor { font-size: 26px; font-weight: 800; color: #0f172a; margin-top: 10px; }
+                .stat-card .valor { font-size: 26px; font-weight: 700; color: var(--text); margin-top: 10px; letter-spacing: -.02em; }
                 .stat-card .detalle { font-size: 12px; color: #94a3b8; margin-top: 2px; }
                 .badge.indigo { background: #eef2ff; }
                 .badge.green { background: #ecfdf5; }
@@ -269,19 +287,19 @@ class InicioView {
                     display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 14px;
                 }
                 .acceso-card {
-                    background: #fff; border: 1px solid #eef1f6; border-radius: 14px; padding: 18px;
+                    background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-lg); padding: 18px;
                     display: flex; align-items: center; gap: 12px;
-                    box-shadow: 0 1px 2px rgba(15,23,42,.05); transition: transform .12s, box-shadow .12s;
+                    box-shadow: var(--shadow-sm); transition: transform .12s, box-shadow .12s, border-color .12s;
                 }
-                .acceso-card:hover { transform: translateY(-2px); box-shadow: 0 6px 16px rgba(15,23,42,.08); }
+                .acceso-card:hover { transform: translateY(-2px); box-shadow: var(--shadow-md); border-color: #c7d2fe; }
                 .acceso-card .icono {
                     width: 38px; height: 38px; border-radius: 10px; background: #eef2ff;
                     display: flex; align-items: center; justify-content: center; font-size: 18px; flex-shrink: 0;
                 }
-                .acceso-card .titulo { font-size: 13.5px; font-weight: 700; color: #1e293b; }
+                .acceso-card .titulo { font-size: 13.5px; font-weight: 600; color: #1e293b; }
 
                 .cambiar-vista { text-align: center; margin-top: 30px; font-size: 12.5px; }
-                .cambiar-vista a { color: #6366f1; font-weight: 700; }
+                .cambiar-vista a { color: var(--brand); font-weight: 600; }
                 .cambiar-vista a:hover { text-decoration: underline; }
 
                 @media (max-width: 720px) {
@@ -324,6 +342,10 @@ class InicioView {
                 </div>
 
                 <div class="contenido">
+                    <?php if ($sinPermiso): ?>
+                        <div class="errores">⚠️ No tienes permiso para acceder a esa sección.</div>
+                    <?php endif; ?>
+
                     <div class="stat-grid">
                         <div class="stat-card">
                             <div class="top">
@@ -426,7 +448,7 @@ class InicioView {
                 <div class="cambiar-vista">
                     <a href="inicio.php?vista=simple">← Ver como accesos simples</a>
                     &nbsp;·&nbsp;
-                    <a href="inicio.php?vista=moderno">Ver estilo moderno (Laravel/Vue) →</a>
+                    <a href="inicio.php">Ver panel principal →</a>
                 </div>
             </div>
             <?php Tema::script(); ?>

@@ -9,26 +9,28 @@ class InicioController {
 
     public function handle(string $vista) {
         Auth::requerirSesion();
+        $sinPermiso = ($_GET['error'] ?? '') === 'permiso';
 
-        if ($vista === 'dashboard' || $vista === 'moderno') {
-            $db = Conexion::conectar();
-            $stats = [
-                'recibosHoy' => RecibosPfsModel::estadisticasHoy($db),
-                'recibosMes' => RecibosPfsModel::estadisticasMes($db),
-                'estudiantesActivos' => EstudiantesPfsModel::totalActivos($db),
-                'estudiantesNuevosMes' => EstudiantesPfsModel::nuevosEsteMes($db),
-            ];
-
-            if ($vista === 'moderno') {
-                InicioView::mostrarModerno($stats);
-            } else {
-                InicioView::mostrarDashboard($stats);
-            }
+        if ($vista === 'simple') {
+            InicioView::mostrarSimple($sinPermiso);
             return;
         }
 
-        $sinPermiso = ($_GET['error'] ?? '') === 'permiso';
-        InicioView::mostrarSimple($sinPermiso);
+        $db = Conexion::conectar();
+        $stats = [
+            'recibosHoy' => RecibosPfsModel::estadisticasHoy($db),
+            'recibosMes' => RecibosPfsModel::estadisticasMes($db),
+            'estudiantesActivos' => EstudiantesPfsModel::totalActivos($db),
+            'estudiantesNuevosMes' => EstudiantesPfsModel::nuevosEsteMes($db),
+        ];
+
+        if ($vista === 'dashboard') {
+            InicioView::mostrarDashboard($stats);
+            return;
+        }
+
+        // Sin vista, o vista=moderno: panel principal (default).
+        InicioView::mostrarModerno($stats, $sinPermiso);
     }
 }
 ?>
