@@ -6,6 +6,15 @@ FROM php:8.2-apache
 # quede parte de la imagen.
 RUN docker-php-ext-install pdo_mysql
 
+# Extensión zip: usada por ConciliacionController para leer .xlsx real
+# subido desde el módulo de conciliación de transferencias (vía
+# ZipArchive). Faltaba aquí porque se agregó primero solo al Dockerfile de
+# QA (php-config-qa/Dockerfile) y nunca se replicó a producción — causaba
+# "Class ZipArchive not found" al subir y mapear columnas.
+RUN apt-get update && apt-get install -y --no-install-recommends libzip-dev \
+    && docker-php-ext-install zip \
+    && rm -rf /var/lib/apt/lists/*
+
 # mysqldump: usado por BackupModel para generar el respaldo de la base de
 # datos desde el panel de Administración (exec() invocando el binario, no
 # una librería PHP) — la imagen base no lo trae.
