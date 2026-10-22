@@ -17,6 +17,11 @@ class AdminController {
     private const CARPETA_COMPROBANTES = __DIR__ . "/../uploads/recibos";
     private const TAMANO_MAXIMO_COMPROBANTE = 2 * 1024 * 1024;
 
+    // Igual que arriba, pero para la boleta de un depósito: misma carpeta
+    // y mismo límite que DepositosController::guardar().
+    private const CARPETA_BOLETAS = __DIR__ . "/../uploads/depositos";
+    private const TAMANO_MAXIMO_BOLETA = 6 * 1024 * 1024;
+
     // Mismo listado y misma conversión que RecibosPfsController::mesNumero():
     // el formulario de Editar Recibo reutiliza los selects de Día/Mes del
     // pago del formulario de creación, así que necesita la misma lógica para
@@ -397,6 +402,11 @@ class AdminController {
             } else {
                 $historial = DepositosModel::historialEdiciones($db, $nodeposito);
             }
+        } else {
+            // Sin búsqueda todavía: se muestra la bitácora completa en vez
+            // de dejar la pantalla vacía, para no tener que adivinar qué
+            // número buscar si solo se quiere ver qué se ha corregido.
+            $historial = DepositosModel::edicionesRecientes($db);
         }
 
         $mensaje = null;
@@ -421,6 +431,16 @@ class AdminController {
             exit;
         }
 
+        // Igual que editarReciboGuardar(): si el POST completo supera
+        // post_max_size (foto demasiado pesada sumada al resto del
+        // formulario), PHP vacía $_POST/$_FILES sin marcar ningún error
+        // individual. Ni siquiera se recupera el número de depósito que se
+        // estaba editando, así que se vuelve a la búsqueda.
+        if (SubidaImagen::postTruncado()) {
+            header("Location: admin.php?action=editar_deposito");
+            exit;
+        }
+
         $nodeposito = trim($_POST['nodeposito'] ?? '');
         $password = $_POST['password_actual'] ?? '';
 
@@ -435,15 +455,35 @@ class AdminController {
         $post = $_POST;
         $post['banco'] = DepositosModel::bancoDeCuenta($cuenta) ?? '';
 
+        // La foto es opcional al editar: si no se adjunta una nueva, se
+        // conserva la que el depósito ya tenía (guardar() devuelve
+        // [null,null] cuando no llega archivo).
+        [$fotoNueva, $errorFoto] = SubidaImagen::guardar(
+            $_FILES['foto_boleta'] ?? [],
+            self::CARPETA_BOLETAS,
+            $nodeposito ?: 'boleta',
+            self::TAMANO_MAXIMO_BOLETA,
+            $db,
+            'depositos',
+            $nodeposito
+        );
+        $post['foto_boleta'] = $fotoNueva ?? $deposito['foto_boleta'];
+
         $errores = DepositosModel::validarEdicion($post);
+        if ($errorFoto) {
+            $errores[] = $errorFoto;
+        }
         if (!UsuarioModel::verificar(Auth::usuarioActual(), $password)) {
             $errores[] = "La contraseña no es correcta.";
         }
 
         if (!empty($errores)) {
+            if ($fotoNueva) {
+                SubidaImagen::eliminar(self::CARPETA_BOLETAS, $fotoNueva, $db);
+            }
             AdminView::mostrarEditarDeposito(
                 $nodeposito,
-                array_merge($deposito, $_POST),
+                array_merge($deposito, $_POST, ['foto_boleta' => $post['foto_boleta']]),
                 DepositosModel::historialEdiciones($db, $nodeposito),
                 $errores
             );
@@ -459,9 +499,17 @@ class AdminController {
             'chpropio' => (float)$post['chpropio'],
             'chotrobanco' => (float)$post['chotrobanco'],
             'responsable' => trim($post['responsable']),
+            'foto_boleta' => $post['foto_boleta'],
         ];
 
         $cambios = DepositosModel::actualizar($db, $nodeposito, $datos, trim($_POST['motivo']), Auth::usuarioActual());
+
+        // La foto vieja solo se descarta si de verdad se reemplazó por una
+        // distinta: si no se subió nada nuevo, $fotoNueva es null y no hay
+        // nada que borrar aquí.
+        if ($fotoNueva && $deposito['foto_boleta'] && $deposito['foto_boleta'] !== $fotoNueva) {
+            SubidaImagen::eliminar(self::CARPETA_BOLETAS, $deposito['foto_boleta'], $db);
+        }
 
         $msg = empty($cambios) ? 'sin_cambios' : 'actualizado';
         header("Location: admin.php?action=editar_deposito&nodeposito=" . urlencode($nodeposito) . "&msg=$msg&cambios=" . count($cambios));

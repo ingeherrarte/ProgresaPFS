@@ -74,9 +74,11 @@ class AdminView {
             .totales span.coincide { color: #2e7d32; font-weight: bold; }
             table { border-collapse: collapse; width: 100%; font-size: 12px; }
             th, td { border: 1px solid var(--tabla-borde); padding: 6px 8px; text-align: left; }
-            th { background: var(--tabla-header-bg); color: var(--tabla-header-texto); }
+            th { background: var(--tabla-header-bg); color: var(--tabla-header-texto); white-space: nowrap; }
             td { color: var(--texto); }
             tbody tr:nth-child(even) { background: var(--fila-alterna); }
+            .tabla-scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+            .sin-datos { color: var(--texto-muted); font-style: italic; padding: 8px 0; }
             .valor-anterior { color: #b71c1c; }
             .valor-nuevo { color: #2e7d32; font-weight: bold; }
             .aviso-fecha {
@@ -684,7 +686,7 @@ class AdminView {
                         <div style="color:#777">El número de depósito no se puede editar aquí (es la llave con la que se busca). Si se digitó mal, bórralo y vuelve a capturarlo.</div>
                     </div>
 
-                    <form method="POST" action="admin.php?action=editar_deposito_guardar">
+                    <form method="POST" action="admin.php?action=editar_deposito_guardar" enctype="multipart/form-data">
                         <input type="hidden" name="nodeposito" value="<?= htmlspecialchars($deposito['nodeposito']) ?>">
 
                         <fieldset>
@@ -730,6 +732,22 @@ class AdminView {
                                     <input type="text" id="responsable" name="responsable" maxlength="30" value="<?= $texto('responsable') ?>" required>
                                 </div>
                             </div>
+                            <div class="fila">
+                                <div class="campo">
+                                    <label for="foto_boleta">Foto de la boleta</label>
+                                    <?php if (!empty($deposito['foto_boleta'])): ?>
+                                        <div style="margin-bottom:6px;">
+                                            <a href="uploads/depositos/<?= urlencode($deposito['foto_boleta']) ?>" target="_blank" rel="noopener">Ver foto actual</a>
+                                        </div>
+                                    <?php else: ?>
+                                        <div style="margin-bottom:6px;color:var(--texto-muted);">Este depósito no tiene foto.</div>
+                                    <?php endif; ?>
+                                    <input type="file" id="foto_boleta" name="foto_boleta" accept="image/jpeg,image/png,image/webp">
+                                    <div style="font-size:11px;color:var(--texto-muted);margin-top:4px;">
+                                        Solo si la foto subida originalmente no era la correcta — deja este campo vacío para conservar la que ya tiene.
+                                    </div>
+                                </div>
+                            </div>
                         </fieldset>
 
                         <fieldset>
@@ -754,10 +772,12 @@ class AdminView {
 
                 <?php if (!empty($historial)): ?>
                     <fieldset style="margin-top:24px">
-                        <legend>Ediciones anteriores</legend>
+                        <legend><?= $deposito ? 'Ediciones anteriores' : 'Bitácora — últimas ediciones de depósitos' ?></legend>
+                        <div class="tabla-scroll">
                         <table>
                             <thead>
                                 <tr>
+                                    <?php if (!$deposito): ?><th>No. Depósito</th><?php endif; ?>
                                     <th>Fecha</th>
                                     <th>Usuario</th>
                                     <th>Campo</th>
@@ -769,6 +789,9 @@ class AdminView {
                             <tbody>
                                 <?php foreach ($historial as $h): ?>
                                     <tr>
+                                        <?php if (!$deposito): ?>
+                                            <td><a href="admin.php?action=editar_deposito&amp;nodeposito=<?= urlencode($h['nodeposito']) ?>"><?= htmlspecialchars($h['nodeposito']) ?></a></td>
+                                        <?php endif; ?>
                                         <td><?= date('d/m/Y H:i', strtotime($h['fecha'])) ?></td>
                                         <td><?= htmlspecialchars($h['usuario']) ?></td>
                                         <td><?= htmlspecialchars(DepositosModel::etiquetaCampo($h['campo'])) ?></td>
@@ -779,7 +802,10 @@ class AdminView {
                                 <?php endforeach; ?>
                             </tbody>
                         </table>
+                        </div>
                     </fieldset>
+                <?php elseif (!$deposito): ?>
+                    <p class="sin-datos">Todavía no se ha editado ningún depósito.</p>
                 <?php endif; ?>
             </div>
             <?php Tema::script(); ?>

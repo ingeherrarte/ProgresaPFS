@@ -70,6 +70,7 @@ class DepositosModel {
         'chpropio' => 'Cheque propio banco',
         'chotrobanco' => 'Cheque otros bancos',
         'responsable' => 'Responsable',
+        'foto_boleta' => 'Foto de la boleta',
     ];
 
     private const CAMPOS_MONTO = ['efectivo', 'chpropio', 'chotrobanco'];
@@ -120,13 +121,13 @@ class DepositosModel {
 
         $stmt = $db->prepare(
             "UPDATE depositos SET fechadep = ?, cuenta = ?, banco = ?, correspondiente = ?,
-                efectivo = ?, chpropio = ?, chotrobanco = ? , responsable = ?
+                efectivo = ?, chpropio = ?, chotrobanco = ? , responsable = ?, foto_boleta = ?
              WHERE nodeposito = ?"
         );
         $stmt->execute([
             $datos['fechadep'], $datos['cuenta'], $datos['banco'], $datos['correspondiente'],
             $datos['efectivo'], $datos['chpropio'], $datos['chotrobanco'], $datos['responsable'],
-            $nodeposito,
+            $datos['foto_boleta'], $nodeposito,
         ]);
 
         if ($stmt->rowCount() === 0) {
@@ -150,6 +151,20 @@ class DepositosModel {
              FROM depositos_ediciones WHERE nodeposito = ? ORDER BY fecha DESC, id DESC"
         );
         $stmt->execute([$nodeposito]);
+        return $stmt->fetchAll(PDO::FETCH_ASSOC);
+    }
+
+    // A diferencia de historialEdiciones() (un depósito a la vez), esto
+    // es la bitácora completa: se muestra en "Editar Depósito" cuando
+    // todavía no se ha buscado ningún número, para poder ver de un vistazo
+    // qué depósitos se han corregido sin tener que adivinar cuál buscar.
+    public static function edicionesRecientes(PDO $db, int $limite = 50): array {
+        $stmt = $db->prepare(
+            "SELECT nodeposito, campo, valor_anterior, valor_nuevo, motivo, usuario, fecha
+             FROM depositos_ediciones ORDER BY fecha DESC, id DESC LIMIT ?"
+        );
+        $stmt->bindValue(1, $limite, PDO::PARAM_INT);
+        $stmt->execute();
         return $stmt->fetchAll(PDO::FETCH_ASSOC);
     }
 
