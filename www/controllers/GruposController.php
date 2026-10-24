@@ -22,6 +22,9 @@ class GruposController {
             case 'agregar':
                 $this->agregar();
                 break;
+            case 'agregarVarios':
+                $this->agregarVarios();
+                break;
             case 'quitar':
                 $this->quitar();
                 break;
@@ -89,9 +92,14 @@ class GruposController {
             $mensaje = "Ese estudiante ya es miembro de este grupo.";
         } elseif ($msg === 'quitado') {
             $mensaje = "Estudiante quitado del grupo.";
+        } elseif ($msg === 'varios') {
+            $n = (int)($_GET['n'] ?? 0);
+            $mensaje = "$n estudiante(s) agregado(s) al grupo.";
         }
 
-        GruposView::mostrarGrupo($grupo, GruposModel::miembros($db, $grupoId), $termino, $resultados, $mensaje);
+        $candidatos = GruposModel::candidatos($db, $grupoId, (int)$grupo['codcurso'], (int)$grupo['plan'], (int)$grupo['jornada']);
+
+        GruposView::mostrarGrupo($grupo, GruposModel::miembros($db, $grupoId), $termino, $resultados, $mensaje, $candidatos);
     }
 
     private function agregar() {
@@ -112,6 +120,36 @@ class GruposController {
         $resultado = GruposModel::agregarMiembro($db, $grupoId, $idestudiante, Auth::usuarioActual());
         $q = urlencode(trim($_POST['q'] ?? ''));
         header("Location: grupos.php?action=ver&id=$grupoId&msg=$resultado&q=$q");
+        exit;
+    }
+
+    // Confirma en bloque la selección de la lista de candidatos (ver
+    // GruposModel::candidatos) en vez de agregar uno por uno.
+    private function agregarVarios() {
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+            header("Location: grupos.php");
+            exit;
+        }
+
+        $db = Conexion::conectar();
+        $grupoId = (int)($_POST['grupo_id'] ?? 0);
+        if (!GruposModel::obtenerPorId($db, $grupoId)) {
+            header("Location: grupos.php");
+            exit;
+        }
+
+        $idestudiantes = $_POST['idestudiantes'] ?? [];
+        $usuario = Auth::usuarioActual();
+        $n = 0;
+        foreach ($idestudiantes as $idestudiante) {
+            $idestudiante = (int)$idestudiante;
+            if ($idestudiante > 0 && EstudiantesPfsModel::obtenerPorId($db, $idestudiante)) {
+                GruposModel::agregarMiembro($db, $grupoId, $idestudiante, $usuario);
+                $n++;
+            }
+        }
+
+        header("Location: grupos.php?action=ver&id=$grupoId&msg=varios&n=$n");
         exit;
     }
 

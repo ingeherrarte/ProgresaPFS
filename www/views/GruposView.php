@@ -24,6 +24,12 @@ class GruposView {
                 background: var(--bg-tarjeta); max-width: 900px; margin: 0 auto 24px;
                 border-radius: 6px; padding: 24px 28px; box-shadow: 0 1px 4px var(--sombra-tarjeta);
             }
+            .card-ancha { max-width: 1200px; }
+            .bloque-candidatos { margin-bottom: 20px; }
+            .bloque-candidatos h3 { font-size: 13px; color: var(--texto); margin: 0 0 8px; }
+            .bloque-candidatos .cabecera-bloque { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+            .bloque-candidatos .cabecera-bloque label { margin: 0; font-size: 12px; font-weight: normal; display: flex; align-items: center; gap: 6px; }
+            .bloque-candidatos table input[type=checkbox] { width: auto; }
             fieldset { border: 1px solid var(--borde-input); border-radius: 6px; padding: 14px 18px; margin-bottom: 18px; }
             legend { font-size: 13px; font-weight: bold; color: var(--acento); padding: 0 6px; }
             .fila { display: flex; gap: 16px; flex-wrap: wrap; align-items: flex-end; margin-bottom: 12px; }
@@ -77,6 +83,55 @@ class GruposView {
                 <a href="login.php?action=logout">Cerrar sesión</a>
                 <?php Tema::boton(); ?>
             </span>
+        </div>
+        <?php
+    }
+
+    // Una tabla con checkbox por fila para agregar en bloque (ver
+    // GruposModel::candidatos). $mostrarOrigen agrega la columna de
+    // diplomado/plan/jornada actual — no hace falta en el primer bloque
+    // porque ya coincide con el grupo que se está viendo.
+    private static function bloqueCandidatos(string $titulo, array $filas, bool $mostrarOrigen = false): void {
+        $claseBloque = 'bloque-' . substr(md5($titulo), 0, 8);
+        ?>
+        <div class="bloque-candidatos">
+            <div class="cabecera-bloque">
+                <input type="checkbox" onclick="marcarTodos(this, '<?= $claseBloque ?>')">
+                <h3 style="margin:0;"><?= htmlspecialchars($titulo) ?> (<?= count($filas) ?>)</h3>
+            </div>
+            <?php if (empty($filas)): ?>
+                <p class="sin-datos">Ninguno con pago reciente en esta categoría.</p>
+            <?php else: ?>
+                <div class="tabla-scroll">
+                <table>
+                    <thead>
+                        <tr>
+                            <th></th><th>Carné</th><th>Nombre</th>
+                            <?php if ($mostrarOrigen): ?><th>Diplomado actual</th><?php endif; ?>
+                            <th>Último pago</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <?php foreach ($filas as $c): ?>
+                            <?php $buscar = strtolower($c['idestudiante'] . ' ' . $c['nombre'] . ' ' . $c['apellidos']); ?>
+                            <tr class="fila-candidato <?= $claseBloque ?>" data-buscar="<?= htmlspecialchars($buscar) ?>">
+                                <td><input type="checkbox" name="idestudiantes[]" value="<?= (int)$c['idestudiante'] ?>"></td>
+                                <td><?= (int)$c['idestudiante'] ?></td>
+                                <td><?= htmlspecialchars($c['nombre'] . ' ' . $c['apellidos']) ?></td>
+                                <?php if ($mostrarOrigen): ?>
+                                    <td>
+                                        <?= htmlspecialchars($c['nombrecurso'] ?? '—') ?>
+                                        — <?= htmlspecialchars(EstudiantesPfsModel::nombrePlan((int)$c['plan'])) ?>
+                                        / <?= htmlspecialchars(EstudiantesPfsModel::nombreJornada((int)$c['jornada'])) ?>
+                                    </td>
+                                <?php endif; ?>
+                                <td><?= $c['ultimo_pago'] ? date('d/m/Y', strtotime($c['ultimo_pago'])) : '—' ?></td>
+                            </tr>
+                        <?php endforeach; ?>
+                    </tbody>
+                </table>
+                </div>
+            <?php endif; ?>
         </div>
         <?php
     }
@@ -184,7 +239,9 @@ class GruposView {
         <?php
     }
 
-    public static function mostrarGrupo(array $grupo, array $miembros, string $termino, array $resultados, ?string $mensaje = null): void {
+    // $candidatos: ['mismoGrupo' => [...], 'mismoDiplomado' => [...], 'otrosDiplomados' => [...]]
+    // (ver GruposModel::candidatos) — null si todavía no se calculó.
+    public static function mostrarGrupo(array $grupo, array $miembros, string $termino, array $resultados, ?string $mensaje = null, ?array $candidatos = null): void {
         ?>
         <!DOCTYPE html>
         <html lang="es">
@@ -209,8 +266,60 @@ class GruposView {
                 <p style="margin-top:12px;"><a href="grupos.php">← Todos los grupos</a></p>
             </div>
 
-            <div class="card">
-                <h2>Agregar estudiante</h2>
+            <?php if ($candidatos !== null): ?>
+                <div class="card card-ancha">
+                    <h2>Agregar en bloque (con pago reciente — máx. 2 meses de atraso)</h2>
+                    <p style="font-size:12.5px;color:var(--texto-muted);margin-bottom:12px;">
+                        Se excluye a quien ya es miembro. El "último pago" es la fecha del recibo más reciente — júzgalo tú,
+                        no se asume nada además de ese dato. Para alguien fuera de este rango, usa el buscador de abajo.
+                    </p>
+                    <div class="fila" style="margin-bottom:16px;">
+                        <div class="campo">
+                            <label for="filtroCandidatos">Filtrar esta lista (nombre o carné)</label>
+                            <input type="text" id="filtroCandidatos" oninput="filtrarCandidatos(this.value)" placeholder="Escribe para filtrar...">
+                        </div>
+                    </div>
+
+                    <form method="POST" action="grupos.php?action=agregarVarios">
+                        <input type="hidden" name="grupo_id" value="<?= (int)$grupo['id'] ?>">
+
+                        <?php self::bloqueCandidatos(
+                            "Inscritos en este mismo Diplomado + Plan + Jornada",
+                            $candidatos['mismoGrupo']
+                        ); ?>
+                        <?php self::bloqueCandidatos(
+                            "Mismo diplomado, otro plan/jornada",
+                            $candidatos['mismoDiplomado'],
+                            true
+                        ); ?>
+                        <?php self::bloqueCandidatos(
+                            "Inscritos en otros diplomados (primeros " . count($candidatos['otrosDiplomados']) . ")",
+                            $candidatos['otrosDiplomados'],
+                            true
+                        ); ?>
+
+                        <button type="submit">Agregar seleccionados</button>
+                    </form>
+                </div>
+
+                <script>
+                    function filtrarCandidatos(texto) {
+                        texto = texto.toLowerCase();
+                        document.querySelectorAll('.fila-candidato').forEach(function (fila) {
+                            fila.hidden = texto !== '' && !fila.dataset.buscar.includes(texto);
+                        });
+                    }
+                    function marcarTodos(casilla, clase) {
+                        document.querySelectorAll('.' + clase + ':not([hidden])').forEach(function (fila) {
+                            var cb = fila.querySelector('input[type=checkbox]');
+                            if (cb) cb.checked = casilla.checked;
+                        });
+                    }
+                </script>
+            <?php endif; ?>
+
+            <div class="card card-ancha">
+                <h2>Agregar estudiante (búsqueda libre)</h2>
                 <form method="GET" action="grupos.php">
                     <input type="hidden" name="action" value="ver">
                     <input type="hidden" name="id" value="<?= (int)$grupo['id'] ?>">

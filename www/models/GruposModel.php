@@ -83,5 +83,51 @@ class GruposModel {
         $stmt->execute([$usuario, $grupoId, $idestudiante]);
         return $stmt->rowCount() > 0;
     }
+
+    // Candidatos para agregar en bloque a un grupo, en vez de uno por uno
+    // a mano: estudiantespfs.activo no sirve de filtro (no es confiable,
+    // ver grupos.sql), así que aquí "activo" se decide por pago reciente
+    // — con el último pago visible para que quien agrega lo juzgue, no
+    // escondido. $mesesTolerancia=2 significa "pagó el último mes o debe
+    // como máximo 2" (decisión explícita del usuario).
+    //
+    // Tres bloques, cada uno excluyendo a quien ya es miembro activo del
+    // grupo: 1) misma combinación exacta codcurso+plan+jornada (los que
+    // "deberían" estar aquí), 2) mismo diplomado pero otro plan/jornada,
+    // 3) otro diplomado. El bloque 3 se limita a $limiteOtros filas: puede
+    // ser la mayoría del sistema, para encontrar a alguien específico ahí
+    // se usa el buscador de texto libre, no este listado.
+    public static function candidatos(PDO $db, int $grupoId, int $codcurso, int $plan, int $jornada, int $mesesTolerancia = 2, int $limiteOtros = 300): array {
+        $base = "
+            SELECT e.idestudiante, e.nombre, e.apellidos, e.plan, e.jornada, d.nombre AS nombrecurso,
+                   up.ultimo_pago
+            FROM estudiantespfs e
+            LEFT JOIN `diplomado-curso` d ON d.id = e.codcurso
+            LEFT JOIN (
+                SELECT carne, MAX(horaregistro) AS ultimo_pago FROM recibospfs WHERE anulado = 0 GROUP BY carne
+            ) up ON up.carne = e.idestudiante
+            WHERE up.ultimo_pago >= DATE_SUB(NOW(), INTERVAL ? MONTH)
+              AND e.idestudiante NOT IN (SELECT idestudiante FROM grupos_estudiantes WHERE grupo_id = ? AND activo = 1)
+        ";
+
+        $stmtCombo = $db->prepare($base . " AND e.codcurso = ? AND e.plan = ? AND e.jornada = ? ORDER BY e.nombre, e.apellidos");
+        $stmtCombo->execute([$mesesTolerancia, $grupoId, $codcurso, $plan, $jornada]);
+
+        $stmtDiplomado = $db->prepare($base . " AND e.codcurso = ? AND NOT (e.plan = ? AND e.jornada = ?) ORDER BY e.nombre, e.apellidos");
+        $stmtDiplomado->execute([$mesesTolerancia, $grupoId, $codcurso, $plan, $jornada]);
+
+        $stmtOtros = $db->prepare($base . " AND e.codcurso != ? ORDER BY up.ultimo_pago DESC LIMIT ?");
+        $stmtOtros->bindValue(1, $mesesTolerancia, PDO::PARAM_INT);
+        $stmtOtros->bindValue(2, $grupoId, PDO::PARAM_INT);
+        $stmtOtros->bindValue(3, $codcurso, PDO::PARAM_INT);
+        $stmtOtros->bindValue(4, $limiteOtros, PDO::PARAM_INT);
+        $stmtOtros->execute();
+
+        return [
+            'mismoGrupo' => $stmtCombo->fetchAll(PDO::FETCH_ASSOC),
+            'mismoDiplomado' => $stmtDiplomado->fetchAll(PDO::FETCH_ASSOC),
+            'otrosDiplomados' => $stmtOtros->fetchAll(PDO::FETCH_ASSOC),
+        ];
+    }
 }
 ?>
