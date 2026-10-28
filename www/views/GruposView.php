@@ -266,6 +266,56 @@ class GruposView {
                 <p style="margin-top:12px;"><a href="grupos.php">← Todos los grupos</a></p>
             </div>
 
+            <div class="card card-ancha">
+                <h2>Agregar estudiante por nombre o carné</h2>
+                <p style="font-size:12.5px;color:var(--texto-muted);margin-bottom:12px;">
+                    Úsalo para un estudiante que no aparece en los bloques de abajo (por ejemplo, un reingreso
+                    sin pago reciente registrado).
+                </p>
+                <form method="GET" action="grupos.php">
+                    <input type="hidden" name="action" value="ver">
+                    <input type="hidden" name="id" value="<?= (int)$grupo['id'] ?>">
+                    <div class="fila">
+                        <div class="campo">
+                            <label for="q">Nombre o carné</label>
+                            <input type="text" id="q" name="q" value="<?= htmlspecialchars($termino) ?>" autofocus>
+                        </div>
+                        <div><button type="submit">Buscar</button></div>
+                    </div>
+                </form>
+
+                <?php if ($termino !== ''): ?>
+                    <?php if (empty($resultados)): ?>
+                        <p class="sin-datos">Sin resultados para "<?= htmlspecialchars($termino) ?>".</p>
+                    <?php else: ?>
+                        <div class="tabla-scroll">
+                        <table>
+                            <thead>
+                                <tr><th>Carné</th><th>Nombre</th><th>Diplomado actual</th><th></th></tr>
+                            </thead>
+                            <tbody>
+                                <?php foreach ($resultados as $r): ?>
+                                    <tr>
+                                        <td><?= (int)$r['idestudiante'] ?></td>
+                                        <td><?= htmlspecialchars($r['nombre'] . ' ' . $r['apellidos']) ?></td>
+                                        <td><?= htmlspecialchars($r['nombrecurso'] ?? '—') ?></td>
+                                        <td>
+                                            <form method="POST" action="grupos.php?action=agregar" style="margin:0;">
+                                                <input type="hidden" name="grupo_id" value="<?= (int)$grupo['id'] ?>">
+                                                <input type="hidden" name="idestudiante" value="<?= (int)$r['idestudiante'] ?>">
+                                                <input type="hidden" name="q" value="<?= htmlspecialchars($termino) ?>">
+                                                <button type="submit" class="chico">+ Agregar</button>
+                                            </form>
+                                        </td>
+                                    </tr>
+                                <?php endforeach; ?>
+                            </tbody>
+                        </table>
+                        </div>
+                    <?php endif; ?>
+                <?php endif; ?>
+            </div>
+
             <?php if ($candidatos !== null): ?>
                 <div class="card card-ancha">
                     <h2>Agregar en bloque (con pago reciente — máx. 2 meses de atraso)</h2>
@@ -317,52 +367,6 @@ class GruposView {
                     }
                 </script>
             <?php endif; ?>
-
-            <div class="card card-ancha">
-                <h2>Agregar estudiante (búsqueda libre)</h2>
-                <form method="GET" action="grupos.php">
-                    <input type="hidden" name="action" value="ver">
-                    <input type="hidden" name="id" value="<?= (int)$grupo['id'] ?>">
-                    <div class="fila">
-                        <div class="campo">
-                            <label for="q">Nombre o carné</label>
-                            <input type="text" id="q" name="q" value="<?= htmlspecialchars($termino) ?>" autofocus>
-                        </div>
-                        <div><button type="submit">Buscar</button></div>
-                    </div>
-                </form>
-
-                <?php if ($termino !== ''): ?>
-                    <?php if (empty($resultados)): ?>
-                        <p class="sin-datos">Sin resultados para "<?= htmlspecialchars($termino) ?>".</p>
-                    <?php else: ?>
-                        <div class="tabla-scroll">
-                        <table>
-                            <thead>
-                                <tr><th>Carné</th><th>Nombre</th><th>Diplomado actual</th><th></th></tr>
-                            </thead>
-                            <tbody>
-                                <?php foreach ($resultados as $r): ?>
-                                    <tr>
-                                        <td><?= (int)$r['idestudiante'] ?></td>
-                                        <td><?= htmlspecialchars($r['nombre'] . ' ' . $r['apellidos']) ?></td>
-                                        <td><?= htmlspecialchars($r['nombrecurso'] ?? '—') ?></td>
-                                        <td>
-                                            <form method="POST" action="grupos.php?action=agregar" style="margin:0;">
-                                                <input type="hidden" name="grupo_id" value="<?= (int)$grupo['id'] ?>">
-                                                <input type="hidden" name="idestudiante" value="<?= (int)$r['idestudiante'] ?>">
-                                                <input type="hidden" name="q" value="<?= htmlspecialchars($termino) ?>">
-                                                <button type="submit" class="chico">+ Agregar</button>
-                                            </form>
-                                        </td>
-                                    </tr>
-                                <?php endforeach; ?>
-                            </tbody>
-                        </table>
-                        </div>
-                    <?php endif; ?>
-                <?php endif; ?>
-            </div>
 
             <div class="card">
                 <h2>Miembros del grupo</h2>
