@@ -163,6 +163,22 @@ class EstudiantesPfsModel {
         ]);
     }
 
+    // Sin bitácora por campo (a diferencia de recibos/depósitos): aquí solo
+    // se sobrescribe editado_por/fecha_edicion en cada edición, así que
+    // esto lista QUIÉN editó a QUIÉN y CUÁNDO, no el detalle de qué cambió.
+    // Se muestra en "Editar Estudiante" cuando todavía no se ha buscado
+    // ningún carné.
+    public static function editadosRecientemente(PDO $db, int $limite = 50): array {
+        $stmt = $db->prepare(
+            "SELECT idestudiante, nombre, apellidos, editado_por, fecha_edicion
+             FROM estudiantespfs WHERE fecha_edicion IS NOT NULL
+             ORDER BY fecha_edicion DESC LIMIT ?"
+        );
+        $stmt->bindValue(1, $limite, PDO::PARAM_INT);
+        $stmt->execute();
+        return $stmt->fetchAll(PDO::FETCH_ASSOC);
+    }
+
     // Toda la validación vive aquí (y no en el controlador) para que la
     // compartan el alta y la edición de estudiantes. El <select> de curso
     // viene de la tabla real (ver obtenerCursos), así que el valor recibido

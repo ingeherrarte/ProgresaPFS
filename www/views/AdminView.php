@@ -169,7 +169,7 @@ class AdminView {
         <?php
     }
 
-    public static function mostrarAnular(string $numeroBuscado, ?array $recibo, array $errores): void {
+    public static function mostrarAnular(string $numeroBuscado, ?array $recibo, array $errores, array $anuladosRecientes = []): void {
         $puedeAnular = $recibo && !$recibo['anulado'];
         ?>
         <!DOCTYPE html>
@@ -240,6 +240,40 @@ class AdminView {
                         <button type="submit" class="peligro">Anular este recibo</button>
                     </form>
                 <?php endif; ?>
+
+                <?php if (!$recibo && !empty($anuladosRecientes)): ?>
+                    <fieldset style="margin-top:24px">
+                        <legend>Últimos recibos anulados</legend>
+                        <div class="tabla-scroll">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Recibo</th>
+                                    <th>Carné</th>
+                                    <th>Total</th>
+                                    <th>Anulado por</th>
+                                    <th>Fecha</th>
+                                    <th>Motivo</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <?php foreach ($anuladosRecientes as $a): ?>
+                                    <tr>
+                                        <td><a href="recibospfs.php?action=ver&amp;numero=<?= (int)$a['numero'] ?>" target="_blank" rel="noopener">#<?= (int)$a['numero'] ?></a></td>
+                                        <td><?= htmlspecialchars($a['carne']) ?></td>
+                                        <td>Q <?= number_format((float)$a['total'], 2) ?></td>
+                                        <td><?= htmlspecialchars($a['anulado_por']) ?></td>
+                                        <td><?= date('d/m/Y H:i', strtotime($a['fecha_anulacion'])) ?></td>
+                                        <td><?= htmlspecialchars($a['motivo_anulacion']) ?></td>
+                                    </tr>
+                                <?php endforeach; ?>
+                            </tbody>
+                        </table>
+                        </div>
+                    </fieldset>
+                <?php elseif (!$recibo): ?>
+                    <p class="sin-datos">Todavía no se ha anulado ningún recibo.</p>
+                <?php endif; ?>
             </div>
             <?php Tema::script(); ?>
         </body>
@@ -247,7 +281,7 @@ class AdminView {
         <?php
     }
 
-    public static function mostrarEditarEstudiante(string $carnetBuscado, ?array $estudiante, array $cursos, array $errores, ?string $mensaje = null): void {
+    public static function mostrarEditarEstudiante(string $carnetBuscado, ?array $estudiante, array $cursos, array $errores, ?string $mensaje = null, array $editadosRecientemente = []): void {
         ?>
         <!DOCTYPE html>
         <html lang="es">
@@ -305,6 +339,39 @@ class AdminView {
                         </fieldset>
                         <button type="submit">Guardar cambios</button>
                     </form>
+                <?php endif; ?>
+
+                <?php if (!$estudiante && !empty($editadosRecientemente)): ?>
+                    <fieldset style="margin-top:24px">
+                        <legend>Últimos estudiantes editados</legend>
+                        <p style="font-size:11px;color:var(--texto-muted);margin:0 0 10px;">
+                            No hay bitácora de campo por campo para estudiantes (solo queda quién y cuándo) — para ver qué cambió, compara con lo que recuerdes o con el histórico de recibos del carné.
+                        </p>
+                        <div class="tabla-scroll">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Carné</th>
+                                    <th>Nombre</th>
+                                    <th>Editado por</th>
+                                    <th>Fecha</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <?php foreach ($editadosRecientemente as $e): ?>
+                                    <tr>
+                                        <td><a href="admin.php?action=editar_estudiante&amp;carnet=<?= (int)$e['idestudiante'] ?>"><?= (int)$e['idestudiante'] ?></a></td>
+                                        <td><?= htmlspecialchars($e['nombre'] . ' ' . $e['apellidos']) ?></td>
+                                        <td><?= htmlspecialchars($e['editado_por']) ?></td>
+                                        <td><?= date('d/m/Y H:i', strtotime($e['fecha_edicion'])) ?></td>
+                                    </tr>
+                                <?php endforeach; ?>
+                            </tbody>
+                        </table>
+                        </div>
+                    </fieldset>
+                <?php elseif (!$estudiante): ?>
+                    <p class="sin-datos">Todavía no se ha editado ningún estudiante.</p>
                 <?php endif; ?>
             </div>
             <?php EstudiantesPfsView::scriptToggleMenor(); ?>
@@ -572,10 +639,12 @@ class AdminView {
 
                 <?php if (!empty($historial)): ?>
                     <fieldset style="margin-top:24px">
-                        <legend>Ediciones anteriores</legend>
+                        <legend><?= $recibo ? 'Ediciones anteriores' : 'Bitácora — últimas ediciones de recibos' ?></legend>
+                        <div class="tabla-scroll">
                         <table>
                             <thead>
                                 <tr>
+                                    <?php if (!$recibo): ?><th>Recibo</th><?php endif; ?>
                                     <th>Fecha</th>
                                     <th>Usuario</th>
                                     <th>Campo</th>
@@ -587,6 +656,9 @@ class AdminView {
                             <tbody>
                                 <?php foreach ($historial as $h): ?>
                                     <tr>
+                                        <?php if (!$recibo): ?>
+                                            <td><a href="admin.php?action=editar_recibo&amp;numero=<?= (int)$h['numero'] ?>">#<?= (int)$h['numero'] ?></a></td>
+                                        <?php endif; ?>
                                         <td><?= date('d/m/Y H:i', strtotime($h['fecha'])) ?></td>
                                         <td><?= htmlspecialchars($h['usuario']) ?></td>
                                         <td><?= htmlspecialchars(RecibosPfsModel::etiquetaCampo($h['campo'])) ?></td>
@@ -597,7 +669,10 @@ class AdminView {
                                 <?php endforeach; ?>
                             </tbody>
                         </table>
+                        </div>
                     </fieldset>
+                <?php elseif (!$recibo): ?>
+                    <p class="sin-datos">Todavía no se ha editado ningún recibo.</p>
                 <?php endif; ?>
             </div>
 
