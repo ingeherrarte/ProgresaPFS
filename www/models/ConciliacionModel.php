@@ -59,7 +59,9 @@ class ConciliacionModel {
     // distinga en el selector.
     private static function listarCandidatos(PDO $db, string $fecha, $monto, ?string $cuenta): array {
         // Solo fecha >= $fecha (nunca antes) hasta +TOLERANCIA_DIAS_ACH.
-        $condiciones = ["conciliado = 0", "monto = ?", "fecha BETWEEN ? AND DATE_ADD(?, INTERVAL ? DAY)"];
+        // tipo = 'credito': un recibo nunca se explica con una línea de
+        // débito (ver estados_cuenta_tipo_saldo.sql).
+        $condiciones = ["conciliado = 0", "tipo = 'credito'", "monto = ?", "fecha BETWEEN ? AND DATE_ADD(?, INTERVAL ? DAY)"];
         $params = [$monto, $fecha, $fecha, self::TOLERANCIA_DIAS_ACH];
         if ($cuenta !== null) {
             $condiciones[] = "cuenta = ?";
@@ -99,6 +101,10 @@ class ConciliacionModel {
     // cualquiera que sea el mecanismo, para que la vista no tenga que saber
     // cuál de los dos se usó.
     public static function lineasEstadoCuenta(PDO $db, string $desde, string $hasta): array {
+        // tipo = 'credito': esta tabla es específicamente para dar
+        // seguimiento a depósitos pendientes de explicar contra un recibo —
+        // un débito nunca participa de eso (ver "Movimientos del banco" o
+        // "Comparativo Mensual" para ver también los débitos).
         $stmt = $db->prepare(
             "SELECT ec.id, ec.cuenta, ec.fecha, ec.monto, ec.referencia, ec.conciliado,
                     ec.recibo_numero,
@@ -107,7 +113,7 @@ class ConciliacionModel {
                        FROM conciliacion_vinculos cv WHERE cv.estado_cuenta_id = ec.id) AS vinculos_manuales
              FROM estados_cuenta ec
              LEFT JOIN recibospfs r ON r.numero = ec.recibo_numero
-             WHERE ec.fecha >= ? AND ec.fecha <= ?
+             WHERE ec.tipo = 'credito' AND ec.fecha >= ? AND ec.fecha <= ?
              ORDER BY ec.cuenta, ec.fecha, ec.id"
         );
         $stmt->execute([$desde, $hasta]);
@@ -148,7 +154,7 @@ class ConciliacionModel {
     // completamente explicadas por ese mecanismo. Sin límite de fecha a
     // propósito, por la misma razón que buscarRecibosPendientes().
     public static function buscarLineasDisponibles(PDO $db, ?string $cuenta, ?float $monto): array {
-        $condiciones = ["ec.recibo_numero IS NULL"];
+        $condiciones = ["ec.recibo_numero IS NULL", "ec.tipo = 'credito'"];
         $params = [];
         if ($cuenta !== null) {
             $condiciones[] = "ec.cuenta = ?";
@@ -267,12 +273,15 @@ class ConciliacionModel {
     // Devuelve ['insertadas' => N, 'omitidas' => M] (M = ya existían).
     public static function importarLineas(PDO $db, array $lineas, string $cuenta, string $usuario): array {
         $stmt = $db->prepare(
-            "INSERT IGNORE INTO estados_cuenta (cuenta, fecha, monto, referencia, descripcion, importado_por) VALUES (?, ?, ?, ?, ?, ?)"
+            "INSERT IGNORE INTO estados_cuenta (cuenta, fecha, monto, tipo, referencia, descripcion, saldo, importado_por) VALUES (?, ?, ?, ?, ?, ?, ?, ?)"
         );
         $insertadas = 0;
         $omitidas = 0;
         foreach ($lineas as $linea) {
-            $stmt->execute([$cuenta, $linea['fecha'], $linea['monto'], $linea['referencia'] ?? null, $linea['descripcion'] ?? null, $usuario]);
+            $stmt->execute([
+                $cuenta, $linea['fecha'], $linea['monto'], $linea['tipo'] ?? 'credito',
+                $linea['referencia'] ?? null, $linea['descripcion'] ?? null, $linea['saldo'] ?? null, $usuario,
+            ]);
             if ($stmt->rowCount() > 0) {
                 $insertadas++;
             } else {
@@ -286,12 +295,18 @@ class ConciliacionModel {
     // subida ni a un recibo puntual) — para responder "¿esta transferencia
     // ya está en el sistema?" sin tener que revisar la base de datos a
     // mano. $texto busca en referencia y descripción a la vez.
-    public static function buscarMovimientos(PDO $db, ?string $cuenta, string $desde, string $hasta, string $texto): array {
+    // $tipo null = créditos y débitos juntos (consulta general del estado de
+    // cuenta completo); 'credito' o 'debito' acota a uno solo.
+    public static function buscarMovimientos(PDO $db, ?string $cuenta, string $desde, string $hasta, string $texto, ?string $tipo = null): array {
         $condiciones = ["ec.fecha >= ?", "ec.fecha <= ?"];
         $params = [$desde, $hasta];
         if ($cuenta !== null) {
             $condiciones[] = "ec.cuenta = ?";
             $params[] = $cuenta;
+        }
+        if ($tipo !== null) {
+            $condiciones[] = "ec.tipo = ?";
+            $params[] = $tipo;
         }
         if ($texto !== '') {
             $condiciones[] = "(ec.referencia LIKE ? OR ec.descripcion LIKE ?)";
@@ -299,7 +314,7 @@ class ConciliacionModel {
             $params[] = '%' . $texto . '%';
         }
         $stmt = $db->prepare(
-            "SELECT ec.id, ec.cuenta, ec.fecha, ec.monto, ec.referencia, ec.descripcion, ec.conciliado, ec.recibo_numero,
+            "SELECT ec.id, ec.cuenta, ec.fecha, ec.monto, ec.tipo, ec.saldo, ec.referencia, ec.descripcion, ec.conciliado, ec.recibo_numero,
                     r.carne AS carne_automatico,
                     (SELECT GROUP_CONCAT(cv.recibo_numero SEPARATOR ', ') FROM conciliacion_vinculos cv WHERE cv.estado_cuenta_id = ec.id) AS recibos_manuales,
                     d.nodeposito AS deposito_propio, d.responsable AS deposito_responsable, d.efectivo AS deposito_efectivo
@@ -357,7 +372,7 @@ class ConciliacionModel {
     // estudiantes que ya transfirieron pero no han venido a pedir su
     // recibo, o depósitos propios sin boleta ingresada todavía.
     public static function resumenMovimientos(PDO $db, string $desde, string $hasta, ?string $cuenta): array {
-        $condiciones = ["ec.fecha >= ?", "ec.fecha <= ?"];
+        $condiciones = ["ec.tipo = 'credito'", "ec.fecha >= ?", "ec.fecha <= ?"];
         $params = [$desde, $hasta];
         if ($cuenta !== null) {
             $condiciones[] = "ec.cuenta = ?";
@@ -382,7 +397,7 @@ class ConciliacionModel {
     // filtro del reporte) — para ver si el rezago crece, se mantiene o baja
     // en el tiempo, no solo un corte puntual.
     public static function tendenciaSinMarcar(PDO $db, ?string $cuenta, int $meses = 6): array {
-        $condiciones = [self::CLASIFICACION_SQL . " = 'sin_marcar'", "ec.fecha >= DATE_SUB(CURDATE(), INTERVAL ? MONTH)"];
+        $condiciones = ["ec.tipo = 'credito'", self::CLASIFICACION_SQL . " = 'sin_marcar'", "ec.fecha >= DATE_SUB(CURDATE(), INTERVAL ? MONTH)"];
         $params = [$meses];
         if ($cuenta !== null) {
             $condiciones[] = "ec.cuenta = ?";
@@ -396,6 +411,52 @@ class ConciliacionModel {
         );
         $stmt->execute($params);
         return $stmt->fetchAll(PDO::FETCH_ASSOC);
+    }
+
+    // Depósitos registrados en el sistema por mes y banco destino, mismo
+    // criterio que RecibosPfsModel::cierreAnioPorMes (horaregistro, no
+    // anulados) para que el comparativo contra el banco use exactamente la
+    // misma fuente que ya ve el usuario en "Cierre del Año" — no
+    // fechadep, que es la fecha de la boleta y puede no coincidir con
+    // cuándo se registró en el sistema.
+    public static function depositosPorMesYCuenta(PDO $db, string $cuenta, int $anio): array {
+        $stmt = $db->prepare(
+            "SELECT MONTH(horaregistro) AS mes, COALESCE(SUM(deposito), 0) AS total
+             FROM recibospfs
+             WHERE cuenta_destino = ? AND YEAR(horaregistro) = ? AND anulado = 0 AND deposito > 0
+             GROUP BY MONTH(horaregistro)"
+        );
+        $stmt->execute([$cuenta, $anio]);
+
+        $porMes = array_fill(1, 12, 0.0);
+        foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $fila) {
+            $porMes[(int)$fila['mes']] = (float)$fila['total'];
+        }
+        return $porMes;
+    }
+
+    // Totales de créditos y débitos por mes de un año, para UNA cuenta
+    // bancaria — base de "Comparativo Mensual" (créditos vs. depósitos del
+    // sistema) y de "Gastos" (débitos, sin comparar contra nada). Siempre
+    // devuelve los 12 meses, con 0.0 donde no haya líneas importadas
+    // todavía, para que la vista no tenga que rellenar huecos.
+    public static function totalesPorMesYCuenta(PDO $db, string $cuenta, int $anio): array {
+        $stmt = $db->prepare(
+            "SELECT MONTH(fecha) AS mes, tipo, SUM(monto) AS total
+             FROM estados_cuenta
+             WHERE cuenta = ? AND YEAR(fecha) = ?
+             GROUP BY MONTH(fecha), tipo"
+        );
+        $stmt->execute([$cuenta, $anio]);
+
+        $resultado = [];
+        for ($m = 1; $m <= 12; $m++) {
+            $resultado[$m] = ['credito' => 0.0, 'debito' => 0.0];
+        }
+        foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $fila) {
+            $resultado[(int)$fila['mes']][$fila['tipo']] = (float)$fila['total'];
+        }
+        return $resultado;
     }
 }
 ?>

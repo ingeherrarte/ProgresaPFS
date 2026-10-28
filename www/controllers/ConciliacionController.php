@@ -21,13 +21,24 @@ class ConciliacionController {
     // (2026-10-19), son: Fecha=A(0), No.Documento=C(2), Descripción=D(3),
     // Débitos=H(7), Créditos=J(9), Saldo=K(10); encabezado en la fila 6,
     // datos desde la 7.
+    //
+    // colSaldo usa "Saldo Contable" en BANRURAL (columna I, 8): es el saldo
+    // contable de la cuenta, el que cuadra con el estado de cuenta impreso
+    // (Saldo Disponible puede diferir por retenciones/holds momentáneos).
+    //
+    // Para un archivo que no viene de ninguno de los dos export conocidos
+    // (ej. líneas de un PDF transcritas a mano, ver estados de cuenta
+    // históricos de BANTRAB en PDF), no hay preset: se eligen las columnas
+    // manualmente en la pantalla de mapeo, igual que antes de tener preset.
     private const PRESETS = [
         '3099203897' => [ // BANRURAL
-            'colFecha' => 0, 'colDescripcion' => 2, 'colReferencia' => 3, 'colMonto' => 7, 'filaInicio' => 6,
+            'colFecha' => 0, 'colDescripcion' => 2, 'colReferencia' => 3,
+            'colDebito' => 6, 'colCredito' => 7, 'colSaldo' => 8, 'filaInicio' => 6,
             'formatoFecha' => 'dmy', 'formatoMonto' => 'punto_decimal',
         ],
         '2870011720' => [ // BANTRAB
-            'colFecha' => 0, 'colDescripcion' => 3, 'colReferencia' => 2, 'colMonto' => 9, 'filaInicio' => 7,
+            'colFecha' => 0, 'colDescripcion' => 3, 'colReferencia' => 2,
+            'colDebito' => 7, 'colCredito' => 9, 'colSaldo' => 10, 'filaInicio' => 7,
             'formatoFecha' => 'dmy', 'formatoMonto' => 'punto_decimal',
         ],
     ];
@@ -64,6 +75,12 @@ class ConciliacionController {
                 break;
             case 'reporte':
                 $this->reporte();
+                break;
+            case 'comparativo':
+                $this->comparativo();
+                break;
+            case 'gastos':
+                $this->gastos();
                 break;
             case 'form':
             default:
@@ -592,11 +609,22 @@ class ConciliacionController {
         // de los títulos de columna, así que no basta con saltar solo 1.
         $filaInicioDatos = max(1, (int)($_POST['fila_inicio_datos'] ?? 1));
         $colFecha = (int)($_POST['col_fecha'] ?? -1);
-        $colMonto = (int)($_POST['col_monto'] ?? -1);
+        // Débito y crédito son independientes (no "col_monto" único): un
+        // archivo puede traer solo uno de los dos si así se mapea, pero
+        // normalmente se dan ambos para capturar el estado de cuenta
+        // completo (ver estados_cuenta_tipo_saldo.sql).
+        $colDebito = $_POST['col_debito'] ?? '';
+        $colCredito = $_POST['col_credito'] ?? '';
+        $colSaldo = $_POST['col_saldo'] ?? '';
         $colReferencia = $_POST['col_referencia'] ?? '';
         $colDescripcion = $_POST['col_descripcion'] ?? '';
         $formatoFecha = $_POST['formato_fecha'] ?? 'dmy';
         $formatoMonto = $_POST['formato_monto'] ?? 'punto_decimal';
+
+        if ($colDebito === '' && $colCredito === '') {
+            $this->form(null, "Indica al menos la columna de débito o la de crédito.", $desde, $hasta);
+            return;
+        }
         // La cuenta viene de la sesión (fijada en siguienteMapeo al elegir
         // el banco en el formulario de subida), no de un campo del request:
         // así no depende de que el cliente mande un valor consistente, y no
@@ -616,8 +644,12 @@ class ConciliacionController {
         for ($i = $inicio; $i < count($filas); $i++) {
             $fila = $filas[$i];
             $fecha = $this->parsearFecha($fila[$colFecha] ?? '', $formatoFecha);
-            $monto = $this->parsearMonto($fila[$colMonto] ?? '', $formatoMonto);
-            if ($fecha === null || $monto === null || $monto <= 0) {
+            $debito = $colDebito !== '' ? $this->parsearMonto($fila[(int)$colDebito] ?? '', $formatoMonto) : null;
+            $credito = $colCredito !== '' ? $this->parsearMonto($fila[(int)$colCredito] ?? '', $formatoMonto) : null;
+            // Una fila sin fecha, o sin NINGÚN monto válido en débito ni
+            // crédito, no es una línea de movimiento real (fila de
+            // membrete/separador que coló por el rango de filas elegido).
+            if ($fecha === null || (($debito === null || $debito <= 0) && ($credito === null || $credito <= 0))) {
                 $filasConError++;
                 continue;
             }
@@ -627,7 +659,20 @@ class ConciliacionController {
             $descripcion = ($colDescripcion !== '' && isset($fila[(int)$colDescripcion]))
                 ? mb_substr($fila[(int)$colDescripcion], 0, 255)
                 : null;
-            $lineas[] = ['fecha' => $fecha, 'monto' => $monto, 'referencia' => $referencia, 'descripcion' => $descripcion];
+            $saldo = ($colSaldo !== '' && isset($fila[(int)$colSaldo]))
+                ? $this->parsearMonto($fila[(int)$colSaldo], $formatoMonto)
+                : null;
+
+            // La mayoría de exports traen débito O crédito por fila, nunca
+            // ambos — pero si algún banco los trae juntos (ej. una
+            // comisión cobrada en la misma línea del depósito), se generan
+            // las dos líneas en vez de perder una de las dos.
+            if ($credito !== null && $credito > 0) {
+                $lineas[] = ['fecha' => $fecha, 'monto' => $credito, 'tipo' => 'credito', 'referencia' => $referencia, 'descripcion' => $descripcion, 'saldo' => $saldo];
+            }
+            if ($debito !== null && $debito > 0) {
+                $lineas[] = ['fecha' => $fecha, 'monto' => $debito, 'tipo' => 'debito', 'referencia' => $referencia, 'descripcion' => $descripcion, 'saldo' => $saldo];
+            }
         }
 
         if (empty($lineas)) {
@@ -765,10 +810,12 @@ class ConciliacionController {
         [$desde, $hasta] = $this->rango($_GET['desde'] ?? null, $_GET['hasta'] ?? null);
         $cuenta = trim($_GET['cuenta'] ?? '') ?: null;
         $texto = trim($_GET['texto'] ?? '');
+        $tipoValor = trim($_GET['tipo'] ?? '');
+        $tipo = in_array($tipoValor, ['credito', 'debito'], true) ? $tipoValor : null;
 
         $db = Conexion::conectar();
-        $movimientos = ConciliacionModel::buscarMovimientos($db, $cuenta, $desde, $hasta, $texto);
-        ConciliacionView::mostrarMovimientos($movimientos, $desde, $hasta, $cuenta, $texto);
+        $movimientos = ConciliacionModel::buscarMovimientos($db, $cuenta, $desde, $hasta, $texto, $tipo);
+        ConciliacionView::mostrarMovimientos($movimientos, $desde, $hasta, $cuenta, $texto, $tipo);
     }
 
     // Reporte de avance: qué se ha verificado y cuándo — filtra por la
@@ -791,6 +838,52 @@ class ConciliacionController {
         $resumenMovimientos = ConciliacionModel::resumenMovimientos($db, $desde, $hasta, $cuenta);
         $tendenciaSinMarcar = ConciliacionModel::tendenciaSinMarcar($db, $cuenta);
         ConciliacionView::mostrarReporte($verificados, $desde, $hasta, $cuenta, $resumenMovimientos, $tendenciaSinMarcar);
+    }
+
+    private function anioValido(?string $valor): int {
+        $anio = (int)($valor ?? date('Y'));
+        return ($anio >= 2020 && $anio <= (int)date('Y') + 1) ? $anio : (int)date('Y');
+    }
+
+    // Depósitos del sistema vs. créditos del banco, mes a mes, UNA cuenta a
+    // la vez (no tiene sentido sumar BANTRAB+BANRURAL en una sola fila: son
+    // depósitos a cuentas distintas). La diferencia es solo informativa —
+    // un desfase de días entre fechadep/horaregistro y cuándo el banco
+    // acredita de verdad es normal (ver TOLERANCIA_DIAS_ACH), esto no
+    // reemplaza la verificación línea por línea de Conciliación.
+    private function comparativo() {
+        $anio = $this->anioValido($_GET['anio'] ?? null);
+        $db = Conexion::conectar();
+
+        $porBanco = [];
+        foreach (DepositosModel::cuentas() as $cuenta => $banco) {
+            $porBanco[$cuenta] = [
+                'banco' => $banco,
+                'sistema' => ConciliacionModel::depositosPorMesYCuenta($db, $cuenta, $anio),
+                'estadoCuenta' => ConciliacionModel::totalesPorMesYCuenta($db, $cuenta, $anio),
+            ];
+        }
+
+        ConciliacionView::mostrarComparativo($porBanco, $anio);
+    }
+
+    // Débitos (egresos) del estado de cuenta importado, mes a mes — sin
+    // comparar contra nada del sistema, que no registra gastos (ver
+    // RecibosPfsModel::cierreAnioPorMes, solo tiene efectivo/deposito/cheque
+    // de INGRESOS). Solo informativo.
+    private function gastos() {
+        $anio = $this->anioValido($_GET['anio'] ?? null);
+        $db = Conexion::conectar();
+
+        $porBanco = [];
+        foreach (DepositosModel::cuentas() as $cuenta => $banco) {
+            $porBanco[$cuenta] = [
+                'banco' => $banco,
+                'totales' => ConciliacionModel::totalesPorMesYCuenta($db, $cuenta, $anio),
+            ];
+        }
+
+        ConciliacionView::mostrarGastos($porBanco, $anio);
     }
 }
 ?>

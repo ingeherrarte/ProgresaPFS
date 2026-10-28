@@ -216,6 +216,14 @@ class ConciliacionView {
                     <div class="icono">🏦</div>
                     <div class="titulo">Movimientos del banco</div>
                 </a>
+                <a class="acceso-mini" href="conciliacion.php?action=comparativo">
+                    <div class="icono">⚖️</div>
+                    <div class="titulo">Comparativo Mensual</div>
+                </a>
+                <a class="acceso-mini" href="conciliacion.php?action=gastos">
+                    <div class="icono">💸</div>
+                    <div class="titulo">Gastos</div>
+                </a>
                 <?php if ($esAdmin): ?>
                     <a class="acceso-mini" href="conciliacion.php?action=reporte">
                         <div class="icono">📈</div>
@@ -537,10 +545,29 @@ class ConciliacionView {
                             </select>
                         </div>
                         <div class="campo">
-                            <label for="col_monto">Columna de monto: la de CRÉDITOS (dinero que entró)</label>
-                            <select id="col_monto" name="col_monto" required>
+                            <label for="col_credito">Columna de CRÉDITOS (dinero que entró)</label>
+                            <select id="col_credito" name="col_credito">
+                                <option value="">-- Ninguna --</option>
                                 <?php for ($c = 0; $c < $totalColumnas; $c++): ?>
-                                    <option value="<?= $c ?>" <?= ($preset['colMonto'] ?? null) === $c ? 'selected' : '' ?>>Columna <?= self::columnaLetra($c) ?></option>
+                                    <option value="<?= $c ?>" <?= ($preset['colCredito'] ?? null) === $c ? 'selected' : '' ?>>Columna <?= self::columnaLetra($c) ?></option>
+                                <?php endfor; ?>
+                            </select>
+                        </div>
+                        <div class="campo">
+                            <label for="col_debito">Columna de DÉBITOS (dinero que salió)</label>
+                            <select id="col_debito" name="col_debito">
+                                <option value="">-- Ninguna --</option>
+                                <?php for ($c = 0; $c < $totalColumnas; $c++): ?>
+                                    <option value="<?= $c ?>" <?= ($preset['colDebito'] ?? null) === $c ? 'selected' : '' ?>>Columna <?= self::columnaLetra($c) ?></option>
+                                <?php endfor; ?>
+                            </select>
+                        </div>
+                        <div class="campo">
+                            <label for="col_saldo">Columna de saldo (opcional)</label>
+                            <select id="col_saldo" name="col_saldo">
+                                <option value="">-- Ninguna --</option>
+                                <?php for ($c = 0; $c < $totalColumnas; $c++): ?>
+                                    <option value="<?= $c ?>" <?= ($preset['colSaldo'] ?? null) === $c ? 'selected' : '' ?>>Columna <?= self::columnaLetra($c) ?></option>
                                 <?php endfor; ?>
                             </select>
                         </div>
@@ -749,7 +776,7 @@ class ConciliacionView {
     // Navegador libre de todo lo importado: responde "¿esta transferencia
     // ya está en el sistema?" sin depender de preguntarle a alguien que
     // revise la base de datos a mano.
-    public static function mostrarMovimientos(array $movimientos, string $desde, string $hasta, ?string $cuenta, string $texto): void {
+    public static function mostrarMovimientos(array $movimientos, string $desde, string $hasta, ?string $cuenta, string $texto, ?string $tipo = null): void {
         ?>
         <!DOCTYPE html>
         <html lang="es">
@@ -790,6 +817,14 @@ class ConciliacionView {
                             <label for="texto">Buscar en referencia/descripción</label>
                             <input type="text" id="texto" name="texto" value="<?= htmlspecialchars($texto) ?>" style="margin-bottom:0;" placeholder="ej. 1831133185 o ACH">
                         </div>
+                        <div class="campo" style="max-width:160px;">
+                            <label for="tipo">Tipo</label>
+                            <select id="tipo" name="tipo" style="margin-bottom:0;">
+                                <option value="">-- Todos --</option>
+                                <option value="credito" <?= $tipo === 'credito' ? 'selected' : '' ?>>Solo créditos</option>
+                                <option value="debito" <?= $tipo === 'debito' ? 'selected' : '' ?>>Solo débitos</option>
+                            </select>
+                        </div>
                         <div class="campo" style="flex:0 0 auto;">
                             <button type="submit">Buscar</button>
                         </div>
@@ -799,6 +834,10 @@ class ConciliacionView {
 
             <div class="card">
                 <h2>Resultados (<?= count($movimientos) ?><?= count($movimientos) === 300 ? '+, mostrando los primeros 300' : '' ?>)</h2>
+                <p style="font-size:12px;color:var(--sin-datos);margin-top:-6px;margin-bottom:14px;">
+                    Consulta general del estado de cuenta importado — créditos y débitos juntos. "Estado" solo aplica a
+                    créditos (si ya se explicó contra un recibo); un débito es un gasto, no algo por conciliar.
+                </p>
                 <?php if (empty($movimientos)): ?>
                     <p class="sin-datos">No hay movimientos con esos filtros. Si buscas una referencia específica y no aparece, esa línea aún no se ha importado al sistema.</p>
                 <?php else: ?>
@@ -808,7 +847,9 @@ class ConciliacionView {
                             <tr>
                                 <th>Banco</th>
                                 <th>Fecha</th>
+                                <th>Tipo</th>
                                 <th>Monto</th>
+                                <th>Saldo</th>
                                 <th>Referencia</th>
                                 <th>Descripción</th>
                                 <th>Estado</th>
@@ -817,15 +858,20 @@ class ConciliacionView {
                         </thead>
                         <tbody>
                             <?php foreach ($movimientos as $m): ?>
-                                <?php $explicadaComoDeposito = !$m['recibo_numero'] && !$m['recibos_manuales'] && $m['deposito_propio']; ?>
-                                <tr class="<?= $explicadaComoDeposito ? 'fila-propio' : ((int)$m['conciliado'] === 1 ? 'fila-ok' : ((int)$m['recibo_numero'] || $m['recibos_manuales'] ? 'fila-falta' : '')) ?>">
+                                <?php $esDebito = $m['tipo'] === 'debito'; ?>
+                                <?php $explicadaComoDeposito = !$esDebito && !$m['recibo_numero'] && !$m['recibos_manuales'] && $m['deposito_propio']; ?>
+                                <tr class="<?= $esDebito ? '' : ($explicadaComoDeposito ? 'fila-propio' : ((int)$m['conciliado'] === 1 ? 'fila-ok' : ((int)$m['recibo_numero'] || $m['recibos_manuales'] ? 'fila-falta' : ''))) ?>">
                                     <td><?= htmlspecialchars(DepositosModel::bancoDeCuenta($m['cuenta']) ?? $m['cuenta']) ?></td>
                                     <td><?= date('d/m/Y', strtotime($m['fecha'])) ?></td>
+                                    <td><?= $esDebito ? '🔴 Débito' : '🟢 Crédito' ?></td>
                                     <td class="num">Q <?= number_format((float)$m['monto'], 2) ?></td>
+                                    <td class="num"><?= $m['saldo'] !== null ? 'Q ' . number_format((float)$m['saldo'], 2) : '<span style="color:var(--sin-datos);">—</span>' ?></td>
                                     <td><?= $m['referencia'] ? htmlspecialchars($m['referencia']) : '<span style="color:var(--sin-datos);">—</span>' ?></td>
                                     <td><?= $m['descripcion'] ? htmlspecialchars($m['descripcion']) : '<span style="color:var(--sin-datos);">—</span>' ?></td>
                                     <td>
-                                        <?php if ((int)$m['conciliado'] === 1): ?>
+                                        <?php if ($esDebito): ?>
+                                            <span style="color:var(--sin-datos);">— gasto —</span>
+                                        <?php elseif ((int)$m['conciliado'] === 1): ?>
                                             <span class="pill ok">✓ Marcada</span>
                                         <?php elseif ($m['recibos_manuales']): ?>
                                             <span class="pill falta">⟳ Parcial</span>
@@ -1117,6 +1163,168 @@ class ConciliacionView {
                     el.addEventListener('blur', ocultarTooltip);
                 });
             </script>
+            <?php Tema::script(); ?>
+        </body>
+        </html>
+        <?php
+    }
+
+    private static array $meses = [
+        1 => 'Enero', 2 => 'Febrero', 3 => 'Marzo', 4 => 'Abril', 5 => 'Mayo', 6 => 'Junio',
+        7 => 'Julio', 8 => 'Agosto', 9 => 'Septiembre', 10 => 'Octubre', 11 => 'Noviembre', 12 => 'Diciembre',
+    ];
+
+    private static function selectorAnio(string $action, int $anio): void {
+        ?>
+        <form method="GET" action="conciliacion.php" style="margin-bottom:16px;">
+            <input type="hidden" name="action" value="<?= htmlspecialchars($action) ?>">
+            <div class="fila" style="align-items:flex-end;">
+                <div class="campo" style="max-width:140px;">
+                    <label for="anio">Año</label>
+                    <select id="anio" name="anio" onchange="this.form.submit()" style="margin-bottom:0;">
+                        <?php for ($a = (int)date('Y'); $a >= 2020; $a--): ?>
+                            <option value="<?= $a ?>" <?= $a === $anio ? 'selected' : '' ?>><?= $a ?></option>
+                        <?php endfor; ?>
+                    </select>
+                </div>
+            </div>
+        </form>
+        <?php
+    }
+
+    // $porBanco: [cuenta => ['banco'=>string, 'sistema'=>[mes=>total], 'estadoCuenta'=>[mes=>['credito'=>x,'debito'=>y]]]]
+    // (ver ConciliacionController::comparativo).
+    public static function mostrarComparativo(array $porBanco, int $anio): void {
+        ?>
+        <!DOCTYPE html>
+        <html lang="es">
+        <head>
+            <meta charset="UTF-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1">
+            <title>Comparativo Mensual — CETECPRO</title>
+            <?php Tema::scriptInicial(); ?>
+            <?php self::estilos(); ?>
+        </head>
+        <body>
+            <?php self::barra(); ?>
+            <h1>Comparativo Mensual</h1>
+
+            <div class="card">
+                <a href="conciliacion.php" style="font-size:13px;color:var(--acento);font-weight:bold;">← Volver a Conciliación</a>
+                <p style="font-size:12.5px;color:var(--texto-muted,var(--sin-datos));margin:12px 0 0;">
+                    Depósitos registrados en el sistema (mismo dato que "Totales por mes" de Cierre del Año) vs. créditos
+                    del estado de cuenta ya importado para esa cuenta. Una diferencia pequeña es normal — el banco puede
+                    acreditar 1-2 días después de que se registró el recibo; una diferencia grande probablemente significa
+                    que falta importar el estado de cuenta de ese mes, o que hay recibos sin conciliar todavía.
+                </p>
+                <?php self::selectorAnio('comparativo', $anio); ?>
+            </div>
+
+            <?php foreach ($porBanco as $cuenta => $datos): ?>
+                <?php
+                    $totalSistema = array_sum($datos['sistema']);
+                    $totalBanco = 0.0;
+                    foreach ($datos['estadoCuenta'] as $m) { $totalBanco += $m['credito']; }
+                ?>
+                <div class="card">
+                    <h2><?= htmlspecialchars($datos['banco']) ?> <span style="font-size:12px;color:var(--sin-datos);font-weight:normal;">(cuenta <?= htmlspecialchars($cuenta) ?>)</span></h2>
+                    <div class="tabla-scroll">
+                    <table>
+                        <thead>
+                            <tr><th>Mes</th><th>Depósitos del sistema</th><th>Créditos del banco</th><th>Diferencia</th></tr>
+                        </thead>
+                        <tbody>
+                            <?php for ($m = 1; $m <= 12; $m++): ?>
+                                <?php
+                                    $sistema = (float)$datos['sistema'][$m];
+                                    $banco = (float)$datos['estadoCuenta'][$m]['credito'];
+                                    $diferencia = $banco - $sistema;
+                                ?>
+                                <tr>
+                                    <td><?= self::$meses[$m] ?></td>
+                                    <td class="num">Q <?= number_format($sistema, 2) ?></td>
+                                    <td class="num">Q <?= number_format($banco, 2) ?></td>
+                                    <td class="num" style="<?= abs($diferencia) > 0.01 ? 'color:var(--estado-falta-texto);font-weight:bold;' : 'color:var(--sin-datos);' ?>">
+                                        <?= abs($diferencia) > 0.01 ? ($diferencia > 0 ? '+' : '') . 'Q ' . number_format($diferencia, 2) : '✓ cuadra' ?>
+                                    </td>
+                                </tr>
+                            <?php endfor; ?>
+                        </tbody>
+                        <tfoot>
+                            <tr style="font-weight:bold;">
+                                <td>Total <?= $anio ?></td>
+                                <td class="num">Q <?= number_format($totalSistema, 2) ?></td>
+                                <td class="num">Q <?= number_format($totalBanco, 2) ?></td>
+                                <td class="num">Q <?= number_format($totalBanco - $totalSistema, 2) ?></td>
+                            </tr>
+                        </tfoot>
+                    </table>
+                    </div>
+                </div>
+            <?php endforeach; ?>
+            <?php Tema::script(); ?>
+        </body>
+        </html>
+        <?php
+    }
+
+    // $porBanco: [cuenta => ['banco'=>string, 'totales'=>[mes=>['credito'=>x,'debito'=>y]]]] (ver
+    // ConciliacionController::gastos). Solo informativo — no hay nada en el sistema contra qué comparar un gasto.
+    public static function mostrarGastos(array $porBanco, int $anio): void {
+        ?>
+        <!DOCTYPE html>
+        <html lang="es">
+        <head>
+            <meta charset="UTF-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1">
+            <title>Gastos — CETECPRO</title>
+            <?php Tema::scriptInicial(); ?>
+            <?php self::estilos(); ?>
+        </head>
+        <body>
+            <?php self::barra(); ?>
+            <h1>Gastos</h1>
+
+            <div class="card">
+                <a href="conciliacion.php" style="font-size:13px;color:var(--acento);font-weight:bold;">← Volver a Conciliación</a>
+                <p style="font-size:12.5px;color:var(--texto-muted,var(--sin-datos));margin:12px 0 0;">
+                    Débitos (dinero que salió) del estado de cuenta ya importado — solo informativo, el sistema no lleva
+                    registro de egresos aparte del banco. Para ver el detalle línea por línea de un mes, usa
+                    "Movimientos del banco" filtrando por tipo "Solo débitos".
+                </p>
+                <?php self::selectorAnio('gastos', $anio); ?>
+            </div>
+
+            <?php foreach ($porBanco as $cuenta => $datos): ?>
+                <?php $totalAnual = 0.0; foreach ($datos['totales'] as $m) { $totalAnual += $m['debito']; } ?>
+                <div class="card">
+                    <h2><?= htmlspecialchars($datos['banco']) ?> <span style="font-size:12px;color:var(--sin-datos);font-weight:normal;">(cuenta <?= htmlspecialchars($cuenta) ?>)</span></h2>
+                    <div class="tabla-scroll">
+                    <table>
+                        <thead>
+                            <tr><th>Mes</th><th>Débitos (gasto)</th></tr>
+                        </thead>
+                        <tbody>
+                            <?php for ($m = 1; $m <= 12; $m++): ?>
+                                <tr>
+                                    <td><?= self::$meses[$m] ?></td>
+                                    <td class="num">Q <?= number_format((float)$datos['totales'][$m]['debito'], 2) ?></td>
+                                </tr>
+                            <?php endfor; ?>
+                        </tbody>
+                        <tfoot>
+                            <tr style="font-weight:bold;">
+                                <td>Total <?= $anio ?></td>
+                                <td class="num">Q <?= number_format($totalAnual, 2) ?></td>
+                            </tr>
+                        </tfoot>
+                    </table>
+                    </div>
+                    <p style="margin-top:10px;">
+                        <a href="conciliacion.php?action=movimientos&amp;cuenta=<?= urlencode($cuenta) ?>&amp;tipo=debito&amp;desde=<?= $anio ?>-01-01&amp;hasta=<?= $anio ?>-12-31" style="font-size:13px;color:var(--acento);font-weight:bold;">Ver detalle de débitos de <?= htmlspecialchars($datos['banco']) ?> →</a>
+                    </p>
+                </div>
+            <?php endforeach; ?>
             <?php Tema::script(); ?>
         </body>
         </html>
