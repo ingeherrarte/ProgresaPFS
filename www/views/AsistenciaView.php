@@ -148,12 +148,13 @@ class AsistenciaView {
                             <div class="tabla-scroll">
                             <table>
                                 <thead>
-                                    <tr><th>Carné</th><th>Nombre</th><th>Asistencia</th></tr>
+                                    <tr><th>#</th><th>Carné</th><th>Nombre</th><th>Asistencia</th></tr>
                                 </thead>
                                 <tbody>
-                                    <?php foreach ($miembros as $m): ?>
+                                    <?php foreach ($miembros as $i => $m): ?>
                                         <?php $estado = $m['estado'] ?? 'presente'; ?>
                                         <tr class="<?= $estado === 'ausente' ? 'fila-ausente' : '' ?>">
+                                            <td><?= $i + 1 ?></td>
                                             <td><?= (int)$m['idestudiante'] ?></td>
                                             <td><?= htmlspecialchars($m['nombre'] . ' ' . $m['apellidos']) ?></td>
                                             <td>
