@@ -112,10 +112,6 @@ class InicioView {
                 <div class="icono">🔗</div>
                 <div class="titulo">Conciliación de Transferencias</div>
             </a>
-            <a class="acceso" href="grupos.php">
-                <div class="icono">👥</div>
-                <div class="titulo">Grupos</div>
-            </a>
             <a class="acceso" href="asistencia.php">
                 <div class="icono">📋</div>
                 <div class="titulo">Asistencia</div>
@@ -180,7 +176,6 @@ class InicioView {
         ['icono' => '📊', 'titulo' => 'Cierre de Año', 'href' => 'cierres.php?tipo=anio'],
         ['icono' => '🏦', 'titulo' => 'Depósitos', 'href' => 'depositos.php'],
         ['icono' => '🔗', 'titulo' => 'Conciliación de Transferencias', 'href' => 'conciliacion.php'],
-        ['icono' => '👥', 'titulo' => 'Grupos', 'href' => 'grupos.php'],
         ['icono' => '📋', 'titulo' => 'Asistencia', 'href' => 'asistencia.php'],
         ['icono' => '📝', 'titulo' => 'Notas', 'href' => 'notas.php'],
         ['icono' => '⚙️', 'titulo' => 'Administración', 'href' => 'admin.php'],
