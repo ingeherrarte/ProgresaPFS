@@ -167,11 +167,12 @@ class NotasView {
                             <div class="tabla-scroll">
                             <table>
                                 <thead>
-                                    <tr><th>Carné</th><th>Nombre</th><th>Nota (0-100)</th></tr>
+                                    <tr><th>#</th><th>Carné</th><th>Nombre</th><th>Nota (0-100)</th></tr>
                                 </thead>
                                 <tbody>
-                                    <?php foreach ($miembros as $m): ?>
+                                    <?php foreach ($miembros as $i => $m): ?>
                                         <tr>
+                                            <td><?= $i + 1 ?></td>
                                             <td><?= (int)$m['idestudiante'] ?></td>
                                             <td><?= htmlspecialchars($m['nombre'] . ' ' . $m['apellidos']) ?></td>
                                             <td>
