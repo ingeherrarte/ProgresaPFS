@@ -93,6 +93,8 @@ class ConsultaPagosView {
                 border-radius: 6px; padding: 16px 20px;
             }
             .info-grid .dato b { display: block; color: var(--texto-muted); font-size: 11px; text-transform: uppercase; }
+            .pill-estado { display: inline-block; padding: 3px 10px; border-radius: 999px; font-size: 11px; font-weight: bold; white-space: nowrap; }
+            .tabla-scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; }
         </style>
         <?php
     }
@@ -137,6 +139,9 @@ class ConsultaPagosView {
                         </div>
                     </div>
                 </form>
+                <p style="margin-top:14px;">
+                    <a href="consulta_pagos.php?action=reportes" style="font-size:13px;color:var(--acento);font-weight:bold;">📊 Reportes por diplomado (al día/mora, graduación, libro) →</a>
+                </p>
             </div>
 
             <div class="card" id="resultadosWrap" style="<?= $termino === '' ? 'display:none' : '' ?>">
@@ -261,6 +266,195 @@ class ConsultaPagosView {
                     temporizadorBusqueda = setTimeout(() => buscarEnVivo(termino), 300);
                 });
             </script>
+            <?php Tema::script(); ?>
+        </body>
+        </html>
+        <?php
+    }
+
+    private static function pillEstado(string $estado): string {
+        return match ($estado) {
+            'al_dia' => '<span class="pill-estado" style="background:#e8f5e9;color:#2e7d32;">Al día</span>',
+            'debe_1_mes' => '<span class="pill-estado" style="background:#fff8e1;color:#f57f17;">Debe 1 mes</span>',
+            'debe_2_3_meses' => '<span class="pill-estado" style="background:#ffe0b2;color:#e65100;">Debe 2-3 meses</span>',
+            'mora_mayor' => '<span class="pill-estado" style="background:#ffebee;color:#b71c1c;">Mora (4+ meses)</span>',
+            default => '<span class="pill-estado" style="background:var(--fila-alterna);color:var(--texto-muted);">Sin pagos registrados</span>',
+        };
+    }
+
+    // $estadoPagos: ['al_dia'=>[], 'debe_1_mes'=>[], 'debe_2_3_meses'=>[], 'mora_mayor'=>[], 'sin_pagos'=>[]]
+    // (ver ConsultaPagosModel::estadoPagosPorDiplomado). Una sola tabla,
+    // peor caso primero — es para dar seguimiento, lo urgente arriba.
+    private static function tablaEstadoPagos(array $estadoPagos): void {
+        $orden = ['sin_pagos', 'mora_mayor', 'debe_2_3_meses', 'debe_1_mes', 'al_dia'];
+        ?>
+        <div class="tarjetas" style="grid-template-columns:repeat(auto-fit,minmax(130px,1fr));">
+            <?php foreach ($orden as $clave): ?>
+                <div class="tarjeta">
+                    <div class="etiqueta"><?= self::pillEstado($clave) ?></div>
+                    <div class="valor"><?= count($estadoPagos[$clave]) ?></div>
+                </div>
+            <?php endforeach; ?>
+        </div>
+        <div class="tabla-scroll">
+        <table>
+            <thead><tr><th>Carné</th><th>Nombre</th><th>Plan</th><th>Jornada</th><th>Último pago</th><th>Estado</th></tr></thead>
+            <tbody>
+                <?php foreach ($orden as $clave): ?>
+                    <?php foreach ($estadoPagos[$clave] as $f): ?>
+                        <tr>
+                            <td><?= (int)$f['idestudiante'] ?></td>
+                            <td><?= htmlspecialchars($f['nombre'] . ' ' . $f['apellidos']) ?></td>
+                            <td><?= htmlspecialchars(EstudiantesPfsModel::nombrePlan((int)$f['plan'])) ?></td>
+                            <td><?= htmlspecialchars(EstudiantesPfsModel::nombreJornada((int)$f['jornada'])) ?></td>
+                            <td><?= $f['ultimo_pago'] ? date('d/m/Y', strtotime($f['ultimo_pago'])) : '—' ?></td>
+                            <td><?= self::pillEstado($clave) ?></td>
+                        </tr>
+                    <?php endforeach; ?>
+                <?php endforeach; ?>
+            </tbody>
+        </table>
+        </div>
+        <?php
+    }
+
+    // $datosConcepto: ['conPago'=>[], 'sinPago'=>[]] (ver
+    // ConsultaPagosModel::conceptoPorDiplomado).
+    private static function tablaConcepto(string $titulo, string $campoFormPatron, string $patron, array $datosConcepto, int $codcurso, ?int $plan, ?int $jornada): void {
+        ?>
+        <div class="card">
+            <h2 style="font-size:16px;color:var(--acento);margin-bottom:10px;"><?= htmlspecialchars($titulo) ?></h2>
+            <p style="font-size:12px;color:var(--texto-muted);margin-bottom:12px;">
+                Aproximado: se basa en buscar la palabra clave dentro del texto del recibo (<code>detalle</code>), no hay un campo
+                dedicado para esto todavía. Revisa el monto y el texto para juzgar si es un abono o el pago completo.
+            </p>
+            <form method="GET" action="consulta_pagos.php" style="margin-bottom:16px;">
+                <input type="hidden" name="action" value="reportes">
+                <input type="hidden" name="codcurso" value="<?= (int)$codcurso ?>">
+                <?php if ($plan !== null): ?><input type="hidden" name="plan" value="<?= (int)$plan ?>"><?php endif; ?>
+                <?php if ($jornada !== null): ?><input type="hidden" name="jornada" value="<?= (int)$jornada ?>"><?php endif; ?>
+                <div class="fila">
+                    <div class="campo">
+                        <label for="<?= $campoFormPatron ?>">Palabra clave a buscar en el detalle del recibo</label>
+                        <input type="text" id="<?= $campoFormPatron ?>" name="<?= $campoFormPatron ?>" value="<?= htmlspecialchars($patron) ?>">
+                    </div>
+                    <div><button type="submit">Buscar</button></div>
+                </div>
+            </form>
+
+            <h3 style="font-size:13px;margin-bottom:8px;">Con registro de pago (<?= count($datosConcepto['conPago']) ?>)</h3>
+            <?php if (empty($datosConcepto['conPago'])): ?>
+                <p class="sin-resultados">Ningún recibo coincide con "<?= htmlspecialchars($patron) ?>" en este diplomado.</p>
+            <?php else: ?>
+                <div class="tabla-scroll">
+                <table>
+                    <thead><tr><th>Carné</th><th>Nombre</th><th>Monto detectado</th><th>Último recibo</th><th>Detalle del recibo</th></tr></thead>
+                    <tbody>
+                        <?php foreach ($datosConcepto['conPago'] as $f): ?>
+                            <tr>
+                                <td><?= (int)$f['idestudiante'] ?></td>
+                                <td><?= htmlspecialchars($f['nombre'] . ' ' . $f['apellidos']) ?></td>
+                                <td class="money">Q <?= number_format((float)$f['monto_detectado'], 2) ?></td>
+                                <td><?= $f['ultima_fecha'] ? date('d/m/Y', strtotime($f['ultima_fecha'])) : '—' ?></td>
+                                <td style="font-size:12px;"><?= htmlspecialchars($f['detalles']) ?></td>
+                            </tr>
+                        <?php endforeach; ?>
+                    </tbody>
+                </table>
+                </div>
+            <?php endif; ?>
+
+            <h3 style="font-size:13px;margin:16px 0 8px;">Sin registro (<?= count($datosConcepto['sinPago']) ?>)</h3>
+            <?php if (empty($datosConcepto['sinPago'])): ?>
+                <p class="sin-resultados">Todos tienen algún registro que coincide.</p>
+            <?php else: ?>
+                <div class="tabla-scroll">
+                <table>
+                    <thead><tr><th>Carné</th><th>Nombre</th><th>Plan</th><th>Jornada</th></tr></thead>
+                    <tbody>
+                        <?php foreach ($datosConcepto['sinPago'] as $f): ?>
+                            <tr>
+                                <td><?= (int)$f['idestudiante'] ?></td>
+                                <td><?= htmlspecialchars($f['nombre'] . ' ' . $f['apellidos']) ?></td>
+                                <td><?= htmlspecialchars(EstudiantesPfsModel::nombrePlan((int)$f['plan'])) ?></td>
+                                <td><?= htmlspecialchars(EstudiantesPfsModel::nombreJornada((int)$f['jornada'])) ?></td>
+                            </tr>
+                        <?php endforeach; ?>
+                    </tbody>
+                </table>
+                </div>
+            <?php endif; ?>
+        </div>
+        <?php
+    }
+
+    public static function mostrarReportes(array $cursos, int $codcurso, ?int $plan, ?int $jornada, string $patronGraduacion, string $patronLibro, ?array $datos): void {
+        ?>
+        <!DOCTYPE html>
+        <html lang="es">
+        <head>
+            <meta charset="UTF-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1">
+            <title>Reportes por Diplomado — CETECPRO</title>
+            <?php Tema::scriptInicial(); ?>
+            <?php self::estilos(); ?>
+        </head>
+        <body>
+            <?php self::barra(); ?>
+            <h1>Reportes por Diplomado</h1>
+
+            <div class="card">
+                <a href="consulta_pagos.php" style="font-size:13px;color:var(--acento);font-weight:bold;">← Volver a Consulta de Pagos</a>
+                <form method="GET" action="consulta_pagos.php" style="margin-top:14px;">
+                    <input type="hidden" name="action" value="reportes">
+                    <div class="fila">
+                        <div class="campo">
+                            <label for="codcurso">Diplomado</label>
+                            <select id="codcurso" name="codcurso" required>
+                                <option value="">-- Seleccione --</option>
+                                <?php foreach ($cursos as $id => $nombre): ?>
+                                    <option value="<?= (int)$id ?>" <?= $codcurso === (int)$id ? 'selected' : '' ?>><?= htmlspecialchars($nombre) ?></option>
+                                <?php endforeach; ?>
+                            </select>
+                        </div>
+                        <div class="campo">
+                            <label for="plan">Plan (día)</label>
+                            <select id="plan" name="plan">
+                                <option value="">-- Todos --</option>
+                                <?php foreach (EstudiantesPfsModel::planes() as $id => $nombre): ?>
+                                    <option value="<?= (int)$id ?>" <?= $plan === (int)$id ? 'selected' : '' ?>><?= htmlspecialchars($nombre) ?></option>
+                                <?php endforeach; ?>
+                            </select>
+                        </div>
+                        <div class="campo">
+                            <label for="jornada">Jornada</label>
+                            <select id="jornada" name="jornada">
+                                <option value="">-- Todas --</option>
+                                <?php foreach (EstudiantesPfsModel::jornadas() as $id => $nombre): ?>
+                                    <option value="<?= (int)$id ?>" <?= $jornada === (int)$id ? 'selected' : '' ?>><?= htmlspecialchars($nombre) ?></option>
+                                <?php endforeach; ?>
+                            </select>
+                        </div>
+                        <input type="hidden" name="patron_graduacion" value="<?= htmlspecialchars($patronGraduacion) ?>">
+                        <input type="hidden" name="patron_libro" value="<?= htmlspecialchars($patronLibro) ?>">
+                        <div><button type="submit">Ver reportes</button></div>
+                    </div>
+                </form>
+            </div>
+
+            <?php if ($datos === null): ?>
+                <div class="card">
+                    <p class="sin-resultados">Selecciona un diplomado para ver los reportes.</p>
+                </div>
+            <?php else: ?>
+                <div class="card">
+                    <h2 style="font-size:16px;color:var(--acento);margin-bottom:10px;">1. Estado de pagos</h2>
+                    <?php self::tablaEstadoPagos($datos['estadoPagos']); ?>
+                </div>
+
+                <?php self::tablaConcepto('2. Acto de Graduación', 'patron_graduacion', $patronGraduacion, $datos['graduacion'], $codcurso, $plan, $jornada); ?>
+                <?php self::tablaConcepto('3. Libro', 'patron_libro', $patronLibro, $datos['libro'], $codcurso, $plan, $jornada); ?>
+            <?php endif; ?>
             <?php Tema::script(); ?>
         </body>
         </html>

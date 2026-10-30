@@ -1,5 +1,6 @@
 <?php
 require_once "models/ConsultaPagosModel.php";
+require_once "models/EstudiantesPfsModel.php";
 require_once "views/ConsultaPagosView.php";
 require_once __DIR__ . "/../helpers/Auth.php";
 require_once __DIR__ . "/../config/Conexion.php";
@@ -20,6 +21,11 @@ class ConsultaPagosController {
             case 'detalle':
                 Auth::requerirSesion();
                 $this->detalle();
+                break;
+
+            case 'reportes':
+                Auth::requerirSesion();
+                $this->reportes();
                 break;
 
             case 'buscar':
@@ -87,6 +93,31 @@ class ConsultaPagosController {
 
         $pagos = ConsultaPagosModel::historialPagos($db, $carnet);
         ConsultaPagosView::mostrarDetalle($estudiante, $pagos);
+    }
+
+    // Estado de pagos, Acto de Graduación y Libro, por diplomado (y
+    // opcionalmente plan/jornada) — no por grupo, porque Grupos todavía no
+    // existe para la mayoría de estudiantes (ver GruposModel).
+    private function reportes() {
+        $db = Conexion::conectar();
+        $cursos = EstudiantesPfsModel::obtenerCursos($db);
+
+        $codcurso = (int)($_GET['codcurso'] ?? 0);
+        $plan = ($_GET['plan'] ?? '') !== '' ? (int)$_GET['plan'] : null;
+        $jornada = ($_GET['jornada'] ?? '') !== '' ? (int)$_GET['jornada'] : null;
+        $patronGraduacion = trim($_GET['patron_graduacion'] ?? '') ?: 'GRADUA';
+        $patronLibro = trim($_GET['patron_libro'] ?? '') ?: 'LIBRO';
+
+        $datos = null;
+        if (array_key_exists($codcurso, $cursos)) {
+            $datos = [
+                'estadoPagos' => ConsultaPagosModel::estadoPagosPorDiplomado($db, $codcurso, $plan, $jornada),
+                'graduacion' => ConsultaPagosModel::conceptoPorDiplomado($db, $codcurso, $plan, $jornada, $patronGraduacion),
+                'libro' => ConsultaPagosModel::conceptoPorDiplomado($db, $codcurso, $plan, $jornada, $patronLibro),
+            ];
+        }
+
+        ConsultaPagosView::mostrarReportes($cursos, $codcurso, $plan, $jornada, $patronGraduacion, $patronLibro, $datos);
     }
 }
 ?>
