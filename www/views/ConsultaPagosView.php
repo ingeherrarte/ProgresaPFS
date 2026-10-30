@@ -396,12 +396,12 @@ class ConsultaPagosView {
                     <table id="tablaReporte">
                         <thead>
                             <tr>
-                                <th>Carné</th><th>Nombre</th><th>Diplomado</th><th>Plan</th><th>Jornada</th>
+                                <th>#</th><th>Carné</th><th>Nombre</th><th>Diplomado</th><th>Plan</th><th>Jornada</th>
                                 <th>Último pago</th><th>Estado</th><th>Graduación</th><th>Libro</th>
                             </tr>
                         </thead>
                         <tbody>
-                            <?php foreach ($filas as $f): ?>
+                            <?php foreach ($filas as $i => $f): ?>
                                 <?php
                                     $tieneGrad = $f['monto_graduacion'] !== null ? 'si' : 'no';
                                     $tieneLibro = $f['monto_libro'] !== null ? 'si' : 'no';
@@ -425,6 +425,7 @@ class ConsultaPagosView {
                                     data-monto-grad="<?= $tieneGrad === 'si' ? (float)$f['monto_graduacion'] : 0 ?>"
                                     data-libro="<?= $tieneLibro ?>"
                                     data-monto-libro="<?= $tieneLibro === 'si' ? (float)$f['monto_libro'] : 0 ?>">
+                                    <td><?= $i + 1 ?></td>
                                     <td><?= (int)$f['idestudiante'] ?></td>
                                     <td><?= htmlspecialchars($f['nombre'] . ' ' . $f['apellidos']) ?></td>
                                     <td><?= htmlspecialchars($f['nombrecurso'] ?? '—') ?></td>
