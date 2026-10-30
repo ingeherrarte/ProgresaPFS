@@ -95,29 +95,26 @@ class ConsultaPagosController {
         ConsultaPagosView::mostrarDetalle($estudiante, $pagos);
     }
 
-    // Estado de pagos, Acto de Graduación y Libro, por diplomado (y
-    // opcionalmente plan/jornada) — no por grupo, porque Grupos todavía no
-    // existe para la mayoría de estudiantes (ver GruposModel).
+    // Estado de pagos + Graduación + Libro en una sola tabla filtrable en
+    // el cliente (diplomado, jornada, nombre, graduación, libro), sin
+    // tener que elegir un diplomado primero.
+    //
+    // MESES_RECIENTES_QA acota el universo a "pagó en los últimos 3
+    // meses" — es temporal, solo para poder probar esto en QA mientras
+    // Grupos no existe todavía para la mayoría de estudiantes. Cuando sí
+    // exista, el universo debe venir de miembros de grupos (ver
+    // GruposModel::miembros) en vez de este filtro de pago reciente.
+    private const MESES_RECIENTES_QA = 3;
+
     private function reportes() {
         $db = Conexion::conectar();
         $cursos = EstudiantesPfsModel::obtenerCursos($db);
-
-        $codcurso = (int)($_GET['codcurso'] ?? 0);
-        $plan = ($_GET['plan'] ?? '') !== '' ? (int)$_GET['plan'] : null;
-        $jornada = ($_GET['jornada'] ?? '') !== '' ? (int)$_GET['jornada'] : null;
         $patronGraduacion = trim($_GET['patron_graduacion'] ?? '') ?: 'GRADUA';
         $patronLibro = trim($_GET['patron_libro'] ?? '') ?: 'LIBRO';
 
-        $datos = null;
-        if (array_key_exists($codcurso, $cursos)) {
-            $datos = [
-                'estadoPagos' => ConsultaPagosModel::estadoPagosPorDiplomado($db, $codcurso, $plan, $jornada),
-                'graduacion' => ConsultaPagosModel::conceptoPorDiplomado($db, $codcurso, $plan, $jornada, $patronGraduacion),
-                'libro' => ConsultaPagosModel::conceptoPorDiplomado($db, $codcurso, $plan, $jornada, $patronLibro),
-            ];
-        }
+        $filas = ConsultaPagosModel::reporteUnificado($db, self::MESES_RECIENTES_QA, $patronGraduacion, $patronLibro);
 
-        ConsultaPagosView::mostrarReportes($cursos, $codcurso, $plan, $jornada, $patronGraduacion, $patronLibro, $datos);
+        ConsultaPagosView::mostrarReportes($filas, $cursos, $patronGraduacion, $patronLibro, self::MESES_RECIENTES_QA);
     }
 }
 ?>

@@ -282,179 +282,179 @@ class ConsultaPagosView {
         };
     }
 
-    // $estadoPagos: ['al_dia'=>[], 'debe_1_mes'=>[], 'debe_2_3_meses'=>[], 'mora_mayor'=>[], 'sin_pagos'=>[]]
-    // (ver ConsultaPagosModel::estadoPagosPorDiplomado). Una sola tabla,
-    // peor caso primero — es para dar seguimiento, lo urgente arriba.
-    private static function tablaEstadoPagos(array $estadoPagos): void {
-        $orden = ['sin_pagos', 'mora_mayor', 'debe_2_3_meses', 'debe_1_mes', 'al_dia'];
-        ?>
-        <div class="tarjetas" style="grid-template-columns:repeat(auto-fit,minmax(130px,1fr));">
-            <?php foreach ($orden as $clave): ?>
-                <div class="tarjeta">
-                    <div class="etiqueta"><?= self::pillEstado($clave) ?></div>
-                    <div class="valor"><?= count($estadoPagos[$clave]) ?></div>
-                </div>
-            <?php endforeach; ?>
-        </div>
-        <div class="tabla-scroll">
-        <table>
-            <thead><tr><th>Carné</th><th>Nombre</th><th>Plan</th><th>Jornada</th><th>Último pago</th><th>Estado</th></tr></thead>
-            <tbody>
-                <?php foreach ($orden as $clave): ?>
-                    <?php foreach ($estadoPagos[$clave] as $f): ?>
-                        <tr>
-                            <td><?= (int)$f['idestudiante'] ?></td>
-                            <td><?= htmlspecialchars($f['nombre'] . ' ' . $f['apellidos']) ?></td>
-                            <td><?= htmlspecialchars(EstudiantesPfsModel::nombrePlan((int)$f['plan'])) ?></td>
-                            <td><?= htmlspecialchars(EstudiantesPfsModel::nombreJornada((int)$f['jornada'])) ?></td>
-                            <td><?= $f['ultimo_pago'] ? date('d/m/Y', strtotime($f['ultimo_pago'])) : '—' ?></td>
-                            <td><?= self::pillEstado($clave) ?></td>
-                        </tr>
-                    <?php endforeach; ?>
-                <?php endforeach; ?>
-            </tbody>
-        </table>
-        </div>
-        <?php
-    }
-
-    // $datosConcepto: ['conPago'=>[], 'sinPago'=>[]] (ver
-    // ConsultaPagosModel::conceptoPorDiplomado).
-    private static function tablaConcepto(string $titulo, string $campoFormPatron, string $patron, array $datosConcepto, int $codcurso, ?int $plan, ?int $jornada): void {
-        ?>
-        <div class="card">
-            <h2 style="font-size:16px;color:var(--acento);margin-bottom:10px;"><?= htmlspecialchars($titulo) ?></h2>
-            <p style="font-size:12px;color:var(--texto-muted);margin-bottom:12px;">
-                Aproximado: se basa en buscar la palabra clave dentro del texto del recibo (<code>detalle</code>), no hay un campo
-                dedicado para esto todavía. Revisa el monto y el texto para juzgar si es un abono o el pago completo.
-            </p>
-            <form method="GET" action="consulta_pagos.php" style="margin-bottom:16px;">
-                <input type="hidden" name="action" value="reportes">
-                <input type="hidden" name="codcurso" value="<?= (int)$codcurso ?>">
-                <?php if ($plan !== null): ?><input type="hidden" name="plan" value="<?= (int)$plan ?>"><?php endif; ?>
-                <?php if ($jornada !== null): ?><input type="hidden" name="jornada" value="<?= (int)$jornada ?>"><?php endif; ?>
-                <div class="fila">
-                    <div class="campo">
-                        <label for="<?= $campoFormPatron ?>">Palabra clave a buscar en el detalle del recibo</label>
-                        <input type="text" id="<?= $campoFormPatron ?>" name="<?= $campoFormPatron ?>" value="<?= htmlspecialchars($patron) ?>">
-                    </div>
-                    <div><button type="submit">Buscar</button></div>
-                </div>
-            </form>
-
-            <h3 style="font-size:13px;margin-bottom:8px;">Con registro de pago (<?= count($datosConcepto['conPago']) ?>)</h3>
-            <?php if (empty($datosConcepto['conPago'])): ?>
-                <p class="sin-resultados">Ningún recibo coincide con "<?= htmlspecialchars($patron) ?>" en este diplomado.</p>
-            <?php else: ?>
-                <div class="tabla-scroll">
-                <table>
-                    <thead><tr><th>Carné</th><th>Nombre</th><th>Monto detectado</th><th>Último recibo</th><th>Detalle del recibo</th></tr></thead>
-                    <tbody>
-                        <?php foreach ($datosConcepto['conPago'] as $f): ?>
-                            <tr>
-                                <td><?= (int)$f['idestudiante'] ?></td>
-                                <td><?= htmlspecialchars($f['nombre'] . ' ' . $f['apellidos']) ?></td>
-                                <td class="money">Q <?= number_format((float)$f['monto_detectado'], 2) ?></td>
-                                <td><?= $f['ultima_fecha'] ? date('d/m/Y', strtotime($f['ultima_fecha'])) : '—' ?></td>
-                                <td style="font-size:12px;"><?= htmlspecialchars($f['detalles']) ?></td>
-                            </tr>
-                        <?php endforeach; ?>
-                    </tbody>
-                </table>
-                </div>
-            <?php endif; ?>
-
-            <h3 style="font-size:13px;margin:16px 0 8px;">Sin registro (<?= count($datosConcepto['sinPago']) ?>)</h3>
-            <?php if (empty($datosConcepto['sinPago'])): ?>
-                <p class="sin-resultados">Todos tienen algún registro que coincide.</p>
-            <?php else: ?>
-                <div class="tabla-scroll">
-                <table>
-                    <thead><tr><th>Carné</th><th>Nombre</th><th>Plan</th><th>Jornada</th></tr></thead>
-                    <tbody>
-                        <?php foreach ($datosConcepto['sinPago'] as $f): ?>
-                            <tr>
-                                <td><?= (int)$f['idestudiante'] ?></td>
-                                <td><?= htmlspecialchars($f['nombre'] . ' ' . $f['apellidos']) ?></td>
-                                <td><?= htmlspecialchars(EstudiantesPfsModel::nombrePlan((int)$f['plan'])) ?></td>
-                                <td><?= htmlspecialchars(EstudiantesPfsModel::nombreJornada((int)$f['jornada'])) ?></td>
-                            </tr>
-                        <?php endforeach; ?>
-                    </tbody>
-                </table>
-                </div>
-            <?php endif; ?>
-        </div>
-        <?php
-    }
-
-    public static function mostrarReportes(array $cursos, int $codcurso, ?int $plan, ?int $jornada, string $patronGraduacion, string $patronLibro, ?array $datos): void {
+    // $filas: ver ConsultaPagosModel::reporteUnificado — una fila por
+    // estudiante con estado_pago, monto_graduacion/detalle_graduacion,
+    // monto_libro/detalle_libro ya resueltos. Todo el filtrado (texto,
+    // diplomado, jornada, graduación, libro) es en el cliente vía
+    // data-* por fila, igual patrón que GruposView::bloqueCandidatos —
+    // sin esto habría que recargar la página por cada combinación de
+    // filtros, y son solo un par de cientos de filas, no hace falta.
+    public static function mostrarReportes(array $filas, array $cursos, string $patronGraduacion, string $patronLibro, int $mesesRecientes): void {
         ?>
         <!DOCTYPE html>
         <html lang="es">
         <head>
             <meta charset="UTF-8">
             <meta name="viewport" content="width=device-width, initial-scale=1">
-            <title>Reportes por Diplomado — CETECPRO</title>
+            <title>Reportes — CETECPRO</title>
             <?php Tema::scriptInicial(); ?>
             <?php self::estilos(); ?>
+            <style>
+                .barra-filtros { display: flex; gap: 12px; flex-wrap: wrap; align-items: flex-end; margin-bottom: 14px; }
+                .barra-filtros .campo { flex: 1; min-width: 160px; }
+                .barra-filtros label { display: block; font-size: 11px; font-weight: bold; color: var(--texto-muted); margin-bottom: 3px; }
+                .conteo-visible { font-size: 12.5px; color: var(--texto-muted); margin-bottom: 10px; }
+            </style>
         </head>
         <body>
             <?php self::barra(); ?>
-            <h1>Reportes por Diplomado</h1>
+            <h1 style="max-width:1400px;margin-left:auto;margin-right:auto;">Reportes</h1>
 
-            <div class="card">
+            <div class="card" style="max-width:1400px;">
                 <a href="consulta_pagos.php" style="font-size:13px;color:var(--acento);font-weight:bold;">← Volver a Consulta de Pagos</a>
+                <p style="font-size:12.5px;color:var(--texto-muted);margin:10px 0 0;">
+                    ⚠️ Temporal mientras no existen Grupos para la mayoría de estudiantes: esta lista muestra solo a quien
+                    pagó en los últimos <?= $mesesRecientes ?> mes(es), <b>no</b> es el universo completo de inscritos
+                    (ver "<a href="consulta_pagos.php">Consulta de Pagos</a>" para buscar a alguien específico sin este
+                    filtro). Cuando se use Grupos para esto, esta lista saldrá de los miembros reales de cada grupo.
+                </p>
+                <p style="font-size:12.5px;color:var(--texto-muted);margin:8px 0 0;">
+                    Graduación y Libro son aproximados: buscan la palabra clave en el texto del recibo (no hay un campo
+                    dedicado todavía). Ajusta la palabra si hace falta — recarga la lista completa.
+                </p>
                 <form method="GET" action="consulta_pagos.php" style="margin-top:14px;">
                     <input type="hidden" name="action" value="reportes">
                     <div class="fila">
                         <div class="campo">
-                            <label for="codcurso">Diplomado</label>
-                            <select id="codcurso" name="codcurso" required>
-                                <option value="">-- Seleccione --</option>
-                                <?php foreach ($cursos as $id => $nombre): ?>
-                                    <option value="<?= (int)$id ?>" <?= $codcurso === (int)$id ? 'selected' : '' ?>><?= htmlspecialchars($nombre) ?></option>
-                                <?php endforeach; ?>
-                            </select>
+                            <label for="patron_graduacion">Palabra clave — Graduación</label>
+                            <input type="text" id="patron_graduacion" name="patron_graduacion" value="<?= htmlspecialchars($patronGraduacion) ?>">
                         </div>
                         <div class="campo">
-                            <label for="plan">Plan (día)</label>
-                            <select id="plan" name="plan">
-                                <option value="">-- Todos --</option>
-                                <?php foreach (EstudiantesPfsModel::planes() as $id => $nombre): ?>
-                                    <option value="<?= (int)$id ?>" <?= $plan === (int)$id ? 'selected' : '' ?>><?= htmlspecialchars($nombre) ?></option>
-                                <?php endforeach; ?>
-                            </select>
+                            <label for="patron_libro">Palabra clave — Libro</label>
+                            <input type="text" id="patron_libro" name="patron_libro" value="<?= htmlspecialchars($patronLibro) ?>">
                         </div>
-                        <div class="campo">
-                            <label for="jornada">Jornada</label>
-                            <select id="jornada" name="jornada">
-                                <option value="">-- Todas --</option>
-                                <?php foreach (EstudiantesPfsModel::jornadas() as $id => $nombre): ?>
-                                    <option value="<?= (int)$id ?>" <?= $jornada === (int)$id ? 'selected' : '' ?>><?= htmlspecialchars($nombre) ?></option>
-                                <?php endforeach; ?>
-                            </select>
-                        </div>
-                        <input type="hidden" name="patron_graduacion" value="<?= htmlspecialchars($patronGraduacion) ?>">
-                        <input type="hidden" name="patron_libro" value="<?= htmlspecialchars($patronLibro) ?>">
-                        <div><button type="submit">Ver reportes</button></div>
+                        <div><button type="submit">Recargar lista</button></div>
                     </div>
                 </form>
             </div>
 
-            <?php if ($datos === null): ?>
-                <div class="card">
-                    <p class="sin-resultados">Selecciona un diplomado para ver los reportes.</p>
+            <div class="card" style="max-width:1400px;">
+                <div class="barra-filtros">
+                    <div class="campo">
+                        <label for="fTexto">Nombre o carné</label>
+                        <input type="text" id="fTexto" placeholder="Escribe para filtrar..." autocomplete="off">
+                    </div>
+                    <div class="campo">
+                        <label for="fDiplomado">Diplomado</label>
+                        <select id="fDiplomado">
+                            <option value="">-- Todos --</option>
+                            <?php foreach ($cursos as $id => $nombre): ?>
+                                <option value="<?= (int)$id ?>"><?= htmlspecialchars($nombre) ?></option>
+                            <?php endforeach; ?>
+                        </select>
+                    </div>
+                    <div class="campo">
+                        <label for="fJornada">Jornada</label>
+                        <select id="fJornada">
+                            <option value="">-- Todas --</option>
+                            <?php foreach (EstudiantesPfsModel::jornadas() as $id => $nombre): ?>
+                                <option value="<?= (int)$id ?>"><?= htmlspecialchars($nombre) ?></option>
+                            <?php endforeach; ?>
+                        </select>
+                    </div>
+                    <div class="campo">
+                        <label for="fGrad">Graduación</label>
+                        <select id="fGrad">
+                            <option value="">-- Todos --</option>
+                            <option value="si">Con registro</option>
+                            <option value="no">Sin registro</option>
+                        </select>
+                    </div>
+                    <div class="campo">
+                        <label for="fLibro">Libro</label>
+                        <select id="fLibro">
+                            <option value="">-- Todos --</option>
+                            <option value="si">Con registro</option>
+                            <option value="no">Sin registro</option>
+                        </select>
+                    </div>
                 </div>
-            <?php else: ?>
-                <div class="card">
-                    <h2 style="font-size:16px;color:var(--acento);margin-bottom:10px;">1. Estado de pagos</h2>
-                    <?php self::tablaEstadoPagos($datos['estadoPagos']); ?>
-                </div>
+                <p class="conteo-visible"><span id="conteoVisible"><?= count($filas) ?></span> de <?= count($filas) ?> estudiante(s)</p>
 
-                <?php self::tablaConcepto('2. Acto de Graduación', 'patron_graduacion', $patronGraduacion, $datos['graduacion'], $codcurso, $plan, $jornada); ?>
-                <?php self::tablaConcepto('3. Libro', 'patron_libro', $patronLibro, $datos['libro'], $codcurso, $plan, $jornada); ?>
-            <?php endif; ?>
+                <?php if (empty($filas)): ?>
+                    <p class="sin-resultados">Nadie ha pagado en los últimos <?= $mesesRecientes ?> mes(es) todavía.</p>
+                <?php else: ?>
+                    <div class="tabla-scroll">
+                    <table id="tablaReporte">
+                        <thead>
+                            <tr>
+                                <th>Carné</th><th>Nombre</th><th>Diplomado</th><th>Plan</th><th>Jornada</th>
+                                <th>Último pago</th><th>Estado</th><th>Graduación</th><th>Libro</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <?php foreach ($filas as $f): ?>
+                                <?php
+                                    $buscar = mb_strtolower($f['idestudiante'] . ' ' . $f['nombre'] . ' ' . $f['apellidos'], 'UTF-8');
+                                    $tieneGrad = $f['monto_graduacion'] !== null ? 'si' : 'no';
+                                    $tieneLibro = $f['monto_libro'] !== null ? 'si' : 'no';
+                                ?>
+                                <tr class="fila-reporte"
+                                    data-buscar="<?= htmlspecialchars($buscar) ?>"
+                                    data-diplomado="<?= (int)$f['codcurso'] ?>"
+                                    data-jornada="<?= (int)$f['jornada'] ?>"
+                                    data-grad="<?= $tieneGrad ?>"
+                                    data-libro="<?= $tieneLibro ?>">
+                                    <td><?= (int)$f['idestudiante'] ?></td>
+                                    <td><?= htmlspecialchars($f['nombre'] . ' ' . $f['apellidos']) ?></td>
+                                    <td><?= htmlspecialchars($f['nombrecurso'] ?? '—') ?></td>
+                                    <td><?= htmlspecialchars(EstudiantesPfsModel::nombrePlan((int)$f['plan'])) ?></td>
+                                    <td><?= htmlspecialchars(EstudiantesPfsModel::nombreJornada((int)$f['jornada'])) ?></td>
+                                    <td><?= $f['ultimo_pago'] ? date('d/m/Y', strtotime($f['ultimo_pago'])) : '—' ?></td>
+                                    <td><?= self::pillEstado($f['estado_pago']) ?></td>
+                                    <td title="<?= htmlspecialchars((string)$f['detalle_graduacion']) ?>">
+                                        <?= $tieneGrad === 'si' ? 'Q ' . number_format((float)$f['monto_graduacion'], 2) : '<span style="color:var(--sin-datos);">—</span>' ?>
+                                    </td>
+                                    <td title="<?= htmlspecialchars((string)$f['detalle_libro']) ?>">
+                                        <?= $tieneLibro === 'si' ? 'Q ' . number_format((float)$f['monto_libro'], 2) : '<span style="color:var(--sin-datos);">—</span>' ?>
+                                    </td>
+                                </tr>
+                            <?php endforeach; ?>
+                        </tbody>
+                    </table>
+                    </div>
+                <?php endif; ?>
+            </div>
+
+            <script>
+                const fTexto = document.getElementById('fTexto');
+                const fDiplomado = document.getElementById('fDiplomado');
+                const fJornada = document.getElementById('fJornada');
+                const fGrad = document.getElementById('fGrad');
+                const fLibro = document.getElementById('fLibro');
+                const conteoVisible = document.getElementById('conteoVisible');
+                const filas = document.querySelectorAll('.fila-reporte');
+
+                function aplicarFiltros() {
+                    const texto = fTexto.value.trim().toLowerCase();
+                    let visibles = 0;
+                    filas.forEach(function (fila) {
+                        const coincide =
+                            (texto === '' || fila.dataset.buscar.includes(texto)) &&
+                            (fDiplomado.value === '' || fila.dataset.diplomado === fDiplomado.value) &&
+                            (fJornada.value === '' || fila.dataset.jornada === fJornada.value) &&
+                            (fGrad.value === '' || fila.dataset.grad === fGrad.value) &&
+                            (fLibro.value === '' || fila.dataset.libro === fLibro.value);
+                        fila.hidden = !coincide;
+                        if (coincide) visibles++;
+                    });
+                    if (conteoVisible) conteoVisible.textContent = visibles;
+                }
+
+                [fTexto, fDiplomado, fJornada, fGrad, fLibro].forEach(function (el) {
+                    if (el) el.addEventListener('input', aplicarFiltros);
+                });
+            </script>
             <?php Tema::script(); ?>
         </body>
         </html>
