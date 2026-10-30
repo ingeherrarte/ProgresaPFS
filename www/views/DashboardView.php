@@ -372,7 +372,7 @@ class DashboardView {
             $anchoBarra = $max > 0 ? max(2, ($fila['total'] / $max) * $anchoPlot) : 2;
 
             $path = self::pathExtremoRedondeado($margenIzq, round($yBarra, 1), round($anchoBarra, 1), $altoBarra, 4);
-            $titulo = $fila['concepto'] . ': ' . self::formatoQ($fila['total']) . ' (' . $fila['cantidad'] . ' recibo(s))';
+            $titulo = $fila['concepto'] . ': ' . self::formatoQ($fila['total']) . ' (' . $fila['estudiantes'] . ' estudiante(s), ' . $fila['cantidad'] . ' recibo(s))';
             $svg .= '<path d="' . $path . '" fill="' . self::SERIE_CONCEPTOS . '" class="viz-mark" tabindex="0" data-tooltip="' . htmlspecialchars($titulo) . '"><title>' . htmlspecialchars($titulo) . '</title></path>';
 
             $svg .= '<text x="' . ($margenIzq - 10) . '" y="' . round($y + $altoFila / 2 + 4, 1) . '" text-anchor="end" font-size="12" fill="' . self::TINTA_SECUNDARIA . '">' . htmlspecialchars($fila['concepto']) . '</text>';
@@ -500,11 +500,12 @@ class DashboardView {
                     <?= self::graficaIngresosPorConcepto($porConceptos) ?>
                     <button type="button" class="tabla-toggle" onclick="document.getElementById('tablaConceptos').hidden = !document.getElementById('tablaConceptos').hidden">Ver tabla de datos</button>
                     <table class="datos" id="tablaConceptos" hidden>
-                        <thead><tr><th>Concepto</th><th>Recibos</th><th>Total</th></tr></thead>
+                        <thead><tr><th>Concepto</th><th>Estudiantes</th><th>Recibos</th><th>Total</th></tr></thead>
                         <tbody>
                             <?php foreach ($porConceptos as $f): ?>
                                 <tr>
                                     <td><?= htmlspecialchars($f['concepto']) ?></td>
+                                    <td class="num"><?= (int)$f['estudiantes'] ?></td>
                                     <td class="num"><?= (int)$f['cantidad'] ?></td>
                                     <td class="num"><?= self::formatoQ($f['total']) ?></td>
                                 </tr>
