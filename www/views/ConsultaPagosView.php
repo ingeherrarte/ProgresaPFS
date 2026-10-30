@@ -272,14 +272,22 @@ class ConsultaPagosView {
         <?php
     }
 
+    // Semáforo: el color nunca va solo (accesibilidad — alguien con
+    // daltonismo no puede depender del punto), siempre con el texto al
+    // lado. Progresión verde→amarillo→rojo según qué tan atrasado está;
+    // "Sin pagos" es gris aparte porque no es lo mismo que mora (nunca ha
+    // pagado nada, no es que se haya atrasado).
     private static function pillEstado(string $estado): string {
-        return match ($estado) {
-            'al_dia' => '<span class="pill-estado" style="background:#e8f5e9;color:#2e7d32;">Al día</span>',
-            'debe_1_mes' => '<span class="pill-estado" style="background:#fff8e1;color:#f57f17;">Debe 1 mes</span>',
-            'debe_2_3_meses' => '<span class="pill-estado" style="background:#ffe0b2;color:#e65100;">Debe 2-3 meses</span>',
-            'mora_mayor' => '<span class="pill-estado" style="background:#ffebee;color:#b71c1c;">Mora (4+ meses)</span>',
-            default => '<span class="pill-estado" style="background:var(--fila-alterna);color:var(--texto-muted);">Sin pagos registrados</span>',
+        [$punto, $texto] = match ($estado) {
+            'al_dia' => ['#2e7d32', 'Al día'],
+            'debe_1_mes' => ['#f9a825', 'Debe 1 mes'],
+            'debe_2_3_meses' => ['#ef6c00', 'Debe 2-3 meses'],
+            'mora_mayor' => ['#c62828', 'Mora (4+ meses)'],
+            default => ['#9e9e9e', 'Sin pagos registrados'],
         };
+        return '<span class="pill-estado" style="display:inline-flex;align-items:center;gap:6px;">'
+            . '<span style="width:10px;height:10px;border-radius:50%;background:' . $punto . ';flex-shrink:0;"></span>'
+            . htmlspecialchars($texto) . '</span>';
     }
 
     // $filas: ver ConsultaPagosModel::reporteUnificado — una fila por
@@ -320,22 +328,8 @@ class ConsultaPagosView {
                 </p>
                 <p style="font-size:12.5px;color:var(--texto-muted);margin:8px 0 0;">
                     Graduación y Libro son aproximados: buscan la palabra clave en el texto del recibo (no hay un campo
-                    dedicado todavía). Ajusta la palabra si hace falta — recarga la lista completa.
+                    dedicado todavía) — filtra con las casillas de abajo.
                 </p>
-                <form method="GET" action="consulta_pagos.php" style="margin-top:14px;">
-                    <input type="hidden" name="action" value="reportes">
-                    <div class="fila">
-                        <div class="campo">
-                            <label for="patron_graduacion">Palabra clave — Graduación</label>
-                            <input type="text" id="patron_graduacion" name="patron_graduacion" value="<?= htmlspecialchars($patronGraduacion) ?>">
-                        </div>
-                        <div class="campo">
-                            <label for="patron_libro">Palabra clave — Libro</label>
-                            <input type="text" id="patron_libro" name="patron_libro" value="<?= htmlspecialchars($patronLibro) ?>">
-                        </div>
-                        <div><button type="submit">Recargar lista</button></div>
-                    </div>
-                </form>
             </div>
 
             <div class="card" style="max-width:1400px;">
@@ -374,11 +368,25 @@ class ConsultaPagosView {
                             <input type="checkbox" id="fLibro" style="width:auto;"> Compró libro
                         </label>
                     </div>
+                    <div class="campo" style="flex:0 0 auto;">
+                        <label>Estado</label>
+                        <div style="display:flex;gap:10px;">
+                            <label style="display:flex;align-items:center;gap:5px;font-weight:normal;font-size:13px;color:var(--texto);white-space:nowrap;">
+                                <input type="checkbox" class="fEstado" value="al_dia" style="width:auto;"> Al día
+                            </label>
+                            <label style="display:flex;align-items:center;gap:5px;font-weight:normal;font-size:13px;color:var(--texto);white-space:nowrap;">
+                                <input type="checkbox" class="fEstado" value="debe_1_mes" style="width:auto;"> Debe 1 mes
+                            </label>
+                            <label style="display:flex;align-items:center;gap:5px;font-weight:normal;font-size:13px;color:var(--texto);white-space:nowrap;">
+                                <input type="checkbox" class="fEstado" value="debe_2_3_meses" style="width:auto;"> Debe 2-3 meses
+                            </label>
+                        </div>
+                    </div>
                 </div>
                 <p class="conteo-visible">
                     <span id="conteoVisible"><?= count($filas) ?></span> de <?= count($filas) ?> estudiante(s)
-                    &nbsp;·&nbsp; Con graduación: <span id="conteoGrad">0</span>
-                    &nbsp;·&nbsp; Con libro: <span id="conteoLibro">0</span>
+                    &nbsp;·&nbsp; Graduación: <span id="conteoGrad">0</span> (Q <span id="sumaGrad">0.00</span>)
+                    &nbsp;·&nbsp; Libro: <span id="conteoLibro">0</span> (Q <span id="sumaLibro">0.00</span>)
                 </p>
 
                 <?php if (empty($filas)): ?>
@@ -388,12 +396,12 @@ class ConsultaPagosView {
                     <table id="tablaReporte">
                         <thead>
                             <tr>
-                                <th>Carné</th><th>Nombre</th><th>Diplomado</th><th>Plan</th><th>Jornada</th>
+                                <th>#</th><th>Carné</th><th>Nombre</th><th>Diplomado</th><th>Plan</th><th>Jornada</th>
                                 <th>Último pago</th><th>Estado</th><th>Graduación</th><th>Libro</th>
                             </tr>
                         </thead>
                         <tbody>
-                            <?php foreach ($filas as $f): ?>
+                            <?php foreach ($filas as $i => $f): ?>
                                 <?php
                                     $tieneGrad = $f['monto_graduacion'] !== null ? 'si' : 'no';
                                     $tieneLibro = $f['monto_libro'] !== null ? 'si' : 'no';
@@ -412,8 +420,12 @@ class ConsultaPagosView {
                                     data-buscar="<?= htmlspecialchars($buscar) ?>"
                                     data-diplomado="<?= (int)$f['codcurso'] ?>"
                                     data-jornada="<?= (int)$f['jornada'] ?>"
+                                    data-estado="<?= htmlspecialchars($f['estado_pago']) ?>"
                                     data-grad="<?= $tieneGrad ?>"
-                                    data-libro="<?= $tieneLibro ?>">
+                                    data-monto-grad="<?= $tieneGrad === 'si' ? (float)$f['monto_graduacion'] : 0 ?>"
+                                    data-libro="<?= $tieneLibro ?>"
+                                    data-monto-libro="<?= $tieneLibro === 'si' ? (float)$f['monto_libro'] : 0 ?>">
+                                    <td><?= $i + 1 ?></td>
                                     <td><?= (int)$f['idestudiante'] ?></td>
                                     <td><?= htmlspecialchars($f['nombre'] . ' ' . $f['apellidos']) ?></td>
                                     <td><?= htmlspecialchars($f['nombrecurso'] ?? '—') ?></td>
@@ -441,31 +453,44 @@ class ConsultaPagosView {
                 const fJornada = document.getElementById('fJornada');
                 const fGrad = document.getElementById('fGrad');
                 const fLibro = document.getElementById('fLibro');
+                const fEstados = document.querySelectorAll('.fEstado');
                 const conteoVisible = document.getElementById('conteoVisible');
                 const conteoGrad = document.getElementById('conteoGrad');
+                const sumaGrad = document.getElementById('sumaGrad');
                 const conteoLibro = document.getElementById('conteoLibro');
+                const sumaLibro = document.getElementById('sumaLibro');
                 const filas = document.querySelectorAll('.fila-reporte');
+
+                function formatoQ(valor) {
+                    return valor.toLocaleString('es-GT', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+                }
 
                 function aplicarFiltros() {
                     const texto = fTexto.value.trim().toLowerCase();
-                    let visibles = 0, conGrad = 0, conLibro = 0;
+                    // Checkboxes de estado: ninguno marcado = no filtra (se ven todos);
+                    // uno o más marcados = solo esos (combinados con OR entre sí).
+                    const estadosMarcados = Array.from(fEstados).filter(c => c.checked).map(c => c.value);
+                    let visibles = 0, conGrad = 0, montoGrad = 0, conLibro = 0, montoLibro = 0;
                     filas.forEach(function (fila) {
                         const coincide =
                             (texto === '' || fila.dataset.buscar.includes(texto)) &&
                             (fDiplomado.value === '' || fila.dataset.diplomado === fDiplomado.value) &&
                             (fJornada.value === '' || fila.dataset.jornada === fJornada.value) &&
                             (!fGrad.checked || fila.dataset.grad === 'si') &&
-                            (!fLibro.checked || fila.dataset.libro === 'si');
+                            (!fLibro.checked || fila.dataset.libro === 'si') &&
+                            (estadosMarcados.length === 0 || estadosMarcados.includes(fila.dataset.estado));
                         fila.hidden = !coincide;
                         if (coincide) {
                             visibles++;
-                            if (fila.dataset.grad === 'si') conGrad++;
-                            if (fila.dataset.libro === 'si') conLibro++;
+                            if (fila.dataset.grad === 'si') { conGrad++; montoGrad += parseFloat(fila.dataset.montoGrad); }
+                            if (fila.dataset.libro === 'si') { conLibro++; montoLibro += parseFloat(fila.dataset.montoLibro); }
                         }
                     });
                     if (conteoVisible) conteoVisible.textContent = visibles;
                     if (conteoGrad) conteoGrad.textContent = conGrad;
+                    if (sumaGrad) sumaGrad.textContent = formatoQ(montoGrad);
                     if (conteoLibro) conteoLibro.textContent = conLibro;
+                    if (sumaLibro) sumaLibro.textContent = formatoQ(montoLibro);
                 }
 
                 [fTexto, fDiplomado, fJornada].forEach(function (el) {
@@ -473,6 +498,9 @@ class ConsultaPagosView {
                 });
                 [fGrad, fLibro].forEach(function (el) {
                     if (el) el.addEventListener('change', aplicarFiltros);
+                });
+                fEstados.forEach(function (el) {
+                    el.addEventListener('change', aplicarFiltros);
                 });
                 aplicarFiltros();
             </script>
