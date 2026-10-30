@@ -27,8 +27,9 @@ class DashboardController {
 
         $porMes = RecibosPfsModel::cierreAnioPorMes($db, $anio);
         $porDiplomado = RecibosPfsModel::ingresosPorDiplomado($db, $anio);
+        $porConceptos = RecibosPfsModel::ingresosPorConceptosEspeciales($db, $anio);
 
-        DashboardView::mostrar($anio, $anioActual, $porMes, $this->meses, $porDiplomado);
+        DashboardView::mostrar($anio, $anioActual, $porMes, $this->meses, $porDiplomado, $porConceptos);
     }
 }
 ?>

@@ -13,6 +13,68 @@ class ConsultaPagosModel {
         return self::$meses[(int)$mes] ?? 'No definido';
     }
 
+    // Reporte unificado: una fila por estudiante con estado de pagos +
+    // Graduación + Libro juntos, para filtrar todo en el cliente (sin
+    // recargar) en vez de tener que elegir un diplomado primero.
+    //
+    // $mesesRecientes acota el universo a quien pagó en esos últimos
+    // meses — ES TEMPORAL, solo mientras Grupos no existe para la mayoría
+    // de estudiantes (ver nota en ConsultaPagosController::reportes()).
+    // Cuando Grupos esté poblado, este método debe recibir una lista de
+    // idestudiante (miembros de grupos) en vez de este filtro de
+    // recencia de pago.
+    //
+    // Graduación/Libro son aproximados por palabra clave sobre
+    // recibospfs.detalle (no existe campo estructurado) — el monto es la
+    // suma de `otro` de los recibos que coinciden, puede incluir más de
+    // lo que es solo ese concepto si el recibo mezcla varias cosas en la
+    // misma línea ("MES DE DICIEMBRE Y ACTO DE GRADUACION"). Por eso se
+    // trae también el texto del detalle, para que quien lo revisa juzgue
+    // abono vs. pago completo en vez de que el sistema invente un umbral.
+    //
+    // (carne + 0) en vez de carne a secas: algunos recibos tienen el
+    // carné con espacios/tabs pegados (error de digitación); agrupar por
+    // el mismo valor numérico que usa la comparación implícita del JOIN
+    // (idestudiante es INT) colapsa esas variantes en vez de duplicar al
+    // estudiante.
+    public static function reporteUnificado(PDO $db, int $mesesRecientes, string $patronGraduacion, string $patronLibro): array {
+        $sql = "SELECT e.idestudiante, e.nombre, e.apellidos, e.plan, e.jornada, e.codcurso,
+                       d.nombre AS nombrecurso,
+                       up.ultimo_pago, TIMESTAMPDIFF(MONTH, up.ultimo_pago, NOW()) AS meses_desde_pago,
+                       g.monto_graduacion, g.detalle_graduacion,
+                       l.monto_libro, l.detalle_libro
+                FROM estudiantespfs e
+                LEFT JOIN `diplomado-curso` d ON d.id = e.codcurso
+                INNER JOIN (
+                    SELECT (carne + 0) AS carne, MAX(horaregistro) AS ultimo_pago
+                    FROM recibospfs
+                    WHERE anulado = 0 AND (efectivo + deposito + cheque) > 0
+                    GROUP BY (carne + 0)
+                    HAVING ultimo_pago >= DATE_SUB(NOW(), INTERVAL ? MONTH)
+                ) up ON up.carne = e.idestudiante
+                LEFT JOIN (
+                    SELECT (carne + 0) AS carne, SUM(otro) AS monto_graduacion,
+                           GROUP_CONCAT(DISTINCT detalle SEPARATOR ' | ') AS detalle_graduacion
+                    FROM recibospfs WHERE anulado = 0 AND detalle LIKE ? GROUP BY (carne + 0)
+                ) g ON g.carne = e.idestudiante
+                LEFT JOIN (
+                    SELECT (carne + 0) AS carne, SUM(otro) AS monto_libro,
+                           GROUP_CONCAT(DISTINCT detalle SEPARATOR ' | ') AS detalle_libro
+                    FROM recibospfs WHERE anulado = 0 AND detalle LIKE ? GROUP BY (carne + 0)
+                ) l ON l.carne = e.idestudiante
+                ORDER BY d.nombre, e.plan, e.jornada, e.nombre, e.apellidos";
+        $stmt = $db->prepare($sql);
+        $stmt->execute([$mesesRecientes, '%' . $patronGraduacion . '%', '%' . $patronLibro . '%']);
+        $filas = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+        foreach ($filas as &$f) {
+            $meses = (int)$f['meses_desde_pago'];
+            $f['estado_pago'] = $meses <= 1 ? 'al_dia' : ($meses === 2 ? 'debe_1_mes' : ($meses <= 4 ? 'debe_2_3_meses' : 'mora_mayor'));
+        }
+        unset($f);
+        return $filas;
+    }
+
     // Estudiantes con al menos un recibo NO anulado, con el total pagado
     // agregado. Los recibos anulados nunca cuentan aquí ni en el total
     // (a diferencia del reporte legacy, que sumaba todo sin filtrar).

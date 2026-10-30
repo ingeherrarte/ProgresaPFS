@@ -1,5 +1,6 @@
 <?php
 require_once "models/ConsultaPagosModel.php";
+require_once "models/EstudiantesPfsModel.php";
 require_once "views/ConsultaPagosView.php";
 require_once __DIR__ . "/../helpers/Auth.php";
 require_once __DIR__ . "/../config/Conexion.php";
@@ -20,6 +21,11 @@ class ConsultaPagosController {
             case 'detalle':
                 Auth::requerirSesion();
                 $this->detalle();
+                break;
+
+            case 'reportes':
+                Auth::requerirSesion();
+                $this->reportes();
                 break;
 
             case 'buscar':
@@ -87,6 +93,28 @@ class ConsultaPagosController {
 
         $pagos = ConsultaPagosModel::historialPagos($db, $carnet);
         ConsultaPagosView::mostrarDetalle($estudiante, $pagos);
+    }
+
+    // Estado de pagos + Graduación + Libro en una sola tabla filtrable en
+    // el cliente (diplomado, jornada, nombre, graduación, libro), sin
+    // tener que elegir un diplomado primero.
+    //
+    // MESES_RECIENTES_QA acota el universo a "pagó en los últimos 3
+    // meses" — es temporal, solo para poder probar esto en QA mientras
+    // Grupos no existe todavía para la mayoría de estudiantes. Cuando sí
+    // exista, el universo debe venir de miembros de grupos (ver
+    // GruposModel::miembros) en vez de este filtro de pago reciente.
+    private const MESES_RECIENTES_QA = 3;
+
+    private function reportes() {
+        $db = Conexion::conectar();
+        $cursos = EstudiantesPfsModel::obtenerCursos($db);
+        $patronGraduacion = trim($_GET['patron_graduacion'] ?? '') ?: 'GRADUA';
+        $patronLibro = trim($_GET['patron_libro'] ?? '') ?: 'LIBRO';
+
+        $filas = ConsultaPagosModel::reporteUnificado($db, self::MESES_RECIENTES_QA, $patronGraduacion, $patronLibro);
+
+        ConsultaPagosView::mostrarReportes($filas, $cursos, $patronGraduacion, $patronLibro, self::MESES_RECIENTES_QA);
     }
 }
 ?>

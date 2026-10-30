@@ -466,5 +466,39 @@ class RecibosPfsModel {
         unset($fila);
         return $filas;
     }
+
+    // Graduación/Libros/Batas no tienen campo estructurado (igual
+    // limitación que ConsultaPagosModel::reporteUnificado): se aproximan
+    // por palabra clave sobre detalle, sumando `otro`. Un recibo que
+    // mezcla el concepto con otra cosa en la misma línea ("MES DE
+    // DICIEMBRE Y ACTO DE GRADUACION") puede sumar de más — es un
+    // estimado para el dashboard, no una cifra contable exacta.
+    public static function ingresosPorConceptosEspeciales(PDO $db, int $anio): array {
+        $conceptos = ['Graduación' => 'GRADUA', 'Libros' => 'LIBRO', 'Batas' => 'BATA'];
+        // COUNT(DISTINCT (carne+0)), no COUNT(*): un estudiante puede pagar
+        // el mismo concepto en varios abonos (varios recibos), y "cantidad"
+        // de recibos no responde "cuántos estudiantes son". (carne+0) en
+        // vez de carne a secas, misma razón que en otros reportes: un
+        // espacio/tab pegado en el carné no debe contar dos veces al mismo
+        // estudiante.
+        $stmt = $db->prepare(
+            "SELECT COALESCE(SUM(otro), 0) AS total, COUNT(*) AS cantidad, COUNT(DISTINCT (carne + 0)) AS estudiantes
+             FROM recibospfs
+             WHERE anulado = 0 AND YEAR(horaregistro) = ? AND detalle LIKE ?"
+        );
+
+        $resultado = [];
+        foreach ($conceptos as $etiqueta => $patron) {
+            $stmt->execute([$anio, '%' . $patron . '%']);
+            $fila = $stmt->fetch(PDO::FETCH_ASSOC);
+            $resultado[] = [
+                'concepto' => $etiqueta,
+                'total' => (float)$fila['total'],
+                'cantidad' => (int)$fila['cantidad'],
+                'estudiantes' => (int)$fila['estudiantes'],
+            ];
+        }
+        return $resultado;
+    }
 }
 ?>

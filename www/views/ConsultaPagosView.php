@@ -93,6 +93,8 @@ class ConsultaPagosView {
                 border-radius: 6px; padding: 16px 20px;
             }
             .info-grid .dato b { display: block; color: var(--texto-muted); font-size: 11px; text-transform: uppercase; }
+            .pill-estado { display: inline-block; padding: 3px 10px; border-radius: 999px; font-size: 11px; font-weight: bold; white-space: nowrap; }
+            .tabla-scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; }
         </style>
         <?php
     }
@@ -137,6 +139,9 @@ class ConsultaPagosView {
                         </div>
                     </div>
                 </form>
+                <p style="margin-top:14px;">
+                    <a href="consulta_pagos.php?action=reportes" style="font-size:13px;color:var(--acento);font-weight:bold;">📊 Reportes por diplomado (al día/mora, graduación, libro) →</a>
+                </p>
             </div>
 
             <div class="card" id="resultadosWrap" style="<?= $termino === '' ? 'display:none' : '' ?>">
@@ -260,6 +265,216 @@ class ConsultaPagosView {
                     if (termino.length < 3) return;
                     temporizadorBusqueda = setTimeout(() => buscarEnVivo(termino), 300);
                 });
+            </script>
+            <?php Tema::script(); ?>
+        </body>
+        </html>
+        <?php
+    }
+
+    private static function pillEstado(string $estado): string {
+        return match ($estado) {
+            'al_dia' => '<span class="pill-estado" style="background:#e8f5e9;color:#2e7d32;">Al día</span>',
+            'debe_1_mes' => '<span class="pill-estado" style="background:#fff8e1;color:#f57f17;">Debe 1 mes</span>',
+            'debe_2_3_meses' => '<span class="pill-estado" style="background:#ffe0b2;color:#e65100;">Debe 2-3 meses</span>',
+            'mora_mayor' => '<span class="pill-estado" style="background:#ffebee;color:#b71c1c;">Mora (4+ meses)</span>',
+            default => '<span class="pill-estado" style="background:var(--fila-alterna);color:var(--texto-muted);">Sin pagos registrados</span>',
+        };
+    }
+
+    // $filas: ver ConsultaPagosModel::reporteUnificado — una fila por
+    // estudiante con estado_pago, monto_graduacion/detalle_graduacion,
+    // monto_libro/detalle_libro ya resueltos. Todo el filtrado (texto,
+    // diplomado, jornada, graduación, libro) es en el cliente vía
+    // data-* por fila, igual patrón que GruposView::bloqueCandidatos —
+    // sin esto habría que recargar la página por cada combinación de
+    // filtros, y son solo un par de cientos de filas, no hace falta.
+    public static function mostrarReportes(array $filas, array $cursos, string $patronGraduacion, string $patronLibro, int $mesesRecientes): void {
+        ?>
+        <!DOCTYPE html>
+        <html lang="es">
+        <head>
+            <meta charset="UTF-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1">
+            <title>Reportes — CETECPRO</title>
+            <?php Tema::scriptInicial(); ?>
+            <?php self::estilos(); ?>
+            <style>
+                .barra-filtros { display: flex; gap: 12px; flex-wrap: wrap; align-items: flex-end; margin-bottom: 14px; }
+                .barra-filtros .campo { flex: 1; min-width: 160px; }
+                .barra-filtros label { display: block; font-size: 11px; font-weight: bold; color: var(--texto-muted); margin-bottom: 3px; }
+                .conteo-visible { font-size: 12.5px; color: var(--texto-muted); margin-bottom: 10px; }
+            </style>
+        </head>
+        <body>
+            <?php self::barra(); ?>
+            <h1 style="max-width:1400px;margin-left:auto;margin-right:auto;">Reportes</h1>
+
+            <div class="card" style="max-width:1400px;">
+                <a href="consulta_pagos.php" style="font-size:13px;color:var(--acento);font-weight:bold;">← Volver a Consulta de Pagos</a>
+                <p style="font-size:12.5px;color:var(--texto-muted);margin:10px 0 0;">
+                    ⚠️ Temporal mientras no existen Grupos para la mayoría de estudiantes: esta lista muestra solo a quien
+                    pagó en los últimos <?= $mesesRecientes ?> mes(es), <b>no</b> es el universo completo de inscritos
+                    (ver "<a href="consulta_pagos.php">Consulta de Pagos</a>" para buscar a alguien específico sin este
+                    filtro). Cuando se use Grupos para esto, esta lista saldrá de los miembros reales de cada grupo.
+                </p>
+                <p style="font-size:12.5px;color:var(--texto-muted);margin:8px 0 0;">
+                    Graduación y Libro son aproximados: buscan la palabra clave en el texto del recibo (no hay un campo
+                    dedicado todavía). Ajusta la palabra si hace falta — recarga la lista completa.
+                </p>
+                <form method="GET" action="consulta_pagos.php" style="margin-top:14px;">
+                    <input type="hidden" name="action" value="reportes">
+                    <div class="fila">
+                        <div class="campo">
+                            <label for="patron_graduacion">Palabra clave — Graduación</label>
+                            <input type="text" id="patron_graduacion" name="patron_graduacion" value="<?= htmlspecialchars($patronGraduacion) ?>">
+                        </div>
+                        <div class="campo">
+                            <label for="patron_libro">Palabra clave — Libro</label>
+                            <input type="text" id="patron_libro" name="patron_libro" value="<?= htmlspecialchars($patronLibro) ?>">
+                        </div>
+                        <div><button type="submit">Recargar lista</button></div>
+                    </div>
+                </form>
+            </div>
+
+            <div class="card" style="max-width:1400px;">
+                <div class="barra-filtros">
+                    <div class="campo">
+                        <label for="fTexto">Nombre, carné o diplomado (o escribe "grad"/"libro")</label>
+                        <input type="text" id="fTexto" placeholder="Escribe para filtrar..." autocomplete="off">
+                    </div>
+                    <div class="campo">
+                        <label for="fDiplomado">Diplomado</label>
+                        <select id="fDiplomado">
+                            <option value="">-- Todos --</option>
+                            <?php foreach ($cursos as $id => $nombre): ?>
+                                <option value="<?= (int)$id ?>"><?= htmlspecialchars($nombre) ?></option>
+                            <?php endforeach; ?>
+                        </select>
+                    </div>
+                    <div class="campo">
+                        <label for="fJornada">Jornada</label>
+                        <select id="fJornada">
+                            <option value="">-- Todas --</option>
+                            <?php foreach (EstudiantesPfsModel::jornadas() as $id => $nombre): ?>
+                                <option value="<?= (int)$id ?>"><?= htmlspecialchars($nombre) ?></option>
+                            <?php endforeach; ?>
+                        </select>
+                    </div>
+                    <div class="campo" style="flex:0 0 auto;">
+                        <label style="visibility:hidden;">&nbsp;</label>
+                        <label style="display:flex;align-items:center;gap:6px;font-weight:normal;font-size:13px;color:var(--texto);white-space:nowrap;">
+                            <input type="checkbox" id="fGrad" style="width:auto;"> Pagó graduación
+                        </label>
+                    </div>
+                    <div class="campo" style="flex:0 0 auto;">
+                        <label style="visibility:hidden;">&nbsp;</label>
+                        <label style="display:flex;align-items:center;gap:6px;font-weight:normal;font-size:13px;color:var(--texto);white-space:nowrap;">
+                            <input type="checkbox" id="fLibro" style="width:auto;"> Compró libro
+                        </label>
+                    </div>
+                </div>
+                <p class="conteo-visible">
+                    <span id="conteoVisible"><?= count($filas) ?></span> de <?= count($filas) ?> estudiante(s)
+                    &nbsp;·&nbsp; Con graduación: <span id="conteoGrad">0</span>
+                    &nbsp;·&nbsp; Con libro: <span id="conteoLibro">0</span>
+                </p>
+
+                <?php if (empty($filas)): ?>
+                    <p class="sin-resultados">Nadie ha pagado en los últimos <?= $mesesRecientes ?> mes(es) todavía.</p>
+                <?php else: ?>
+                    <div class="tabla-scroll">
+                    <table id="tablaReporte">
+                        <thead>
+                            <tr>
+                                <th>Carné</th><th>Nombre</th><th>Diplomado</th><th>Plan</th><th>Jornada</th>
+                                <th>Último pago</th><th>Estado</th><th>Graduación</th><th>Libro</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <?php foreach ($filas as $f): ?>
+                                <?php
+                                    $tieneGrad = $f['monto_graduacion'] !== null ? 'si' : 'no';
+                                    $tieneLibro = $f['monto_libro'] !== null ? 'si' : 'no';
+                                    // "graduacion"/"libro" solo se agregan cuando SÍ hay registro, para
+                                    // que escribir "grad" o "libr" en el buscador funcione como atajo del
+                                    // mismo filtro que las casillas de abajo (encuentra a quien pagó, no
+                                    // a quien no — buscar "sin libro" no tiene sentido como texto libre).
+                                    $buscar = mb_strtolower(
+                                        $f['idestudiante'] . ' ' . $f['nombre'] . ' ' . $f['apellidos'] . ' ' . ($f['nombrecurso'] ?? '')
+                                        . ($tieneGrad === 'si' ? ' graduacion' : '')
+                                        . ($tieneLibro === 'si' ? ' libro' : ''),
+                                        'UTF-8'
+                                    );
+                                ?>
+                                <tr class="fila-reporte"
+                                    data-buscar="<?= htmlspecialchars($buscar) ?>"
+                                    data-diplomado="<?= (int)$f['codcurso'] ?>"
+                                    data-jornada="<?= (int)$f['jornada'] ?>"
+                                    data-grad="<?= $tieneGrad ?>"
+                                    data-libro="<?= $tieneLibro ?>">
+                                    <td><?= (int)$f['idestudiante'] ?></td>
+                                    <td><?= htmlspecialchars($f['nombre'] . ' ' . $f['apellidos']) ?></td>
+                                    <td><?= htmlspecialchars($f['nombrecurso'] ?? '—') ?></td>
+                                    <td><?= htmlspecialchars(EstudiantesPfsModel::nombrePlan((int)$f['plan'])) ?></td>
+                                    <td><?= htmlspecialchars(EstudiantesPfsModel::nombreJornada((int)$f['jornada'])) ?></td>
+                                    <td><?= $f['ultimo_pago'] ? date('d/m/Y', strtotime($f['ultimo_pago'])) : '—' ?></td>
+                                    <td><?= self::pillEstado($f['estado_pago']) ?></td>
+                                    <td title="<?= htmlspecialchars((string)$f['detalle_graduacion']) ?>">
+                                        <?= $tieneGrad === 'si' ? 'Q ' . number_format((float)$f['monto_graduacion'], 2) : '<span style="color:var(--sin-datos);">—</span>' ?>
+                                    </td>
+                                    <td title="<?= htmlspecialchars((string)$f['detalle_libro']) ?>">
+                                        <?= $tieneLibro === 'si' ? 'Q ' . number_format((float)$f['monto_libro'], 2) : '<span style="color:var(--sin-datos);">—</span>' ?>
+                                    </td>
+                                </tr>
+                            <?php endforeach; ?>
+                        </tbody>
+                    </table>
+                    </div>
+                <?php endif; ?>
+            </div>
+
+            <script>
+                const fTexto = document.getElementById('fTexto');
+                const fDiplomado = document.getElementById('fDiplomado');
+                const fJornada = document.getElementById('fJornada');
+                const fGrad = document.getElementById('fGrad');
+                const fLibro = document.getElementById('fLibro');
+                const conteoVisible = document.getElementById('conteoVisible');
+                const conteoGrad = document.getElementById('conteoGrad');
+                const conteoLibro = document.getElementById('conteoLibro');
+                const filas = document.querySelectorAll('.fila-reporte');
+
+                function aplicarFiltros() {
+                    const texto = fTexto.value.trim().toLowerCase();
+                    let visibles = 0, conGrad = 0, conLibro = 0;
+                    filas.forEach(function (fila) {
+                        const coincide =
+                            (texto === '' || fila.dataset.buscar.includes(texto)) &&
+                            (fDiplomado.value === '' || fila.dataset.diplomado === fDiplomado.value) &&
+                            (fJornada.value === '' || fila.dataset.jornada === fJornada.value) &&
+                            (!fGrad.checked || fila.dataset.grad === 'si') &&
+                            (!fLibro.checked || fila.dataset.libro === 'si');
+                        fila.hidden = !coincide;
+                        if (coincide) {
+                            visibles++;
+                            if (fila.dataset.grad === 'si') conGrad++;
+                            if (fila.dataset.libro === 'si') conLibro++;
+                        }
+                    });
+                    if (conteoVisible) conteoVisible.textContent = visibles;
+                    if (conteoGrad) conteoGrad.textContent = conGrad;
+                    if (conteoLibro) conteoLibro.textContent = conLibro;
+                }
+
+                [fTexto, fDiplomado, fJornada].forEach(function (el) {
+                    if (el) el.addEventListener('input', aplicarFiltros);
+                });
+                [fGrad, fLibro].forEach(function (el) {
+                    if (el) el.addEventListener('change', aplicarFiltros);
+                });
+                aplicarFiltros();
             </script>
             <?php Tema::script(); ?>
         </body>

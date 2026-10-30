@@ -104,7 +104,13 @@ class GruposModel {
             FROM estudiantespfs e
             LEFT JOIN `diplomado-curso` d ON d.id = e.codcurso
             LEFT JOIN (
-                SELECT carne, MAX(horaregistro) AS ultimo_pago FROM recibospfs WHERE anulado = 0 GROUP BY carne
+                -- (carne + 0): un carné con espacio/tab pegado (error de
+                -- digitación) arma su propio grupo aparte y duplica al
+                -- estudiante al cruzar contra estudiantespfs (idestudiante
+                -- es INT). TRIM() no basta porque no quita tabs — agrupar
+                -- por el mismo valor numérico que usa la comparación
+                -- implícita del JOIN sí colapsa todas las variantes.
+                SELECT (carne + 0) AS carne, MAX(horaregistro) AS ultimo_pago FROM recibospfs WHERE anulado = 0 GROUP BY (carne + 0)
             ) up ON up.carne = e.idestudiante
             WHERE up.ultimo_pago >= DATE_SUB(NOW(), INTERVAL ? MONTH)
               AND e.idestudiante NOT IN (SELECT idestudiante FROM grupos_estudiantes WHERE grupo_id = ? AND activo = 1)
