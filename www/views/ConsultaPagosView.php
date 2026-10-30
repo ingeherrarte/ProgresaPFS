@@ -341,7 +341,7 @@ class ConsultaPagosView {
             <div class="card" style="max-width:1400px;">
                 <div class="barra-filtros">
                     <div class="campo">
-                        <label for="fTexto">Nombre o carné</label>
+                        <label for="fTexto">Nombre, carné o diplomado (o escribe "grad"/"libro")</label>
                         <input type="text" id="fTexto" placeholder="Escribe para filtrar..." autocomplete="off">
                     </div>
                     <div class="campo">
@@ -391,9 +391,18 @@ class ConsultaPagosView {
                         <tbody>
                             <?php foreach ($filas as $f): ?>
                                 <?php
-                                    $buscar = mb_strtolower($f['idestudiante'] . ' ' . $f['nombre'] . ' ' . $f['apellidos'], 'UTF-8');
                                     $tieneGrad = $f['monto_graduacion'] !== null ? 'si' : 'no';
                                     $tieneLibro = $f['monto_libro'] !== null ? 'si' : 'no';
+                                    // "graduacion"/"libro" solo se agregan cuando SÍ hay registro, para
+                                    // que escribir "grad" o "libr" en el buscador funcione como atajo del
+                                    // mismo filtro que las casillas de abajo (encuentra a quien pagó, no
+                                    // a quien no — buscar "sin libro" no tiene sentido como texto libre).
+                                    $buscar = mb_strtolower(
+                                        $f['idestudiante'] . ' ' . $f['nombre'] . ' ' . $f['apellidos'] . ' ' . ($f['nombrecurso'] ?? '')
+                                        . ($tieneGrad === 'si' ? ' graduacion' : '')
+                                        . ($tieneLibro === 'si' ? ' libro' : ''),
+                                        'UTF-8'
+                                    );
                                 ?>
                                 <tr class="fila-reporte"
                                     data-buscar="<?= htmlspecialchars($buscar) ?>"
