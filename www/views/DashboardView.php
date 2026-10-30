@@ -11,10 +11,24 @@ class DashboardView {
     private const SERIE_EFECTIVO = '#2a78d6';
     private const SERIE_DEPOSITO = '#eb6834';
     private const SERIE_CHEQUE   = '#1baf7a';
-    // 4to slot categórico fijo (ver efectivo/depósito/cheque arriba) — para
-    // la gráfica de Graduación/Libros/Batas, que es una serie distinta
-    // (no se reusa un color ya asignado a un medio de pago).
-    private const SERIE_CONCEPTOS = '#8456ce';
+
+    // Paleta categórica para "Ingresos por diplomado" e "Ingresos por
+    // Graduación/Libros/Batas" — cada barra su propio color, por posición
+    // (nunca por valor/ranking). Deliberadamente sin azul/naranja/verde:
+    // esos ya significan efectivo/depósito/cheque en esta misma página, y
+    // reusarlos aquí para una categoría distinta (un diplomado, un
+    // concepto) confundiría su significado ya establecido arriba. Cada
+    // barra ya trae su etiqueta de texto al lado, así que no hace falta
+    // leyenda aparte — el color es apoyo visual, no la única forma de
+    // identificar la categoría.
+    private const PALETA_CATEGORICA = [
+        '#8456ce', '#d6336c', '#c99a2e', '#1b9e9e',
+        '#4c6ef5', '#e8590c', '#2f9e44', '#868e96',
+    ];
+
+    private static function colorCategorico(int $indice): string {
+        return self::PALETA_CATEGORICA[$indice % count(self::PALETA_CATEGORICA)];
+    }
 
     // Estos apuntan a variables CSS (no a hex fijo): las gráficas son SVG
     // generado en servidor, pero el navegador sí resuelve var() dentro de
@@ -336,7 +350,7 @@ class DashboardView {
 
             $path = self::pathExtremoRedondeado($margenIzq, round($yBarra, 1), round($anchoBarra, 1), $altoBarra, 4);
             $titulo = $nombre . ': ' . self::formatoQ((float)$fila['total']) . ' (' . (int)$fila['cantidad'] . ' recibo(s))';
-            $svg .= '<path d="' . $path . '" fill="' . self::SERIE_EFECTIVO . '" class="viz-mark" tabindex="0" data-tooltip="' . htmlspecialchars($titulo) . '"><title>' . htmlspecialchars($titulo) . '</title></path>';
+            $svg .= '<path d="' . $path . '" fill="' . self::colorCategorico($i) . '" class="viz-mark" tabindex="0" data-tooltip="' . htmlspecialchars($titulo) . '"><title>' . htmlspecialchars($titulo) . '</title></path>';
 
             $svg .= '<text x="' . ($margenIzq - 10) . '" y="' . round($y + $altoFila / 2 + 4, 1) . '" text-anchor="end" font-size="11.5" fill="' . self::TINTA_SECUNDARIA . '">' . htmlspecialchars($nombre) . '</text>';
 
@@ -373,7 +387,7 @@ class DashboardView {
 
             $path = self::pathExtremoRedondeado($margenIzq, round($yBarra, 1), round($anchoBarra, 1), $altoBarra, 4);
             $titulo = $fila['concepto'] . ': ' . self::formatoQ($fila['total']) . ' (' . $fila['estudiantes'] . ' estudiante(s), ' . $fila['cantidad'] . ' recibo(s))';
-            $svg .= '<path d="' . $path . '" fill="' . self::SERIE_CONCEPTOS . '" class="viz-mark" tabindex="0" data-tooltip="' . htmlspecialchars($titulo) . '"><title>' . htmlspecialchars($titulo) . '</title></path>';
+            $svg .= '<path d="' . $path . '" fill="' . self::colorCategorico($i) . '" class="viz-mark" tabindex="0" data-tooltip="' . htmlspecialchars($titulo) . '"><title>' . htmlspecialchars($titulo) . '</title></path>';
 
             $svg .= '<text x="' . ($margenIzq - 10) . '" y="' . round($y + $altoFila / 2 + 4, 1) . '" text-anchor="end" font-size="12" fill="' . self::TINTA_SECUNDARIA . '">' . htmlspecialchars($fila['concepto']) . '</text>';
 
