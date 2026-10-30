@@ -99,22 +99,18 @@ class ConsultaPagosController {
     // el cliente (diplomado, jornada, nombre, graduación, libro), sin
     // tener que elegir un diplomado primero.
     //
-    // MESES_RECIENTES_QA acota el universo a "pagó en los últimos 3
-    // meses" — es temporal, solo para poder probar esto en QA mientras
-    // Grupos no existe todavía para la mayoría de estudiantes. Cuando sí
-    // exista, el universo debe venir de miembros de grupos (ver
-    // GruposModel::miembros) en vez de este filtro de pago reciente.
-    private const MESES_RECIENTES_QA = 3;
-
+    // El universo es "miembros activos de algún grupo" (ver
+    // ConsultaPagosModel::reporteUnificado) — un estudiante que todavía
+    // no está en ningún grupo no aparece aquí.
     private function reportes() {
         $db = Conexion::conectar();
         $cursos = EstudiantesPfsModel::obtenerCursos($db);
         $patronGraduacion = trim($_GET['patron_graduacion'] ?? '') ?: 'GRADUA';
         $patronLibro = trim($_GET['patron_libro'] ?? '') ?: 'LIBRO';
 
-        $filas = ConsultaPagosModel::reporteUnificado($db, self::MESES_RECIENTES_QA, $patronGraduacion, $patronLibro);
+        $filas = ConsultaPagosModel::reporteUnificado($db, $patronGraduacion, $patronLibro);
 
-        ConsultaPagosView::mostrarReportes($filas, $cursos, $patronGraduacion, $patronLibro, self::MESES_RECIENTES_QA);
+        ConsultaPagosView::mostrarReportes($filas, $cursos, $patronGraduacion, $patronLibro);
     }
 }
 ?>
