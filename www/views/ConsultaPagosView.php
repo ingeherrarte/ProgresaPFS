@@ -375,7 +375,11 @@ class ConsultaPagosView {
                         </label>
                     </div>
                 </div>
-                <p class="conteo-visible"><span id="conteoVisible"><?= count($filas) ?></span> de <?= count($filas) ?> estudiante(s)</p>
+                <p class="conteo-visible">
+                    <span id="conteoVisible"><?= count($filas) ?></span> de <?= count($filas) ?> estudiante(s)
+                    &nbsp;·&nbsp; Con graduación: <span id="conteoGrad">0</span>
+                    &nbsp;·&nbsp; Con libro: <span id="conteoLibro">0</span>
+                </p>
 
                 <?php if (empty($filas)): ?>
                     <p class="sin-resultados">Nadie ha pagado en los últimos <?= $mesesRecientes ?> mes(es) todavía.</p>
@@ -438,11 +442,13 @@ class ConsultaPagosView {
                 const fGrad = document.getElementById('fGrad');
                 const fLibro = document.getElementById('fLibro');
                 const conteoVisible = document.getElementById('conteoVisible');
+                const conteoGrad = document.getElementById('conteoGrad');
+                const conteoLibro = document.getElementById('conteoLibro');
                 const filas = document.querySelectorAll('.fila-reporte');
 
                 function aplicarFiltros() {
                     const texto = fTexto.value.trim().toLowerCase();
-                    let visibles = 0;
+                    let visibles = 0, conGrad = 0, conLibro = 0;
                     filas.forEach(function (fila) {
                         const coincide =
                             (texto === '' || fila.dataset.buscar.includes(texto)) &&
@@ -451,9 +457,15 @@ class ConsultaPagosView {
                             (!fGrad.checked || fila.dataset.grad === 'si') &&
                             (!fLibro.checked || fila.dataset.libro === 'si');
                         fila.hidden = !coincide;
-                        if (coincide) visibles++;
+                        if (coincide) {
+                            visibles++;
+                            if (fila.dataset.grad === 'si') conGrad++;
+                            if (fila.dataset.libro === 'si') conLibro++;
+                        }
                     });
                     if (conteoVisible) conteoVisible.textContent = visibles;
+                    if (conteoGrad) conteoGrad.textContent = conGrad;
+                    if (conteoLibro) conteoLibro.textContent = conLibro;
                 }
 
                 [fTexto, fDiplomado, fJornada].forEach(function (el) {
@@ -462,6 +474,7 @@ class ConsultaPagosView {
                 [fGrad, fLibro].forEach(function (el) {
                     if (el) el.addEventListener('change', aplicarFiltros);
                 });
+                aplicarFiltros();
             </script>
             <?php Tema::script(); ?>
         </body>
