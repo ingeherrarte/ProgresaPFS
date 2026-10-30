@@ -272,14 +272,22 @@ class ConsultaPagosView {
         <?php
     }
 
+    // Semáforo: el color nunca va solo (accesibilidad — alguien con
+    // daltonismo no puede depender del punto), siempre con el texto al
+    // lado. Progresión verde→amarillo→rojo según qué tan atrasado está;
+    // "Sin pagos" es gris aparte porque no es lo mismo que mora (nunca ha
+    // pagado nada, no es que se haya atrasado).
     private static function pillEstado(string $estado): string {
-        return match ($estado) {
-            'al_dia' => '<span class="pill-estado" style="background:#e8f5e9;color:#2e7d32;">Al día</span>',
-            'debe_1_mes' => '<span class="pill-estado" style="background:#fff8e1;color:#f57f17;">Debe 1 mes</span>',
-            'debe_2_3_meses' => '<span class="pill-estado" style="background:#ffe0b2;color:#e65100;">Debe 2-3 meses</span>',
-            'mora_mayor' => '<span class="pill-estado" style="background:#ffebee;color:#b71c1c;">Mora (4+ meses)</span>',
-            default => '<span class="pill-estado" style="background:var(--fila-alterna);color:var(--texto-muted);">Sin pagos registrados</span>',
+        [$punto, $texto] = match ($estado) {
+            'al_dia' => ['#2e7d32', 'Al día'],
+            'debe_1_mes' => ['#f9a825', 'Debe 1 mes'],
+            'debe_2_3_meses' => ['#ef6c00', 'Debe 2-3 meses'],
+            'mora_mayor' => ['#c62828', 'Mora (4+ meses)'],
+            default => ['#9e9e9e', 'Sin pagos registrados'],
         };
+        return '<span class="pill-estado" style="display:inline-flex;align-items:center;gap:6px;">'
+            . '<span style="width:10px;height:10px;border-radius:50%;background:' . $punto . ';flex-shrink:0;"></span>'
+            . htmlspecialchars($texto) . '</span>';
     }
 
     // $filas: ver ConsultaPagosModel::reporteUnificado — una fila por
