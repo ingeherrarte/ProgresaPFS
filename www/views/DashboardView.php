@@ -11,6 +11,10 @@ class DashboardView {
     private const SERIE_EFECTIVO = '#2a78d6';
     private const SERIE_DEPOSITO = '#eb6834';
     private const SERIE_CHEQUE   = '#1baf7a';
+    // 4to slot categórico fijo (ver efectivo/depósito/cheque arriba) — para
+    // la gráfica de Graduación/Libros/Batas, que es una serie distinta
+    // (no se reusa un color ya asignado a un medio de pago).
+    private const SERIE_CONCEPTOS = '#8456ce';
 
     // Estos apuntan a variables CSS (no a hex fijo): las gráficas son SVG
     // generado en servidor, pero el navegador sí resuelve var() dentro de
@@ -344,7 +348,44 @@ class DashboardView {
         return $svg;
     }
 
-    public static function mostrar(int $anio, int $anioActual, array $porMes, array $meses, array $porDiplomado): void {
+    // Gráfica de barras horizontales: Graduación/Libros/Batas, mismo patrón
+    // que graficaIngresosPorDiplomado (3 categorías nominales, un solo
+    // color, orden solo por magnitud) — margen izquierdo más angosto
+    // porque las 3 etiquetas son cortas, a diferencia de los diplomados.
+    private static function graficaIngresosPorConcepto(array $porConceptos): string {
+        $margenIzq = 110; $margenDer = 70; $margenArriba = 10; $margenAbajo = 10;
+        $altoFila = 34; $altoBarra = 22;
+        $ancho = 760;
+        $altoPlot = count($porConceptos) * $altoFila;
+        $alto = $altoPlot + $margenArriba + $margenAbajo;
+        $anchoPlot = $ancho - $margenIzq - $margenDer;
+
+        $max = self::escalaMaxima(max(array_column($porConceptos, 'total')));
+
+        $svg = '<svg viewBox="0 0 ' . $ancho . ' ' . $alto . '" role="img" aria-label="Ingresos por Graduación, Libros y Batas" style="width:100%; height:auto; font-family:inherit;">';
+        $svg .= '<rect x="0" y="0" width="' . $ancho . '" height="' . $alto . '" fill="' . self::SUPERFICIE . '"/>';
+        $svg .= '<line x1="' . $margenIzq . '" y1="' . $margenArriba . '" x2="' . $margenIzq . '" y2="' . ($alto - $margenAbajo) . '" stroke="' . self::LINEA_BASE . '" stroke-width="1"/>';
+
+        foreach ($porConceptos as $i => $fila) {
+            $y = $margenArriba + $i * $altoFila;
+            $yBarra = $y + ($altoFila - $altoBarra) / 2;
+            $anchoBarra = $max > 0 ? max(2, ($fila['total'] / $max) * $anchoPlot) : 2;
+
+            $path = self::pathExtremoRedondeado($margenIzq, round($yBarra, 1), round($anchoBarra, 1), $altoBarra, 4);
+            $titulo = $fila['concepto'] . ': ' . self::formatoQ($fila['total']) . ' (' . $fila['cantidad'] . ' recibo(s))';
+            $svg .= '<path d="' . $path . '" fill="' . self::SERIE_CONCEPTOS . '" class="viz-mark" tabindex="0" data-tooltip="' . htmlspecialchars($titulo) . '"><title>' . htmlspecialchars($titulo) . '</title></path>';
+
+            $svg .= '<text x="' . ($margenIzq - 10) . '" y="' . round($y + $altoFila / 2 + 4, 1) . '" text-anchor="end" font-size="12" fill="' . self::TINTA_SECUNDARIA . '">' . htmlspecialchars($fila['concepto']) . '</text>';
+
+            $etiquetaValor = self::formatoCompacto($fila['total']);
+            $svg .= '<text x="' . round($margenIzq + $anchoBarra + 8, 1) . '" y="' . round($y + $altoFila / 2 + 4, 1) . '" font-size="12" fill="' . self::TINTA_PRIMARIA . '">' . $etiquetaValor . '</text>';
+        }
+
+        $svg .= '</svg>';
+        return $svg;
+    }
+
+    public static function mostrar(int $anio, int $anioActual, array $porMes, array $meses, array $porDiplomado, array $porConceptos): void {
         $totalEfectivo = array_sum(array_column($porMes, 'efectivo'));
         $totalDeposito = array_sum(array_column($porMes, 'deposito'));
         $totalCheque = array_sum(array_column($porMes, 'cheque'));
@@ -438,6 +479,32 @@ class DashboardView {
                             <?php foreach ($porDiplomado as $f): if ($f['total'] <= 0) continue; ?>
                                 <tr>
                                     <td><?= htmlspecialchars($f['diplomado']) ?></td>
+                                    <td class="num"><?= (int)$f['cantidad'] ?></td>
+                                    <td class="num"><?= self::formatoQ($f['total']) ?></td>
+                                </tr>
+                            <?php endforeach; ?>
+                        </tbody>
+                    </table>
+                <?php endif; ?>
+            </div>
+
+            <div class="card">
+                <h2>Ingresos por Graduación, Libros y Batas — <?= $anio ?></h2>
+                <p style="font-size:12px;color:var(--sin-datos);margin:-6px 0 12px;">
+                    Aproximado: no existe un campo dedicado para estos conceptos, se detectan por palabra clave en el
+                    texto del recibo — un recibo que mezcla el concepto con otra cosa en la misma línea puede sumar de más.
+                </p>
+                <?php if (empty(array_filter($porConceptos, fn($f) => $f['total'] > 0))): ?>
+                    <p class="sin-datos">No hay ingresos detectados para estos conceptos en este año.</p>
+                <?php else: ?>
+                    <?= self::graficaIngresosPorConcepto($porConceptos) ?>
+                    <button type="button" class="tabla-toggle" onclick="document.getElementById('tablaConceptos').hidden = !document.getElementById('tablaConceptos').hidden">Ver tabla de datos</button>
+                    <table class="datos" id="tablaConceptos" hidden>
+                        <thead><tr><th>Concepto</th><th>Recibos</th><th>Total</th></tr></thead>
+                        <tbody>
+                            <?php foreach ($porConceptos as $f): ?>
+                                <tr>
+                                    <td><?= htmlspecialchars($f['concepto']) ?></td>
                                     <td class="num"><?= (int)$f['cantidad'] ?></td>
                                     <td class="num"><?= self::formatoQ($f['total']) ?></td>
                                 </tr>
