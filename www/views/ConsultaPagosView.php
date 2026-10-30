@@ -362,21 +362,17 @@ class ConsultaPagosView {
                             <?php endforeach; ?>
                         </select>
                     </div>
-                    <div class="campo">
-                        <label for="fGrad">Graduación</label>
-                        <select id="fGrad">
-                            <option value="">-- Todos --</option>
-                            <option value="si">Con registro</option>
-                            <option value="no">Sin registro</option>
-                        </select>
+                    <div class="campo" style="flex:0 0 auto;">
+                        <label style="visibility:hidden;">&nbsp;</label>
+                        <label style="display:flex;align-items:center;gap:6px;font-weight:normal;font-size:13px;color:var(--texto);white-space:nowrap;">
+                            <input type="checkbox" id="fGrad" style="width:auto;"> Pagó graduación
+                        </label>
                     </div>
-                    <div class="campo">
-                        <label for="fLibro">Libro</label>
-                        <select id="fLibro">
-                            <option value="">-- Todos --</option>
-                            <option value="si">Con registro</option>
-                            <option value="no">Sin registro</option>
-                        </select>
+                    <div class="campo" style="flex:0 0 auto;">
+                        <label style="visibility:hidden;">&nbsp;</label>
+                        <label style="display:flex;align-items:center;gap:6px;font-weight:normal;font-size:13px;color:var(--texto);white-space:nowrap;">
+                            <input type="checkbox" id="fLibro" style="width:auto;"> Compró libro
+                        </label>
                     </div>
                 </div>
                 <p class="conteo-visible"><span id="conteoVisible"><?= count($filas) ?></span> de <?= count($filas) ?> estudiante(s)</p>
@@ -443,16 +439,19 @@ class ConsultaPagosView {
                             (texto === '' || fila.dataset.buscar.includes(texto)) &&
                             (fDiplomado.value === '' || fila.dataset.diplomado === fDiplomado.value) &&
                             (fJornada.value === '' || fila.dataset.jornada === fJornada.value) &&
-                            (fGrad.value === '' || fila.dataset.grad === fGrad.value) &&
-                            (fLibro.value === '' || fila.dataset.libro === fLibro.value);
+                            (!fGrad.checked || fila.dataset.grad === 'si') &&
+                            (!fLibro.checked || fila.dataset.libro === 'si');
                         fila.hidden = !coincide;
                         if (coincide) visibles++;
                     });
                     if (conteoVisible) conteoVisible.textContent = visibles;
                 }
 
-                [fTexto, fDiplomado, fJornada, fGrad, fLibro].forEach(function (el) {
+                [fTexto, fDiplomado, fJornada].forEach(function (el) {
                     if (el) el.addEventListener('input', aplicarFiltros);
+                });
+                [fGrad, fLibro].forEach(function (el) {
+                    if (el) el.addEventListener('change', aplicarFiltros);
                 });
             </script>
             <?php Tema::script(); ?>

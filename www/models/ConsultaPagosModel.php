@@ -62,7 +62,7 @@ class ConsultaPagosModel {
                            GROUP_CONCAT(DISTINCT detalle SEPARATOR ' | ') AS detalle_libro
                     FROM recibospfs WHERE anulado = 0 AND detalle LIKE ? GROUP BY (carne + 0)
                 ) l ON l.carne = e.idestudiante
-                ORDER BY e.nombre, e.apellidos";
+                ORDER BY d.nombre, e.plan, e.jornada, e.nombre, e.apellidos";
         $stmt = $db->prepare($sql);
         $stmt->execute([$mesesRecientes, '%' . $patronGraduacion . '%', '%' . $patronLibro . '%']);
         $filas = $stmt->fetchAll(PDO::FETCH_ASSOC);
