@@ -36,6 +36,7 @@ class InicioController {
         $reportes = ConsultaPagosModel::reporteUnificado($db, 'GRADUA', 'LIBRO');
         $stats['pagosAlDia'] = count(array_filter($reportes, fn($f) => $f['estado_pago'] === 'al_dia'));
         $stats['pagosDebe1Mes'] = count(array_filter($reportes, fn($f) => $f['estado_pago'] === 'debe_1_mes'));
+        $stats['pagosDebe2_3Meses'] = count(array_filter($reportes, fn($f) => $f['estado_pago'] === 'debe_2_3_meses'));
         $stats['pagosGraduacion'] = count(array_filter($reportes, fn($f) => $f['monto_graduacion'] !== null));
 
         if ($vista === 'dashboard') {

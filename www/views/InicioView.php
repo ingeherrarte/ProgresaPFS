@@ -466,6 +466,11 @@ class InicioView {
                         <div class="detalle">de los miembros activos en Grupos</div>
                     </div>
                     <div class="tarjeta">
+                        <div class="etiqueta">Deben 2-3 meses</div>
+                        <div class="valor"><?= (int)$stats['pagosDebe2_3Meses'] ?></div>
+                        <div class="detalle">de los miembros activos en Grupos</div>
+                    </div>
+                    <div class="tarjeta">
                         <div class="etiqueta">Pagaron graduación</div>
                         <div class="valor"><?= (int)$stats['pagosGraduacion'] ?></div>
                         <div class="detalle">aproximado, ver Reportes →</div>
