@@ -455,6 +455,21 @@ class InicioView {
                         <div class="valor"><?= (int)$stats['asistenciaSemana']['presentes'] ?></div>
                         <div class="detalle">presentes · <?= (int)$stats['asistenciaSemana']['ausentes'] ?> ausentes (últimos 7 días)</div>
                     </div>
+                    <div class="tarjeta">
+                        <div class="etiqueta">Estudiantes al día</div>
+                        <div class="valor"><?= (int)$stats['pagosAlDia'] ?></div>
+                        <div class="detalle">de los miembros activos en Grupos</div>
+                    </div>
+                    <div class="tarjeta">
+                        <div class="etiqueta">Deben 1 mes</div>
+                        <div class="valor"><?= (int)$stats['pagosDebe1Mes'] ?></div>
+                        <div class="detalle">de los miembros activos en Grupos</div>
+                    </div>
+                    <div class="tarjeta">
+                        <div class="etiqueta">Pagaron graduación</div>
+                        <div class="valor"><?= (int)$stats['pagosGraduacion'] ?></div>
+                        <div class="detalle">aproximado, ver Reportes →</div>
+                    </div>
                 </div>
 
                 <?php self::gridAccesos(); ?>
