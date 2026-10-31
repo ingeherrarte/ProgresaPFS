@@ -356,16 +356,26 @@ class ConsultaPagosView {
                         </select>
                     </div>
                     <div class="campo" style="flex:0 0 auto;">
-                        <label style="visibility:hidden;">&nbsp;</label>
-                        <label style="display:flex;align-items:center;gap:6px;font-weight:normal;font-size:13px;color:var(--texto);white-space:nowrap;">
-                            <input type="checkbox" id="fGrad" style="width:auto;"> Pagó graduación
-                        </label>
+                        <label>Graduación</label>
+                        <div style="display:flex;gap:10px;">
+                            <label style="display:flex;align-items:center;gap:5px;font-weight:normal;font-size:13px;color:var(--texto);white-space:nowrap;">
+                                <input type="checkbox" class="fGrad" value="si" style="width:auto;"> Pagó
+                            </label>
+                            <label style="display:flex;align-items:center;gap:5px;font-weight:normal;font-size:13px;color:var(--texto);white-space:nowrap;">
+                                <input type="checkbox" class="fGrad" value="no" style="width:auto;"> No ha pagado
+                            </label>
+                        </div>
                     </div>
                     <div class="campo" style="flex:0 0 auto;">
-                        <label style="visibility:hidden;">&nbsp;</label>
-                        <label style="display:flex;align-items:center;gap:6px;font-weight:normal;font-size:13px;color:var(--texto);white-space:nowrap;">
-                            <input type="checkbox" id="fLibro" style="width:auto;"> Compró libro
-                        </label>
+                        <label>Libro</label>
+                        <div style="display:flex;gap:10px;">
+                            <label style="display:flex;align-items:center;gap:5px;font-weight:normal;font-size:13px;color:var(--texto);white-space:nowrap;">
+                                <input type="checkbox" class="fLibro" value="si" style="width:auto;"> Compró
+                            </label>
+                            <label style="display:flex;align-items:center;gap:5px;font-weight:normal;font-size:13px;color:var(--texto);white-space:nowrap;">
+                                <input type="checkbox" class="fLibro" value="no" style="width:auto;"> No ha comprado
+                            </label>
+                        </div>
                     </div>
                     <div class="campo" style="flex:0 0 auto;">
                         <label>Estado</label>
@@ -450,8 +460,8 @@ class ConsultaPagosView {
                 const fTexto = document.getElementById('fTexto');
                 const fDiplomado = document.getElementById('fDiplomado');
                 const fJornada = document.getElementById('fJornada');
-                const fGrad = document.getElementById('fGrad');
-                const fLibro = document.getElementById('fLibro');
+                const fGrad = document.querySelectorAll('.fGrad');
+                const fLibro = document.querySelectorAll('.fLibro');
                 const fEstados = document.querySelectorAll('.fEstado');
                 const conteoVisible = document.getElementById('conteoVisible');
                 const conteoGrad = document.getElementById('conteoGrad');
@@ -466,17 +476,19 @@ class ConsultaPagosView {
 
                 function aplicarFiltros() {
                     const texto = fTexto.value.trim().toLowerCase();
-                    // Checkboxes de estado: ninguno marcado = no filtra (se ven todos);
-                    // uno o más marcados = solo esos (combinados con OR entre sí).
+                    // Mismo patrón en los 3 grupos de checkboxes: ninguno marcado = no
+                    // filtra (se ven todos); uno o más marcados = solo esos (OR entre sí).
                     const estadosMarcados = Array.from(fEstados).filter(c => c.checked).map(c => c.value);
+                    const gradMarcados = Array.from(fGrad).filter(c => c.checked).map(c => c.value);
+                    const libroMarcados = Array.from(fLibro).filter(c => c.checked).map(c => c.value);
                     let visibles = 0, conGrad = 0, montoGrad = 0, conLibro = 0, montoLibro = 0;
                     filas.forEach(function (fila) {
                         const coincide =
                             (texto === '' || fila.dataset.buscar.includes(texto)) &&
                             (fDiplomado.value === '' || fila.dataset.diplomado === fDiplomado.value) &&
                             (fJornada.value === '' || fila.dataset.jornada === fJornada.value) &&
-                            (!fGrad.checked || fila.dataset.grad === 'si') &&
-                            (!fLibro.checked || fila.dataset.libro === 'si') &&
+                            (gradMarcados.length === 0 || gradMarcados.includes(fila.dataset.grad)) &&
+                            (libroMarcados.length === 0 || libroMarcados.includes(fila.dataset.libro)) &&
                             (estadosMarcados.length === 0 || estadosMarcados.includes(fila.dataset.estado));
                         fila.hidden = !coincide;
                         if (coincide) {
@@ -495,10 +507,7 @@ class ConsultaPagosView {
                 [fTexto, fDiplomado, fJornada].forEach(function (el) {
                     if (el) el.addEventListener('input', aplicarFiltros);
                 });
-                [fGrad, fLibro].forEach(function (el) {
-                    if (el) el.addEventListener('change', aplicarFiltros);
-                });
-                fEstados.forEach(function (el) {
+                [...fGrad, ...fLibro, ...fEstados].forEach(function (el) {
                     el.addEventListener('change', aplicarFiltros);
                 });
                 aplicarFiltros();
