@@ -297,7 +297,7 @@ class ConsultaPagosView {
     // data-* por fila, igual patrón que GruposView::bloqueCandidatos —
     // sin esto habría que recargar la página por cada combinación de
     // filtros, y son solo un par de cientos de filas, no hace falta.
-    public static function mostrarReportes(array $filas, array $cursos, string $patronGraduacion, string $patronLibro, int $mesesRecientes): void {
+    public static function mostrarReportes(array $filas, array $cursos, string $patronGraduacion, string $patronLibro): void {
         ?>
         <!DOCTYPE html>
         <html lang="es">
@@ -321,10 +321,9 @@ class ConsultaPagosView {
             <div class="card" style="max-width:1400px;">
                 <a href="consulta_pagos.php" style="font-size:13px;color:var(--acento);font-weight:bold;">← Volver a Consulta de Pagos</a>
                 <p style="font-size:12.5px;color:var(--texto-muted);margin:10px 0 0;">
-                    ⚠️ Temporal mientras no existen Grupos para la mayoría de estudiantes: esta lista muestra solo a quien
-                    pagó en los últimos <?= $mesesRecientes ?> mes(es), <b>no</b> es el universo completo de inscritos
-                    (ver "<a href="consulta_pagos.php">Consulta de Pagos</a>" para buscar a alguien específico sin este
-                    filtro). Cuando se use Grupos para esto, esta lista saldrá de los miembros reales de cada grupo.
+                    Esta lista muestra a los estudiantes que ya están en algún Grupo (<a href="grupos.php">Grupos</a>) —
+                    quien todavía no esté agregado a un grupo no aparece aquí. Para buscar a alguien específico sin
+                    depender de Grupos, usa "<a href="consulta_pagos.php">Consulta de Pagos</a>".
                 </p>
                 <p style="font-size:12.5px;color:var(--texto-muted);margin:8px 0 0;">
                     Graduación y Libro son aproximados: buscan la palabra clave en el texto del recibo (no hay un campo
@@ -390,7 +389,7 @@ class ConsultaPagosView {
                 </p>
 
                 <?php if (empty($filas)): ?>
-                    <p class="sin-resultados">Nadie ha pagado en los últimos <?= $mesesRecientes ?> mes(es) todavía.</p>
+                    <p class="sin-resultados">Todavía no hay estudiantes en ningún grupo — agrégalos desde <a href="grupos.php">Grupos</a>.</p>
                 <?php else: ?>
                     <div class="tabla-scroll">
                     <table id="tablaReporte">
