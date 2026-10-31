@@ -347,6 +347,15 @@ class ConsultaPagosView {
                         </select>
                     </div>
                     <div class="campo">
+                        <label for="fPlan">Plan (día)</label>
+                        <select id="fPlan">
+                            <option value="">-- Todos --</option>
+                            <?php foreach (EstudiantesPfsModel::planes() as $id => $nombre): ?>
+                                <option value="<?= (int)$id ?>"><?= htmlspecialchars($nombre) ?></option>
+                            <?php endforeach; ?>
+                        </select>
+                    </div>
+                    <div class="campo">
                         <label for="fJornada">Jornada</label>
                         <select id="fJornada">
                             <option value="">-- Todas --</option>
@@ -389,6 +398,12 @@ class ConsultaPagosView {
                             <label style="display:flex;align-items:center;gap:5px;font-weight:normal;font-size:13px;color:var(--texto);white-space:nowrap;">
                                 <input type="checkbox" class="fEstado" value="debe_2_3_meses" style="width:auto;"> Debe 2-3 meses
                             </label>
+                            <label style="display:flex;align-items:center;gap:5px;font-weight:normal;font-size:13px;color:var(--texto);white-space:nowrap;">
+                                <input type="checkbox" class="fEstado" value="mora_mayor" style="width:auto;"> Mora (4+ meses)
+                            </label>
+                            <label style="display:flex;align-items:center;gap:5px;font-weight:normal;font-size:13px;color:var(--texto);white-space:nowrap;">
+                                <input type="checkbox" class="fEstado" value="sin_pagos" style="width:auto;"> Sin pagos
+                            </label>
                         </div>
                     </div>
                 </div>
@@ -428,6 +443,7 @@ class ConsultaPagosView {
                                 <tr class="fila-reporte"
                                     data-buscar="<?= htmlspecialchars($buscar) ?>"
                                     data-diplomado="<?= (int)$f['codcurso'] ?>"
+                                    data-plan="<?= (int)$f['plan'] ?>"
                                     data-jornada="<?= (int)$f['jornada'] ?>"
                                     data-estado="<?= htmlspecialchars($f['estado_pago']) ?>"
                                     data-grad="<?= $tieneGrad ?>"
@@ -459,6 +475,7 @@ class ConsultaPagosView {
             <script>
                 const fTexto = document.getElementById('fTexto');
                 const fDiplomado = document.getElementById('fDiplomado');
+                const fPlan = document.getElementById('fPlan');
                 const fJornada = document.getElementById('fJornada');
                 const fGrad = document.querySelectorAll('.fGrad');
                 const fLibro = document.querySelectorAll('.fLibro');
@@ -486,6 +503,7 @@ class ConsultaPagosView {
                         const coincide =
                             (texto === '' || fila.dataset.buscar.includes(texto)) &&
                             (fDiplomado.value === '' || fila.dataset.diplomado === fDiplomado.value) &&
+                            (fPlan.value === '' || fila.dataset.plan === fPlan.value) &&
                             (fJornada.value === '' || fila.dataset.jornada === fJornada.value) &&
                             (gradMarcados.length === 0 || gradMarcados.includes(fila.dataset.grad)) &&
                             (libroMarcados.length === 0 || libroMarcados.includes(fila.dataset.libro)) &&
@@ -504,7 +522,7 @@ class ConsultaPagosView {
                     if (sumaLibro) sumaLibro.textContent = formatoQ(montoLibro);
                 }
 
-                [fTexto, fDiplomado, fJornada].forEach(function (el) {
+                [fTexto, fDiplomado, fPlan, fJornada].forEach(function (el) {
                     if (el) el.addEventListener('input', aplicarFiltros);
                 });
                 [...fGrad, ...fLibro, ...fEstados].forEach(function (el) {
