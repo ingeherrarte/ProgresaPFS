@@ -40,14 +40,36 @@ class ConsultaPagosModel {
     public static function reporteUnificado(PDO $db, string $patronGraduacion, string $patronLibro): array {
         $sql = "SELECT e.idestudiante, e.nombre, e.apellidos, e.plan, e.jornada, e.codcurso,
                        d.nombre AS nombrecurso,
-                       up.ultimo_pago, TIMESTAMPDIFF(MONTH, up.ultimo_pago, NOW()) AS meses_desde_pago,
+                       up.ultimo_pago,
+                       TIMESTAMPDIFF(MONTH, COALESCE(up.mes_pagado_hasta, up.ultimo_pago), CURDATE()) AS meses_desde_pago,
                        g.monto_graduacion, g.detalle_graduacion,
                        l.monto_libro, l.detalle_libro
                 FROM grupos_estudiantes ge
                 JOIN estudiantespfs e ON e.idestudiante = ge.idestudiante
                 LEFT JOIN `diplomado-curso` d ON d.id = e.codcurso
                 LEFT JOIN (
-                    SELECT (carne + 0) AS carne, MAX(horaregistro) AS ultimo_pago
+                    -- ultimo_pago (horaregistro) es CUÁNDO vino a pagar — se
+                    -- muestra tal cual, pero NO sirve para decidir si está al
+                    -- día: un estudiante puede venir hoy a abonar un mes
+                    -- atrasado (ver mesquepaga) y eso no lo pone al día.
+                    -- mes_pagado_hasta usa mesquepaga en vez de la fecha de
+                    -- registro para saber hasta qué mes tiene pagado de
+                    -- verdad. mesquepaga no trae año (1-12 solamente), así
+                    -- que se infiere comparando contra el mes de
+                    -- horaregistro: si mesquepaga <= mes en que se registró,
+                    -- es un pago del mismo año (normal o atrasado); si es
+                    -- mayor, es un prepago para el año siguiente (ej. pagar
+                    -- en octubre el mes de enero del año que viene).
+                    SELECT (carne + 0) AS carne,
+                           MAX(horaregistro) AS ultimo_pago,
+                           MAX(
+                               CASE
+                                   WHEN mesquepaga BETWEEN 1 AND 12 AND mesquepaga <= MONTH(horaregistro)
+                                       THEN STR_TO_DATE(CONCAT(YEAR(horaregistro), '-', mesquepaga, '-01'), '%Y-%m-%d')
+                                   WHEN mesquepaga BETWEEN 1 AND 12
+                                       THEN STR_TO_DATE(CONCAT(YEAR(horaregistro) + 1, '-', mesquepaga, '-01'), '%Y-%m-%d')
+                               END
+                           ) AS mes_pagado_hasta
                     FROM recibospfs
                     WHERE anulado = 0 AND (efectivo + deposito + cheque) > 0
                     GROUP BY (carne + 0)
