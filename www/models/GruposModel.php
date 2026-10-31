@@ -6,6 +6,14 @@ require_once __DIR__ . "/../config/Conexion.php";
 // No tiene relación con estudiantespfs.activo a propósito.
 class GruposModel {
 
+    // Para el KPI "Estudiantes activos" de Inicio — reemplaza a
+    // estudiantespfs.activo, que no es confiable (ver nota arriba): esto
+    // cuenta miembros reales de algún grupo, no un campo que nadie
+    // mantiene al día.
+    public static function totalMiembrosActivos(PDO $db): int {
+        return (int)$db->query("SELECT COUNT(*) FROM grupos_estudiantes WHERE activo = 1")->fetchColumn();
+    }
+
     public static function obtener(PDO $db, int $codcurso, int $plan, int $jornada): ?array {
         $stmt = $db->prepare("SELECT * FROM grupos WHERE codcurso = ? AND plan = ? AND jornada = ?");
         $stmt->execute([$codcurso, $plan, $jornada]);

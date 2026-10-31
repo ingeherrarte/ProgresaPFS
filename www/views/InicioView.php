@@ -153,8 +153,6 @@ class InicioView {
 
                 <div class="cambiar-vista">
                     <a href="inicio.php?vista=dashboard">Ver como resumen con estadísticas →</a>
-                    &nbsp;·&nbsp;
-                    <a href="inicio.php?vista=moderno">Ver estilo moderno (Laravel/Vue) →</a>
                 </div>
             </div>
             <?php Tema::script(); ?>
@@ -391,7 +389,6 @@ class InicioView {
 
     public static function mostrarDashboard(array $stats): void {
         $recibosHoy = $stats['recibosHoy'];
-        $recibosMes = $stats['recibosMes'];
         ?>
         <!DOCTYPE html>
         <html lang="es">
@@ -415,29 +412,28 @@ class InicioView {
                         <div class="detalle">Q <?= number_format($recibosHoy['total'], 2) ?> recaudados</div>
                     </div>
                     <div class="tarjeta">
-                        <div class="etiqueta">Recibos este mes</div>
-                        <div class="valor"><?= (int)$recibosMes['cantidad'] ?></div>
-                        <div class="detalle">Q <?= number_format($recibosMes['total'], 2) ?> recaudados</div>
-                    </div>
-                    <div class="tarjeta">
                         <div class="etiqueta">Estudiantes activos</div>
                         <div class="valor"><?= (int)$stats['estudiantesActivos'] ?></div>
-                        <div class="detalle">total inscritos activos</div>
+                        <div class="detalle">miembros activos en Grupos</div>
                     </div>
                     <div class="tarjeta">
                         <div class="etiqueta">Nuevos este mes</div>
                         <div class="valor"><?= (int)$stats['estudiantesNuevosMes'] ?></div>
                         <div class="detalle">estudiantes registrados</div>
                     </div>
+                    <div class="tarjeta">
+                        <div class="etiqueta">Asistencia de hoy</div>
+                        <div class="valor"><?= (int)$stats['asistenciaHoy']['presentes'] ?></div>
+                        <div class="detalle">presentes · <?= (int)$stats['asistenciaHoy']['ausentes'] ?> ausentes</div>
+                    </div>
+                    <div class="tarjeta">
+                        <div class="etiqueta">Asistencia de la semana</div>
+                        <div class="valor"><?= (int)$stats['asistenciaSemana']['presentes'] ?></div>
+                        <div class="detalle">presentes · <?= (int)$stats['asistenciaSemana']['ausentes'] ?> ausentes (últimos 7 días)</div>
+                    </div>
                 </div>
 
                 <?php self::gridAccesos(); ?>
-
-                <div class="cambiar-vista">
-                    <a href="inicio.php?vista=simple">← Ver como accesos simples</a>
-                    &nbsp;·&nbsp;
-                    <a href="inicio.php?vista=moderno">Ver estilo moderno (Laravel/Vue) →</a>
-                </div>
             </div>
             <?php Tema::script(); ?>
         </body>
