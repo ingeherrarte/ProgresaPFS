@@ -1,6 +1,7 @@
 <?php
 require_once "models/RecibosPfsModel.php";
 require_once "models/EstudiantesPfsModel.php";
+require_once "models/GruposModel.php";
 require_once "views/InicioView.php";
 require_once __DIR__ . "/../helpers/Auth.php";
 require_once __DIR__ . "/../config/Conexion.php";
@@ -20,7 +21,7 @@ class InicioController {
         $stats = [
             'recibosHoy' => RecibosPfsModel::estadisticasHoy($db),
             'recibosMes' => RecibosPfsModel::estadisticasMes($db),
-            'estudiantesActivos' => EstudiantesPfsModel::totalActivos($db),
+            'estudiantesActivos' => GruposModel::totalMiembrosActivos($db),
             'estudiantesNuevosMes' => EstudiantesPfsModel::nuevosEsteMes($db),
         ];
 

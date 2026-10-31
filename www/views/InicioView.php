@@ -379,7 +379,7 @@ class InicioView {
                                 <div class="badge sky">🧑‍🎓</div>
                             </div>
                             <div class="valor"><?= (int)$stats['estudiantesActivos'] ?></div>
-                            <div class="detalle">total inscritos activos</div>
+                            <div class="detalle">miembros activos en Grupos</div>
                         </div>
                         <div class="stat-card">
                             <div class="top">
@@ -444,7 +444,7 @@ class InicioView {
                     <div class="tarjeta">
                         <div class="etiqueta">Estudiantes activos</div>
                         <div class="valor"><?= (int)$stats['estudiantesActivos'] ?></div>
-                        <div class="detalle">total inscritos activos</div>
+                        <div class="detalle">miembros activos en Grupos</div>
                     </div>
                     <div class="tarjeta">
                         <div class="etiqueta">Nuevos este mes</div>
