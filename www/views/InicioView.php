@@ -33,16 +33,16 @@ class InicioView {
             .acceso .icono { font-size: 32px; margin-bottom: 10px; }
             .acceso .titulo { font-size: 15px; font-weight: bold; color: var(--acento); }
             .tarjetas {
-                display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-                gap: 16px; margin-bottom: 28px;
+                display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+                gap: 10px; margin-bottom: 20px;
             }
             .tarjeta {
-                background: var(--bg-tarjeta); border-radius: 8px; padding: 20px; box-shadow: 0 1px 4px var(--sombra-tarjeta);
-                border-left: 4px solid var(--acento);
+                background: var(--bg-tarjeta); border-radius: 6px; padding: 10px 12px; box-shadow: 0 1px 4px var(--sombra-tarjeta);
+                border-left: 3px solid var(--acento);
             }
-            .tarjeta .etiqueta { font-size: 12px; color: var(--sin-datos); font-weight: bold; text-transform: uppercase; letter-spacing: .5px; }
-            .tarjeta .valor { font-size: 28px; font-weight: bold; color: var(--acento); margin: 6px 0 2px; }
-            .tarjeta .detalle { font-size: 12px; color: var(--sin-datos); }
+            .tarjeta .etiqueta { font-size: 10.5px; color: var(--sin-datos); font-weight: bold; text-transform: uppercase; letter-spacing: .3px; }
+            .tarjeta .valor { font-size: 19px; font-weight: bold; color: var(--acento); margin: 2px 0 1px; }
+            .tarjeta .detalle { font-size: 10.5px; color: var(--sin-datos); line-height: 1.3; }
             .cambiar-vista { text-align: center; margin-top: 24px; }
             .cambiar-vista a {
                 font-size: 13px; color: var(--acento); text-decoration: none; font-weight: bold;
@@ -430,6 +430,26 @@ class InicioView {
                         <div class="etiqueta">Asistencia de la semana</div>
                         <div class="valor"><?= (int)$stats['asistenciaSemana']['presentes'] ?></div>
                         <div class="detalle">presentes · <?= (int)$stats['asistenciaSemana']['ausentes'] ?> ausentes (últimos 7 días)</div>
+                    </div>
+                    <div class="tarjeta">
+                        <div class="etiqueta">Estudiantes al día</div>
+                        <div class="valor"><?= (int)$stats['pagosAlDia'] ?></div>
+                        <div class="detalle">de los miembros activos en Grupos</div>
+                    </div>
+                    <div class="tarjeta">
+                        <div class="etiqueta">Deben 1 mes</div>
+                        <div class="valor"><?= (int)$stats['pagosDebe1Mes'] ?></div>
+                        <div class="detalle">de los miembros activos en Grupos</div>
+                    </div>
+                    <div class="tarjeta">
+                        <div class="etiqueta">Deben 2-3 meses</div>
+                        <div class="valor"><?= (int)$stats['pagosDebe2_3Meses'] ?></div>
+                        <div class="detalle">de los miembros activos en Grupos</div>
+                    </div>
+                    <div class="tarjeta">
+                        <div class="etiqueta">Pagaron graduación</div>
+                        <div class="valor"><?= (int)$stats['pagosGraduacion'] ?></div>
+                        <div class="detalle">aproximado, ver Reportes →</div>
                     </div>
                 </div>
 
