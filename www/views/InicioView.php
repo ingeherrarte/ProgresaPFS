@@ -154,7 +154,7 @@ class InicioView {
                 <div class="cambiar-vista">
                     <a href="inicio.php?vista=dashboard">Ver como resumen con estadísticas →</a>
                     &nbsp;·&nbsp;
-                    <a href="inicio.php">Ver panel principal →</a>
+                    <a href="inicio.php?vista=moderno">Ver panel moderno →</a>
                 </div>
             </div>
             <?php Tema::script(); ?>
@@ -451,6 +451,16 @@ class InicioView {
                         <div class="valor"><?= (int)$stats['estudiantesNuevosMes'] ?></div>
                         <div class="detalle">estudiantes registrados</div>
                     </div>
+                    <div class="tarjeta">
+                        <div class="etiqueta">Asistencia de hoy</div>
+                        <div class="valor"><?= (int)$stats['asistenciaHoy']['presentes'] ?></div>
+                        <div class="detalle">presentes · <?= (int)$stats['asistenciaHoy']['ausentes'] ?> ausentes</div>
+                    </div>
+                    <div class="tarjeta">
+                        <div class="etiqueta">Asistencia de la semana</div>
+                        <div class="valor"><?= (int)$stats['asistenciaSemana']['presentes'] ?></div>
+                        <div class="detalle">presentes · <?= (int)$stats['asistenciaSemana']['ausentes'] ?> ausentes (últimos 7 días)</div>
+                    </div>
                 </div>
 
                 <?php self::gridAccesos(); ?>
@@ -458,7 +468,7 @@ class InicioView {
                 <div class="cambiar-vista">
                     <a href="inicio.php?vista=simple">← Ver como accesos simples</a>
                     &nbsp;·&nbsp;
-                    <a href="inicio.php">Ver panel principal →</a>
+                    <a href="inicio.php?vista=moderno">Ver panel moderno →</a>
                 </div>
             </div>
             <?php Tema::script(); ?>

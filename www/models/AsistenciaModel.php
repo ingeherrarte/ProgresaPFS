@@ -36,6 +36,26 @@ class AsistenciaModel {
         return $n;
     }
 
+    // Para las tarjetas de Inicio: presentes/ausentes de TODOS los grupos
+    // juntos, no de uno en particular. "Semana" es una ventana móvil de 7
+    // días (incluye hoy), no lunes-domingo — así el número tiene sentido
+    // se consulte el día que se consulte, no solo cerca del lunes.
+    public static function resumenHoy(PDO $db): array {
+        $fila = $db->query(
+            "SELECT SUM(estado = 'presente') AS presentes, SUM(estado = 'ausente') AS ausentes
+             FROM asistencias WHERE fecha = CURDATE()"
+        )->fetch(PDO::FETCH_ASSOC);
+        return ['presentes' => (int)($fila['presentes'] ?? 0), 'ausentes' => (int)($fila['ausentes'] ?? 0)];
+    }
+
+    public static function resumenSemana(PDO $db): array {
+        $fila = $db->query(
+            "SELECT SUM(estado = 'presente') AS presentes, SUM(estado = 'ausente') AS ausentes
+             FROM asistencias WHERE fecha >= DATE_SUB(CURDATE(), INTERVAL 6 DAY)"
+        )->fetch(PDO::FETCH_ASSOC);
+        return ['presentes' => (int)($fila['presentes'] ?? 0), 'ausentes' => (int)($fila['ausentes'] ?? 0)];
+    }
+
     // Qué fechas ya tienen asistencia tomada en este grupo, y cuántos
     // presentes/ausentes cada una — para ver de un vistazo el historial
     // sin tener que adivinar qué día revisar.
