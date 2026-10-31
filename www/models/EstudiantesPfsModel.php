@@ -85,8 +85,20 @@ class EstudiantesPfsModel {
         return ['total' => $total, 'filas' => $stmt->fetchAll(PDO::FETCH_ASSOC)];
     }
 
+    // El carné siempre ha sido AÑO + secuencial de 3 dígitos (ej. 2026364 =
+    // estudiante #364 inscrito en 2026) — el año es cuándo se INSCRIBIÓ, no
+    // el ciclo que va a estudiar (un estudiante que se inscribe en
+    // diciembre 2026 para el ciclo de enero 2027 conserva el prefijo 2026,
+    // igual que siempre). Antes esto se mantenía a mano cada enero; ahora
+    // se detecta solo: si todavía no hay ningún carné con el prefijo del
+    // año actual, arranca en año*1000+1 en vez de seguir incrementando el
+    // correlativo del año anterior.
     private static function siguienteId(PDO $db): int {
-        return (int)$db->query("SELECT COALESCE(MAX(idestudiante),0)+1 FROM estudiantespfs")->fetchColumn();
+        $anio = (int)date('Y');
+        $stmt = $db->prepare("SELECT MAX(idestudiante) FROM estudiantespfs WHERE idestudiante BETWEEN ? AND ?");
+        $stmt->execute([$anio * 1000, $anio * 1000 + 999]);
+        $max = (int)$stmt->fetchColumn();
+        return $max > 0 ? $max + 1 : $anio * 1000 + 1;
     }
 
     // El correlativo se calcula con MAX(idestudiante)+1, igual que en
