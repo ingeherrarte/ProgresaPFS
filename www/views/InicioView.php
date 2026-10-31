@@ -413,7 +413,6 @@ class InicioView {
 
     public static function mostrarDashboard(array $stats): void {
         $recibosHoy = $stats['recibosHoy'];
-        $recibosMes = $stats['recibosMes'];
         ?>
         <!DOCTYPE html>
         <html lang="es">
@@ -435,11 +434,6 @@ class InicioView {
                         <div class="etiqueta">Recibos hoy</div>
                         <div class="valor"><?= (int)$recibosHoy['cantidad'] ?></div>
                         <div class="detalle">Q <?= number_format($recibosHoy['total'], 2) ?> recaudados</div>
-                    </div>
-                    <div class="tarjeta">
-                        <div class="etiqueta">Recibos este mes</div>
-                        <div class="valor"><?= (int)$recibosMes['cantidad'] ?></div>
-                        <div class="detalle">Q <?= number_format($recibosMes['total'], 2) ?> recaudados</div>
                     </div>
                     <div class="tarjeta">
                         <div class="etiqueta">Estudiantes activos</div>
