@@ -347,6 +347,15 @@ class ConsultaPagosView {
                         </select>
                     </div>
                     <div class="campo">
+                        <label for="fPlan">Plan (día)</label>
+                        <select id="fPlan">
+                            <option value="">-- Todos --</option>
+                            <?php foreach (EstudiantesPfsModel::planes() as $id => $nombre): ?>
+                                <option value="<?= (int)$id ?>"><?= htmlspecialchars($nombre) ?></option>
+                            <?php endforeach; ?>
+                        </select>
+                    </div>
+                    <div class="campo">
                         <label for="fJornada">Jornada</label>
                         <select id="fJornada">
                             <option value="">-- Todas --</option>
@@ -356,28 +365,53 @@ class ConsultaPagosView {
                         </select>
                     </div>
                     <div class="campo" style="flex:0 0 auto;">
-                        <label style="visibility:hidden;">&nbsp;</label>
-                        <label style="display:flex;align-items:center;gap:6px;font-weight:normal;font-size:13px;color:var(--texto);white-space:nowrap;">
-                            <input type="checkbox" id="fGrad" style="width:auto;"> Pagó graduación
-                        </label>
+                        <label>Graduación</label>
+                        <div style="display:flex;gap:10px;">
+                            <label style="display:flex;align-items:center;gap:5px;font-weight:normal;font-size:13px;color:var(--texto);white-space:nowrap;">
+                                <input type="radio" name="fGrad" class="fGrad" value="" checked style="width:auto;"> Todos
+                            </label>
+                            <label style="display:flex;align-items:center;gap:5px;font-weight:normal;font-size:13px;color:var(--texto);white-space:nowrap;">
+                                <input type="radio" name="fGrad" class="fGrad" value="si" style="width:auto;"> Pagó
+                            </label>
+                            <label style="display:flex;align-items:center;gap:5px;font-weight:normal;font-size:13px;color:var(--texto);white-space:nowrap;">
+                                <input type="radio" name="fGrad" class="fGrad" value="no" style="width:auto;"> No ha pagado
+                            </label>
+                        </div>
                     </div>
                     <div class="campo" style="flex:0 0 auto;">
-                        <label style="visibility:hidden;">&nbsp;</label>
-                        <label style="display:flex;align-items:center;gap:6px;font-weight:normal;font-size:13px;color:var(--texto);white-space:nowrap;">
-                            <input type="checkbox" id="fLibro" style="width:auto;"> Compró libro
-                        </label>
+                        <label>Libro</label>
+                        <div style="display:flex;gap:10px;">
+                            <label style="display:flex;align-items:center;gap:5px;font-weight:normal;font-size:13px;color:var(--texto);white-space:nowrap;">
+                                <input type="radio" name="fLibro" class="fLibro" value="" checked style="width:auto;"> Todos
+                            </label>
+                            <label style="display:flex;align-items:center;gap:5px;font-weight:normal;font-size:13px;color:var(--texto);white-space:nowrap;">
+                                <input type="radio" name="fLibro" class="fLibro" value="si" style="width:auto;"> Compró
+                            </label>
+                            <label style="display:flex;align-items:center;gap:5px;font-weight:normal;font-size:13px;color:var(--texto);white-space:nowrap;">
+                                <input type="radio" name="fLibro" class="fLibro" value="no" style="width:auto;"> No ha comprado
+                            </label>
+                        </div>
                     </div>
                     <div class="campo" style="flex:0 0 auto;">
                         <label>Estado</label>
-                        <div style="display:flex;gap:10px;">
+                        <div style="display:flex;gap:10px;flex-wrap:wrap;">
                             <label style="display:flex;align-items:center;gap:5px;font-weight:normal;font-size:13px;color:var(--texto);white-space:nowrap;">
-                                <input type="checkbox" class="fEstado" value="al_dia" style="width:auto;"> Al día
+                                <input type="radio" name="fEstado" class="fEstado" value="" checked style="width:auto;"> Todos
                             </label>
                             <label style="display:flex;align-items:center;gap:5px;font-weight:normal;font-size:13px;color:var(--texto);white-space:nowrap;">
-                                <input type="checkbox" class="fEstado" value="debe_1_mes" style="width:auto;"> Debe 1 mes
+                                <input type="radio" name="fEstado" class="fEstado" value="al_dia" style="width:auto;"> Al día
                             </label>
                             <label style="display:flex;align-items:center;gap:5px;font-weight:normal;font-size:13px;color:var(--texto);white-space:nowrap;">
-                                <input type="checkbox" class="fEstado" value="debe_2_3_meses" style="width:auto;"> Debe 2-3 meses
+                                <input type="radio" name="fEstado" class="fEstado" value="debe_1_mes" style="width:auto;"> Debe 1 mes
+                            </label>
+                            <label style="display:flex;align-items:center;gap:5px;font-weight:normal;font-size:13px;color:var(--texto);white-space:nowrap;">
+                                <input type="radio" name="fEstado" class="fEstado" value="debe_2_3_meses" style="width:auto;"> Debe 2-3 meses
+                            </label>
+                            <label style="display:flex;align-items:center;gap:5px;font-weight:normal;font-size:13px;color:var(--texto);white-space:nowrap;">
+                                <input type="radio" name="fEstado" class="fEstado" value="mora_mayor" style="width:auto;"> Mora (4+ meses)
+                            </label>
+                            <label style="display:flex;align-items:center;gap:5px;font-weight:normal;font-size:13px;color:var(--texto);white-space:nowrap;">
+                                <input type="radio" name="fEstado" class="fEstado" value="sin_pagos" style="width:auto;"> Sin pagos
                             </label>
                         </div>
                     </div>
@@ -418,6 +452,7 @@ class ConsultaPagosView {
                                 <tr class="fila-reporte"
                                     data-buscar="<?= htmlspecialchars($buscar) ?>"
                                     data-diplomado="<?= (int)$f['codcurso'] ?>"
+                                    data-plan="<?= (int)$f['plan'] ?>"
                                     data-jornada="<?= (int)$f['jornada'] ?>"
                                     data-estado="<?= htmlspecialchars($f['estado_pago']) ?>"
                                     data-grad="<?= $tieneGrad ?>"
@@ -449,9 +484,10 @@ class ConsultaPagosView {
             <script>
                 const fTexto = document.getElementById('fTexto');
                 const fDiplomado = document.getElementById('fDiplomado');
+                const fPlan = document.getElementById('fPlan');
                 const fJornada = document.getElementById('fJornada');
-                const fGrad = document.getElementById('fGrad');
-                const fLibro = document.getElementById('fLibro');
+                const fGrad = document.querySelectorAll('.fGrad');
+                const fLibro = document.querySelectorAll('.fLibro');
                 const fEstados = document.querySelectorAll('.fEstado');
                 const conteoVisible = document.getElementById('conteoVisible');
                 const conteoGrad = document.getElementById('conteoGrad');
@@ -464,20 +500,29 @@ class ConsultaPagosView {
                     return valor.toLocaleString('es-GT', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
                 }
 
+                // Radio buttons: solo uno seleccionado por grupo, "Todos" (value="")
+                // de default — a diferencia de los checkboxes anteriores, aquí no
+                // existe el estado ambiguo de "marcar las dos opciones a la vez".
+                function valorSeleccionado(nombreGrupo) {
+                    const el = document.querySelector('input[name="' + nombreGrupo + '"]:checked');
+                    return el ? el.value : '';
+                }
+
                 function aplicarFiltros() {
                     const texto = fTexto.value.trim().toLowerCase();
-                    // Checkboxes de estado: ninguno marcado = no filtra (se ven todos);
-                    // uno o más marcados = solo esos (combinados con OR entre sí).
-                    const estadosMarcados = Array.from(fEstados).filter(c => c.checked).map(c => c.value);
+                    const estadoSel = valorSeleccionado('fEstado');
+                    const gradSel = valorSeleccionado('fGrad');
+                    const libroSel = valorSeleccionado('fLibro');
                     let visibles = 0, conGrad = 0, montoGrad = 0, conLibro = 0, montoLibro = 0;
                     filas.forEach(function (fila) {
                         const coincide =
                             (texto === '' || fila.dataset.buscar.includes(texto)) &&
                             (fDiplomado.value === '' || fila.dataset.diplomado === fDiplomado.value) &&
+                            (fPlan.value === '' || fila.dataset.plan === fPlan.value) &&
                             (fJornada.value === '' || fila.dataset.jornada === fJornada.value) &&
-                            (!fGrad.checked || fila.dataset.grad === 'si') &&
-                            (!fLibro.checked || fila.dataset.libro === 'si') &&
-                            (estadosMarcados.length === 0 || estadosMarcados.includes(fila.dataset.estado));
+                            (gradSel === '' || fila.dataset.grad === gradSel) &&
+                            (libroSel === '' || fila.dataset.libro === libroSel) &&
+                            (estadoSel === '' || fila.dataset.estado === estadoSel);
                         fila.hidden = !coincide;
                         if (coincide) {
                             visibles++;
@@ -492,13 +537,10 @@ class ConsultaPagosView {
                     if (sumaLibro) sumaLibro.textContent = formatoQ(montoLibro);
                 }
 
-                [fTexto, fDiplomado, fJornada].forEach(function (el) {
+                [fTexto, fDiplomado, fPlan, fJornada].forEach(function (el) {
                     if (el) el.addEventListener('input', aplicarFiltros);
                 });
-                [fGrad, fLibro].forEach(function (el) {
-                    if (el) el.addEventListener('change', aplicarFiltros);
-                });
-                fEstados.forEach(function (el) {
+                [...fGrad, ...fLibro, ...fEstados].forEach(function (el) {
                     el.addEventListener('change', aplicarFiltros);
                 });
                 aplicarFiltros();
