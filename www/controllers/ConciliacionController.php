@@ -10,36 +10,41 @@ class ConciliacionController {
     private const MAX_FILAS = 5000;
     private const MAX_TAMANO_ARCHIVO = 3 * 1024 * 1024;
 
-    // Formato confirmado de cada banco (siempre el mismo export, columnas
-    // 0-based). BANRURAL: Fecha, Oficina, Descripción, Referencia,
-    // Secuencial, Cheque Propio/Local/Efectivo, Débito(-), Crédito(+), Saldo
-    // Contable, Saldo Disponible (A..J), encabezado en la fila 5, datos
-    // desde la 6. BANTRAB: visualmente FECHA, NO. DOCUMENTO, DESCRIPCIÓN,
-    // DÉBITOS, CRÉDITOS, SALDO, pero el .xlsx real (exportado con extensión
-    // .xls) usa columnas de relleno angostas entre cada dato visible — las
-    // columnas REALES, confirmadas abriendo el XML de un archivo real
-    // (2026-10-19), son: Fecha=A(0), No.Documento=C(2), Descripción=D(3),
-    // Débitos=H(7), Créditos=J(9), Saldo=K(10); encabezado en la fila 6,
-    // datos desde la 7.
+    // Formato confirmado de cada banco (columnas 0-based). BANRURAL: Fecha,
+    // Oficina, Descripción, Referencia, Secuencial, Cheque Propio/Local/
+    // Efectivo, Débito(-), Crédito(+), Saldo Contable, Saldo Disponible
+    // (A..J), encabezado en la fila 5, datos desde la 6.
+    //
+    // BANTRAB: desde 2026-11 el export real es la hoja "Movimientos" de un
+    // libro con 2 hojas (la otra, "Resumen", se ignora — el código siempre
+    // lee la PRIMERA hoja del libro, que es "Movimientos" en este export):
+    // Fecha=A(0), Cuenta=B(1, no se usa), No.Doc=C(2), Descripción=D(3),
+    // Tipo=E(4, no se usa), Débitos=F(5), Créditos=G(6), Saldo=H(7);
+    // encabezado en la fila 1, datos desde la 2; fecha como número de Excel
+    // (formatoFecha=excel_serial), no texto. Reemplaza al export anterior
+    // (visualmente igual pero con columnas de relleno angostas: Fecha=A(0),
+    // No.Documento=C(2), Descripción=D(3), Débitos=H(7), Créditos=J(9),
+    // Saldo=K(10), encabezado fila 6, datos desde la 7, fecha en texto
+    // dmy) — si algún mes vuelve a llegar en ese formato viejo, hay que
+    // elegir las columnas a mano en vez de confiar en este preset.
     //
     // colSaldo usa "Saldo Contable" en BANRURAL (columna I, 8): es el saldo
     // contable de la cuenta, el que cuadra con el estado de cuenta impreso
     // (Saldo Disponible puede diferir por retenciones/holds momentáneos).
     //
     // Para un archivo que no viene de ninguno de los dos export conocidos
-    // (ej. líneas de un PDF transcritas a mano, ver estados de cuenta
-    // históricos de BANTRAB en PDF), no hay preset: se eligen las columnas
-    // manualmente en la pantalla de mapeo, igual que antes de tener preset.
+    // (ej. líneas de un PDF transcritas a mano), no hay preset: se eligen
+    // las columnas manualmente en la pantalla de mapeo.
     private const PRESETS = [
         '3099203897' => [ // BANRURAL
             'colFecha' => 0, 'colDescripcion' => 2, 'colReferencia' => 3,
             'colDebito' => 6, 'colCredito' => 7, 'colSaldo' => 8, 'filaInicio' => 6,
             'formatoFecha' => 'dmy', 'formatoMonto' => 'punto_decimal',
         ],
-        '2870011720' => [ // BANTRAB
+        '2870011720' => [ // BANTRAB (hoja "Movimientos", export desde 2026-11)
             'colFecha' => 0, 'colDescripcion' => 3, 'colReferencia' => 2,
-            'colDebito' => 7, 'colCredito' => 9, 'colSaldo' => 10, 'filaInicio' => 7,
-            'formatoFecha' => 'dmy', 'formatoMonto' => 'punto_decimal',
+            'colDebito' => 5, 'colCredito' => 6, 'colSaldo' => 7, 'filaInicio' => 2,
+            'formatoFecha' => 'excel_serial', 'formatoMonto' => 'punto_decimal',
         ],
     ];
 
@@ -247,7 +252,18 @@ class ConciliacionController {
                 $rels = new SimpleXMLElement($relsXml);
                 foreach ($rels->Relationship as $rel) {
                     if ((string)$rel['Id'] === $rId) {
-                        $rutaHoja = 'xl/' . ltrim((string)$rel['Target'], '/');
+                        // El Target de una relación puede venir relativo a
+                        // xl/ ("worksheets/sheet1.xml", lo normal) o
+                        // absoluto desde la raíz del paquete
+                        // ("/xl/worksheets/sheet1.xml", también válido por
+                        // spec OOXML — algunos exports de banca en línea lo
+                        // generan así). Antepronerle "xl/" a uno que ya
+                        // empieza con "/xl/" producía "xl/xl/worksheets/
+                        // sheet1.xml" (no existe) y el archivo se
+                        // rechazaba como "no se pudo leer la hoja" aunque
+                        // fuera un .xlsx perfectamente válido.
+                        $target = (string)$rel['Target'];
+                        $rutaHoja = str_starts_with($target, '/') ? ltrim($target, '/') : 'xl/' . $target;
                         break;
                     }
                 }
