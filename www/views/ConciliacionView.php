@@ -456,6 +456,19 @@ class ConciliacionView {
         <?php
     }
 
+    // "Columna H" a secas no dice nada sin volver a mirar la vista previa —
+    // si la fila justo antes de donde empiezan los datos trae el
+    // encabezado real del banco, se usa como nombre (ej. "Columna H —
+    // DÉBITOS"). Es solo una sugerencia inicial (basada en la fila de
+    // inicio sugerida por el preset o 1 por defecto): si el usuario cambia
+    // "¿en qué fila empiezan los datos?" a mano, estas etiquetas no se
+    // recalculan solas.
+    private static function etiquetaColumna(int $c, array $encabezados): string {
+        $letra = self::columnaLetra($c);
+        $nombre = trim($encabezados[$c] ?? '');
+        return $nombre !== '' ? "Columna $letra — " . mb_strtoupper(mb_substr($nombre, 0, 30)) : "Columna $letra";
+    }
+
     public static function mostrarMapeo(array $filas, string $desde, string $hasta, int $numero, int $total, string $nombreBanco, ?array $preset): void {
         // El número de columnas se toma del MÁXIMO entre todas las filas, no
         // solo de la primera: varias filas de membrete/título al inicio del
@@ -465,6 +478,10 @@ class ConciliacionView {
         // dejaba elegir nada distinto de A porque esa opción no existía.
         $totalColumnas = !empty($filas) ? max(array_map('count', $filas)) : 0;
         $totalFilas = count($filas);
+
+        $filaInicioSugerida = $preset['filaInicio'] ?? 1;
+        $indiceEncabezado = $filaInicioSugerida - 2; // 0-based, la fila justo antes de los datos
+        $encabezados = ($indiceEncabezado >= 0 && isset($filas[$indiceEncabezado])) ? $filas[$indiceEncabezado] : [];
         ?>
         <!DOCTYPE html>
         <html lang="es">
@@ -540,43 +557,16 @@ class ConciliacionView {
                             <label for="col_fecha">Columna de fecha</label>
                             <select id="col_fecha" name="col_fecha" required>
                                 <?php for ($c = 0; $c < $totalColumnas; $c++): ?>
-                                    <option value="<?= $c ?>" <?= ($preset['colFecha'] ?? null) === $c ? 'selected' : '' ?>>Columna <?= self::columnaLetra($c) ?></option>
+                                    <option value="<?= $c ?>" <?= ($preset['colFecha'] ?? null) === $c ? 'selected' : '' ?>><?= htmlspecialchars(self::etiquetaColumna($c, $encabezados)) ?></option>
                                 <?php endfor; ?>
                             </select>
                         </div>
                         <div class="campo">
-                            <label for="col_credito">Columna de CRÉDITOS (dinero que entró)</label>
-                            <select id="col_credito" name="col_credito">
-                                <option value="">-- Ninguna --</option>
-                                <?php for ($c = 0; $c < $totalColumnas; $c++): ?>
-                                    <option value="<?= $c ?>" <?= ($preset['colCredito'] ?? null) === $c ? 'selected' : '' ?>>Columna <?= self::columnaLetra($c) ?></option>
-                                <?php endfor; ?>
-                            </select>
-                        </div>
-                        <div class="campo">
-                            <label for="col_debito">Columna de DÉBITOS (dinero que salió)</label>
-                            <select id="col_debito" name="col_debito">
-                                <option value="">-- Ninguna --</option>
-                                <?php for ($c = 0; $c < $totalColumnas; $c++): ?>
-                                    <option value="<?= $c ?>" <?= ($preset['colDebito'] ?? null) === $c ? 'selected' : '' ?>>Columna <?= self::columnaLetra($c) ?></option>
-                                <?php endfor; ?>
-                            </select>
-                        </div>
-                        <div class="campo">
-                            <label for="col_saldo">Columna de saldo (opcional)</label>
-                            <select id="col_saldo" name="col_saldo">
-                                <option value="">-- Ninguna --</option>
-                                <?php for ($c = 0; $c < $totalColumnas; $c++): ?>
-                                    <option value="<?= $c ?>" <?= ($preset['colSaldo'] ?? null) === $c ? 'selected' : '' ?>>Columna <?= self::columnaLetra($c) ?></option>
-                                <?php endfor; ?>
-                            </select>
-                        </div>
-                        <div class="campo">
-                            <label for="col_referencia">Columna de referencia del banco (opcional)</label>
+                            <label for="col_referencia">Columna de referencia / No. Documento (opcional)</label>
                             <select id="col_referencia" name="col_referencia">
                                 <option value="">-- Ninguna --</option>
                                 <?php for ($c = 0; $c < $totalColumnas; $c++): ?>
-                                    <option value="<?= $c ?>" <?= ($preset['colReferencia'] ?? null) === $c ? 'selected' : '' ?>>Columna <?= self::columnaLetra($c) ?></option>
+                                    <option value="<?= $c ?>" <?= ($preset['colReferencia'] ?? null) === $c ? 'selected' : '' ?>><?= htmlspecialchars(self::etiquetaColumna($c, $encabezados)) ?></option>
                                 <?php endfor; ?>
                             </select>
                         </div>
@@ -585,7 +575,34 @@ class ConciliacionView {
                             <select id="col_descripcion" name="col_descripcion">
                                 <option value="">-- Ninguna --</option>
                                 <?php for ($c = 0; $c < $totalColumnas; $c++): ?>
-                                    <option value="<?= $c ?>" <?= ($preset['colDescripcion'] ?? null) === $c ? 'selected' : '' ?>>Columna <?= self::columnaLetra($c) ?></option>
+                                    <option value="<?= $c ?>" <?= ($preset['colDescripcion'] ?? null) === $c ? 'selected' : '' ?>><?= htmlspecialchars(self::etiquetaColumna($c, $encabezados)) ?></option>
+                                <?php endfor; ?>
+                            </select>
+                        </div>
+                        <div class="campo">
+                            <label for="col_debito">Columna de DÉBITOS (dinero que salió)</label>
+                            <select id="col_debito" name="col_debito">
+                                <option value="">-- Ninguna --</option>
+                                <?php for ($c = 0; $c < $totalColumnas; $c++): ?>
+                                    <option value="<?= $c ?>" <?= ($preset['colDebito'] ?? null) === $c ? 'selected' : '' ?>><?= htmlspecialchars(self::etiquetaColumna($c, $encabezados)) ?></option>
+                                <?php endfor; ?>
+                            </select>
+                        </div>
+                        <div class="campo">
+                            <label for="col_credito">Columna de CRÉDITOS (dinero que entró)</label>
+                            <select id="col_credito" name="col_credito">
+                                <option value="">-- Ninguna --</option>
+                                <?php for ($c = 0; $c < $totalColumnas; $c++): ?>
+                                    <option value="<?= $c ?>" <?= ($preset['colCredito'] ?? null) === $c ? 'selected' : '' ?>><?= htmlspecialchars(self::etiquetaColumna($c, $encabezados)) ?></option>
+                                <?php endfor; ?>
+                            </select>
+                        </div>
+                        <div class="campo">
+                            <label for="col_saldo">Columna de saldo (opcional)</label>
+                            <select id="col_saldo" name="col_saldo">
+                                <option value="">-- Ninguna --</option>
+                                <?php for ($c = 0; $c < $totalColumnas; $c++): ?>
+                                    <option value="<?= $c ?>" <?= ($preset['colSaldo'] ?? null) === $c ? 'selected' : '' ?>><?= htmlspecialchars(self::etiquetaColumna($c, $encabezados)) ?></option>
                                 <?php endfor; ?>
                             </select>
                         </div>
