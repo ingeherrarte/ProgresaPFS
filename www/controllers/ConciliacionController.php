@@ -176,15 +176,24 @@ class ConciliacionController {
         $primeraLinea = strtok($contenido, "\n") ?: '';
         $separador = (substr_count($primeraLinea, ';') > substr_count($primeraLinea, ',')) ? ';' : ',';
 
+        // No se saltan líneas en blanco: si se descartan aquí, el número de
+        // fila que ve el usuario en la vista previa deja de corresponder al
+        // número de línea real del archivo, y "¿en qué fila empiezan los
+        // datos?" apunta a la fila equivocada — pasó en vivo con un CSV de
+        // BANRURAL que trae una línea en blanco antes del encabezado: la
+        // primera línea de datos real se perdía en silencio. Una fila en
+        // blanco simplemente falla la validación normal (fecha/monto
+        // vacíos) más abajo, igual que cualquier otra fila inválida — no
+        // hace falta tratarla distinto aquí.
         $filas = [];
         $fh = fopen('php://memory', 'r+');
         fwrite($fh, $contenido);
         rewind($fh);
         while (($fila = fgetcsv($fh, 0, $separador)) !== false) {
-            if (count($fila) === 1 && trim((string)$fila[0]) === '') {
-                continue; // línea en blanco
-            }
-            $filas[] = array_map('trim', $fila);
+            // (string) antes de trim(): una línea realmente vacía hace que
+            // fgetcsv() devuelva [null] en vez de [''], y trim(null) ya es
+            // deprecated en PHP 8.1+.
+            $filas[] = array_map(fn($v) => trim((string)$v), $fila);
         }
         fclose($fh);
         return $filas;
@@ -692,8 +701,39 @@ class ConciliacionController {
         }
 
         if (empty($lineas)) {
+            // Diagnóstico concreto en vez de solo "revisa las columnas": con
+            // qué archivo fue (si eran 2) y qué encontró de verdad en la
+            // primera fila que intentó leer — para que se vea de un vistazo
+            // si, por ejemplo, la columna de crédito elegida en realidad
+            // tiene texto ("EFECTIVO") en vez de un monto, señal de que se
+            // aplicó el mapeo de otro banco a este archivo.
+            $total = $_SESSION['conciliacion_total'] ?? 1;
+            $numero = $total - count($_SESSION['conciliacion_cola'] ?? []);
+            $prefijoArchivo = $total > 1 ? "Archivo $numero de $total — " : '';
+
+            $filaEjemplo = $filas[$inicio] ?? null;
+            $ejemplo = '';
+            if ($filaEjemplo !== null) {
+                $describirColumna = function ($col) use ($filaEjemplo) {
+                    if ($col === '') {
+                        return 'no se eligió columna';
+                    }
+                    $valor = $filaEjemplo[(int)$col] ?? null;
+                    return 'columna #' . ((int)$col + 1) . ' = "' . ($valor ?? '(la fila no tiene esa columna)') . '"';
+                };
+                $ejemplo = " Ejemplo, fila $filaInicioDatos: fecha → " . $describirColumna((string)$colFecha)
+                    . "; débito → " . $describirColumna($colDebito)
+                    . "; crédito → " . $describirColumna($colCredito) . ".";
+            }
+
             $this->limpiarColaImportacion();
-            $this->form(null, "No se pudo interpretar ninguna fila con el mapeo indicado. Revisa las columnas/formatos seleccionados.", $desde, $hasta);
+            $this->form(
+                null,
+                $prefijoArchivo . "No se pudo interpretar ninguna fila con el mapeo indicado — revisa que \"¿en qué fila empiezan los datos?\" y las columnas elegidas sean correctas para ESTE archivo."
+                    . $ejemplo,
+                $desde,
+                $hasta
+            );
             return;
         }
 
