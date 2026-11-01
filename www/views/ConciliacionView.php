@@ -1238,48 +1238,68 @@ class ConciliacionView {
                 <?php self::selectorAnio('comparativo', $anio); ?>
             </div>
 
-            <?php foreach ($porBanco as $cuenta => $datos): ?>
-                <?php
+            <?php
+                // Un solo cuadro con los dos bancos lado a lado (antes era
+                // una tarjeta aparte por banco) — más fácil de comparar
+                // BANTRAB vs BANRURAL mes a mes sin tener que hacer scroll
+                // entre dos tablas distintas.
+                $totales = [];
+                foreach ($porBanco as $cuenta => $datos) {
                     $totalSistema = array_sum($datos['sistema']);
                     $totalBanco = 0.0;
                     foreach ($datos['estadoCuenta'] as $m) { $totalBanco += $m['credito']; }
-                ?>
-                <div class="card">
-                    <h2><?= htmlspecialchars($datos['banco']) ?> <span style="font-size:12px;color:var(--sin-datos);font-weight:normal;">(cuenta <?= htmlspecialchars($cuenta) ?>)</span></h2>
-                    <div class="tabla-scroll">
-                    <table>
-                        <thead>
-                            <tr><th>Mes</th><th>Depósitos del sistema</th><th>Créditos del banco</th><th>Diferencia</th></tr>
-                        </thead>
-                        <tbody>
-                            <?php for ($m = 1; $m <= 12; $m++): ?>
-                                <?php
-                                    $sistema = (float)$datos['sistema'][$m];
-                                    $banco = (float)$datos['estadoCuenta'][$m]['credito'];
-                                    $diferencia = $banco - $sistema;
-                                ?>
-                                <tr>
-                                    <td><?= self::$meses[$m] ?></td>
+                    $totales[$cuenta] = ['sistema' => $totalSistema, 'banco' => $totalBanco];
+                }
+            ?>
+            <div class="card">
+                <h2>Créditos del banco vs. depósitos del sistema — <?= $anio ?></h2>
+                <div class="tabla-scroll">
+                <table>
+                    <thead>
+                        <tr>
+                            <th rowspan="2">Mes</th>
+                            <?php foreach ($porBanco as $cuenta => $datos): ?>
+                                <th colspan="3"><?= htmlspecialchars($datos['banco']) ?> <span style="font-weight:normal;font-size:11px;color:var(--sin-datos);">(<?= htmlspecialchars($cuenta) ?>)</span></th>
+                            <?php endforeach; ?>
+                        </tr>
+                        <tr>
+                            <?php foreach ($porBanco as $cuenta => $datos): ?>
+                                <th>Dep. sistema</th><th>Créditos banco</th><th>Diferencia</th>
+                            <?php endforeach; ?>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <?php for ($m = 1; $m <= 12; $m++): ?>
+                            <tr>
+                                <td><?= self::$meses[$m] ?></td>
+                                <?php foreach ($porBanco as $cuenta => $datos): ?>
+                                    <?php
+                                        $sistema = (float)$datos['sistema'][$m];
+                                        $banco = (float)$datos['estadoCuenta'][$m]['credito'];
+                                        $diferencia = $banco - $sistema;
+                                    ?>
                                     <td class="num">Q <?= number_format($sistema, 2) ?></td>
                                     <td class="num">Q <?= number_format($banco, 2) ?></td>
                                     <td class="num" style="<?= abs($diferencia) > 0.01 ? 'color:var(--estado-falta-texto);font-weight:bold;' : 'color:var(--sin-datos);' ?>">
-                                        <?= abs($diferencia) > 0.01 ? ($diferencia > 0 ? '+' : '') . 'Q ' . number_format($diferencia, 2) : '✓ cuadra' ?>
+                                        <?= abs($diferencia) > 0.01 ? ($diferencia > 0 ? '+' : '') . 'Q ' . number_format($diferencia, 2) : '✓' ?>
                                     </td>
-                                </tr>
-                            <?php endfor; ?>
-                        </tbody>
-                        <tfoot>
-                            <tr style="font-weight:bold;">
-                                <td>Total <?= $anio ?></td>
-                                <td class="num">Q <?= number_format($totalSistema, 2) ?></td>
-                                <td class="num">Q <?= number_format($totalBanco, 2) ?></td>
-                                <td class="num">Q <?= number_format($totalBanco - $totalSistema, 2) ?></td>
+                                <?php endforeach; ?>
                             </tr>
-                        </tfoot>
-                    </table>
-                    </div>
+                        <?php endfor; ?>
+                    </tbody>
+                    <tfoot>
+                        <tr style="font-weight:bold;">
+                            <td>Total <?= $anio ?></td>
+                            <?php foreach ($porBanco as $cuenta => $datos): ?>
+                                <td class="num">Q <?= number_format($totales[$cuenta]['sistema'], 2) ?></td>
+                                <td class="num">Q <?= number_format($totales[$cuenta]['banco'], 2) ?></td>
+                                <td class="num">Q <?= number_format($totales[$cuenta]['banco'] - $totales[$cuenta]['sistema'], 2) ?></td>
+                            <?php endforeach; ?>
+                        </tr>
+                    </tfoot>
+                </table>
                 </div>
-            <?php endforeach; ?>
+            </div>
             <?php Tema::script(); ?>
         </body>
         </html>
