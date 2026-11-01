@@ -1,6 +1,7 @@
 <?php
 require_once "models/ConciliacionModel.php";
 require_once "models/DepositosModel.php";
+require_once "models/RecibosPfsModel.php";
 require_once "views/ConciliacionView.php";
 require_once __DIR__ . "/../helpers/Auth.php";
 require_once __DIR__ . "/../config/Conexion.php";
@@ -925,7 +926,18 @@ class ConciliacionController {
             ];
         }
 
-        ConciliacionView::mostrarComparativo($porBanco, $anio);
+        // Efectivo cobrado en recibos (recibospfs.efectivo) que todavía no
+        // tiene cuenta destino — es dinero que el centro va a llevar al
+        // banco en una boleta de depósito más adelante, no está atado a
+        // BANTRAB ni BANRURAL todavía, así que es una sola columna (no por
+        // banco) entre "Mes" y los grupos de cada banco.
+        $cierreAnio = RecibosPfsModel::cierreAnioPorMes($db, $anio);
+        $efectivoPorMes = array_fill(1, 12, 0.0);
+        foreach ($cierreAnio as $mes => $fila) {
+            $efectivoPorMes[$mes] = (float)$fila['efectivo'];
+        }
+
+        ConciliacionView::mostrarComparativo($porBanco, $anio, $efectivoPorMes);
     }
 
     // Débitos (egresos) del estado de cuenta importado, mes a mes — sin

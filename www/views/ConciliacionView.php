@@ -1211,7 +1211,7 @@ class ConciliacionView {
 
     // $porBanco: [cuenta => ['banco'=>string, 'sistema'=>[mes=>total], 'estadoCuenta'=>[mes=>['credito'=>x,'debito'=>y]]]]
     // (ver ConciliacionController::comparativo).
-    public static function mostrarComparativo(array $porBanco, int $anio): void {
+    public static function mostrarComparativo(array $porBanco, int $anio, array $efectivoPorMes): void {
         ?>
         <!DOCTYPE html>
         <html lang="es">
@@ -1233,7 +1233,9 @@ class ConciliacionView {
                     efectivo/cheques, ver Depósitos) vs. créditos del estado de cuenta ya importado para esa cuenta.
                     Una diferencia pequeña es normal — el banco puede acreditar 1-2 días después de hecha la boleta o
                     la transferencia; una diferencia grande probablemente significa que falta importar el estado de
-                    cuenta de ese mes, o que hay boletas/recibos sin registrar todavía.
+                    cuenta de ese mes, o que hay boletas/recibos sin registrar todavía. La columna "Efectivo
+                    cobrado" es dinero en efectivo recibido ese mes que todavía no está en ninguna cuenta bancaria —
+                    se refleja en "Dep. sistema" hasta que se haga la boleta de depósito correspondiente.
                 </p>
                 <?php self::selectorAnio('comparativo', $anio); ?>
             </div>
@@ -1258,6 +1260,7 @@ class ConciliacionView {
                     <thead>
                         <tr>
                             <th rowspan="2">Mes</th>
+                            <th rowspan="2">Efectivo cobrado</th>
                             <?php foreach ($porBanco as $cuenta => $datos): ?>
                                 <th colspan="3"><?= htmlspecialchars($datos['banco']) ?> <span style="font-weight:normal;font-size:11px;color:var(--sin-datos);">(<?= htmlspecialchars($cuenta) ?>)</span></th>
                             <?php endforeach; ?>
@@ -1272,6 +1275,7 @@ class ConciliacionView {
                         <?php for ($m = 1; $m <= 12; $m++): ?>
                             <tr>
                                 <td><?= self::$meses[$m] ?></td>
+                                <td class="num">Q <?= number_format($efectivoPorMes[$m], 2) ?></td>
                                 <?php foreach ($porBanco as $cuenta => $datos): ?>
                                     <?php
                                         $sistema = (float)$datos['sistema'][$m];
@@ -1290,6 +1294,7 @@ class ConciliacionView {
                     <tfoot>
                         <tr style="font-weight:bold;">
                             <td>Total <?= $anio ?></td>
+                            <td class="num">Q <?= number_format(array_sum($efectivoPorMes), 2) ?></td>
                             <?php foreach ($porBanco as $cuenta => $datos): ?>
                                 <td class="num">Q <?= number_format($totales[$cuenta]['sistema'], 2) ?></td>
                                 <td class="num">Q <?= number_format($totales[$cuenta]['banco'], 2) ?></td>
