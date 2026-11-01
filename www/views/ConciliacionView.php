@@ -1212,10 +1212,11 @@ class ConciliacionView {
             <div class="card">
                 <a href="conciliacion.php" style="font-size:13px;color:var(--acento);font-weight:bold;">← Volver a Conciliación</a>
                 <p style="font-size:12.5px;color:var(--texto-muted,var(--sin-datos));margin:12px 0 0;">
-                    Depósitos registrados en el sistema (mismo dato que "Totales por mes" de Cierre del Año) vs. créditos
-                    del estado de cuenta ya importado para esa cuenta. Una diferencia pequeña es normal — el banco puede
-                    acreditar 1-2 días después de que se registró el recibo; una diferencia grande probablemente significa
-                    que falta importar el estado de cuenta de ese mes, o que hay recibos sin conciliar todavía.
+                    Depósitos registrados en el sistema (transferencias directas de recibos + boletas de depósito de
+                    efectivo/cheques, ver Depósitos) vs. créditos del estado de cuenta ya importado para esa cuenta.
+                    Una diferencia pequeña es normal — el banco puede acreditar 1-2 días después de hecha la boleta o
+                    la transferencia; una diferencia grande probablemente significa que falta importar el estado de
+                    cuenta de ese mes, o que hay boletas/recibos sin registrar todavía.
                 </p>
                 <?php self::selectorAnio('comparativo', $anio); ?>
             </div>
