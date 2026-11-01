@@ -413,12 +413,22 @@ class ConciliacionModel {
         return $stmt->fetchAll(PDO::FETCH_ASSOC);
     }
 
-    // Depósitos registrados en el sistema por mes y banco destino, mismo
-    // criterio que RecibosPfsModel::cierreAnioPorMes (horaregistro, no
-    // anulados) para que el comparativo contra el banco use exactamente la
-    // misma fuente que ya ve el usuario en "Cierre del Año" — no
-    // fechadep, que es la fecha de la boleta y puede no coincidir con
-    // cuándo se registró en el sistema.
+    // Depósitos registrados en el sistema por mes y banco destino — DOS
+    // fuentes, no una, porque son dos formas distintas de que entre dinero
+    // a la cuenta:
+    // 1. Transferencias que el estudiante hace directo (recibospfs.
+    //    deposito, por cuenta_destino) — mismo criterio que
+    //    RecibosPfsModel::cierreAnioPorMes (horaregistro, no anulados).
+    // 2. Boletas de depósito que el centro hace al banco con el efectivo/
+    //    cheques recolectados (tabla `depositos`, por fechadep) — esto NO
+    //    está en "Totales por mes" de Cierre del Año (ese solo ve recibos),
+    //    así que el comparativo ya NO es exactamente esa misma cifra, es
+    //    el total real de dinero que debería entrar al banco.
+    //
+    // Encontrado con un caso real: octubre solo mostraba Q2,100 (puras
+    // transferencias directas) contra Q54,737 de créditos reales del
+    // banco — faltaban Q45,177 de boletas de depósito de efectivo que
+    // nunca se sumaban aquí.
     public static function depositosPorMesYCuenta(PDO $db, string $cuenta, int $anio): array {
         $stmt = $db->prepare(
             "SELECT MONTH(horaregistro) AS mes, COALESCE(SUM(deposito), 0) AS total
@@ -432,6 +442,18 @@ class ConciliacionModel {
         foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $fila) {
             $porMes[(int)$fila['mes']] = (float)$fila['total'];
         }
+
+        $stmtBoletas = $db->prepare(
+            "SELECT MONTH(fechadep) AS mes, COALESCE(SUM(efectivo + chpropio + chotrobanco), 0) AS total
+             FROM depositos
+             WHERE cuenta = ? AND YEAR(fechadep) = ?
+             GROUP BY MONTH(fechadep)"
+        );
+        $stmtBoletas->execute([$cuenta, $anio]);
+        foreach ($stmtBoletas->fetchAll(PDO::FETCH_ASSOC) as $fila) {
+            $porMes[(int)$fila['mes']] += (float)$fila['total'];
+        }
+
         return $porMes;
     }
 
