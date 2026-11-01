@@ -490,7 +490,7 @@ class ConciliacionView {
             <?php endif; ?>
 
             <div class="card">
-                <h2>Vista previa (<?= $totalFilas ?> fila(s) leídas, primeras 15)</h2>
+                <h2>Vista previa (<?= $totalFilas ?> fila(s) leídas, primeras 10)</h2>
                 <div class="tabla-scroll">
                     <table>
                         <thead>
@@ -502,7 +502,7 @@ class ConciliacionView {
                             </tr>
                         </thead>
                         <tbody>
-                            <?php foreach (array_slice($filas, 0, 15) as $i => $fila): ?>
+                            <?php foreach (array_slice($filas, 0, 10) as $i => $fila): ?>
                                 <tr>
                                     <td><b><?= $i + 1 ?></b></td>
                                     <?php foreach ($fila as $celda): ?>
