@@ -823,16 +823,8 @@ class ConciliacionView {
                 <a href="conciliacion.php" style="font-size:13px;color:var(--acento);font-weight:bold;">← Volver a Conciliación</a>
                 <form method="GET" action="conciliacion.php" style="margin-top:14px;">
                     <input type="hidden" name="action" value="movimientos">
+                    <input type="hidden" name="cuenta" value="<?= htmlspecialchars($cuenta ?? '') ?>">
                     <div class="fila" style="align-items:flex-end;">
-                        <div class="campo" style="max-width:180px;">
-                            <label for="cuenta">Banco</label>
-                            <select id="cuenta" name="cuenta" style="margin-bottom:0;">
-                                <option value="">-- Cualquiera --</option>
-                                <?php foreach (DepositosModel::cuentas() as $numeroCuenta => $banco): ?>
-                                    <option value="<?= htmlspecialchars($numeroCuenta) ?>" <?= $cuenta === $numeroCuenta ? 'selected' : '' ?>><?= htmlspecialchars($banco) ?></option>
-                                <?php endforeach; ?>
-                            </select>
-                        </div>
                         <div class="campo" style="max-width:180px;">
                             <label for="desde">Desde</label>
                             <input type="date" id="desde" name="desde" value="<?= htmlspecialchars($desde) ?>" style="margin-bottom:0;">
@@ -858,6 +850,34 @@ class ConciliacionView {
                         </div>
                     </div>
                 </form>
+            </div>
+
+            <?php
+                // Pestañas por banco en vez de un <select> — cada una es un
+                // link que recarga con "cuenta" fija y conserva el resto de
+                // filtros (fecha/texto/tipo), no JS del lado del cliente,
+                // porque esto es una lista paginada (LIMIT 300 en el
+                // modelo), no datos ya cargados los dos bancos a la vez.
+                $paramsBase = ['action' => 'movimientos', 'desde' => $desde, 'hasta' => $hasta];
+                if ($texto !== '') { $paramsBase['texto'] = $texto; }
+                if ($tipo !== null) { $paramsBase['tipo'] = $tipo; }
+                // (string) en la clave: DepositosModel::cuentas() tiene
+                // claves que PHP convierte solas a int (son numéricas, ej.
+                // '2870011720'), y $_GET['cuenta'] siempre llega como
+                // string — sin el cast, "activo" nunca coincidía.
+                $pestanasBanco = [['cuenta' => '', 'etiqueta' => 'Todos']];
+                foreach (DepositosModel::cuentas() as $numeroCuenta => $banco) {
+                    $pestanasBanco[] = ['cuenta' => (string)$numeroCuenta, 'etiqueta' => $banco];
+                }
+            ?>
+            <div class="tabs-bar">
+                <?php foreach ($pestanasBanco as $p): ?>
+                    <a href="conciliacion.php?<?= htmlspecialchars(http_build_query(array_merge($paramsBase, ['cuenta' => $p['cuenta']]))) ?>"
+                       class="tab-btn <?= ($cuenta ?? '') === $p['cuenta'] ? 'activo' : '' ?>"
+                       style="text-decoration:none;display:inline-block;">
+                        <?= htmlspecialchars($p['etiqueta']) ?>
+                    </a>
+                <?php endforeach; ?>
             </div>
 
             <div class="card">
