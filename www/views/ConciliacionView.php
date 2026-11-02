@@ -324,7 +324,7 @@ class ConciliacionView {
                                                 ? "¿Confirmas que el recibo #{$r['numero']} (Q " . number_format($r['monto'], 2) . ") corresponde a la línea de $banco del "
                                                     . date('d/m/Y', strtotime($candidatos[0]['fecha'])) . "?"
                                                 : "¿Confirmas vincular el recibo #{$r['numero']} (Q " . number_format($r['monto'], 2) . ") con la línea seleccionada en el menú?";
-                                            $onsubmit = 'return confirm(' . json_encode($mensajeConfirm, JSON_UNESCAPED_UNICODE) . ');';
+                                            $onsubmit = 'return confirmarVerificar(' . json_encode($mensajeConfirm, JSON_UNESCAPED_UNICODE) . ');';
                                             ?>
                                             <form id="form_verificar_<?= (int)$r['numero'] ?>" method="POST" action="conciliacion.php?action=verificar" onsubmit="<?= htmlspecialchars($onsubmit) ?>">
                                                 <input type="hidden" name="numero_recibo" value="<?= (int)$r['numero'] ?>">
@@ -454,6 +454,23 @@ class ConciliacionView {
                     document.getElementById('tabContenido' + indice).hidden = false;
                     document.getElementById('tabBtn' + indice).classList.add('activo');
                 }
+                // El recibo que se acaba de verificar sale de "Pendientes" (ya
+                // no existe esa fila al recargar), así que no hay un ancla a
+                // la que volver — se guarda la posición del scroll ANTES de
+                // enviar el formulario y se restaura al cargar la página de
+                // vuelta, para no tener que bajar de nuevo a seguir verificando.
+                function confirmarVerificar(mensaje) {
+                    if (!confirm(mensaje)) return false;
+                    sessionStorage.setItem('conciliacion_scroll', window.scrollY);
+                    return true;
+                }
+                (function restaurarScroll() {
+                    const y = sessionStorage.getItem('conciliacion_scroll');
+                    if (y !== null) {
+                        window.scrollTo(0, parseInt(y, 10));
+                        sessionStorage.removeItem('conciliacion_scroll');
+                    }
+                })();
             </script>
             <?php Tema::script(); ?>
         </body>
