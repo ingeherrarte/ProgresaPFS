@@ -39,6 +39,11 @@ class ConciliacionView {
             }
             button:hover { background: #283593; }
             button.chico { padding: 6px 12px; font-size: 12.5px; }
+            button.peligro { background: #b71c1c; }
+            button.peligro:hover { background: #8e1515; }
+            tr.fila-excluida td { background: var(--fila-falta-bg); text-decoration: line-through; opacity: .7; }
+            .resumen-recibo { background: var(--fila-alterna); border-radius: 6px; padding: 14px 18px; margin-bottom: 18px; font-size: 13px; }
+            .resumen-recibo div { margin-bottom: 4px; }
             .errores {
                 background: #ffebee; border: 1px solid #e57373; color: #b71c1c;
                 padding: 10px 14px; border-radius: 4px; margin-bottom: 18px; font-size: 13px;
@@ -793,7 +798,7 @@ class ConciliacionView {
     // Navegador libre de todo lo importado: responde "¿esta transferencia
     // ya está en el sistema?" sin depender de preguntarle a alguien que
     // revise la base de datos a mano.
-    public static function mostrarMovimientos(array $movimientos, string $desde, string $hasta, ?string $cuenta, string $texto, ?string $tipo = null): void {
+    public static function mostrarMovimientos(array $movimientos, string $desde, string $hasta, ?string $cuenta, string $texto, ?string $tipo = null, string $msg = ''): void {
         ?>
         <!DOCTYPE html>
         <html lang="es">
@@ -807,6 +812,12 @@ class ConciliacionView {
         <body>
             <?php self::barra(); ?>
             <h1>Movimientos del banco</h1>
+
+            <?php if ($msg === 'excluida'): ?>
+                <div class="card" style="padding:14px 20px;"><div class="exito" style="margin:0;">✓ Línea excluida — ya no cuenta en Comparativo/Consolidado/Gastos.</div></div>
+            <?php elseif ($msg === 'reactivada'): ?>
+                <div class="card" style="padding:14px 20px;"><div class="exito" style="margin:0;">✓ Línea reactivada — vuelve a contar en los totales.</div></div>
+            <?php endif; ?>
 
             <div class="card">
                 <a href="conciliacion.php" style="font-size:13px;color:var(--acento);font-weight:bold;">← Volver a Conciliación</a>
@@ -871,13 +882,15 @@ class ConciliacionView {
                                 <th>Descripción</th>
                                 <th>Estado</th>
                                 <th>Recibo(s)</th>
+                                <?php if (Auth::esAdministrador()): ?><th>Acciones</th><?php endif; ?>
                             </tr>
                         </thead>
                         <tbody>
                             <?php foreach ($movimientos as $m): ?>
                                 <?php $esDebito = $m['tipo'] === 'debito'; ?>
+                                <?php $excluida = (int)($m['excluido'] ?? 0) === 1; ?>
                                 <?php $explicadaComoDeposito = !$esDebito && !$m['recibo_numero'] && !$m['recibos_manuales'] && $m['deposito_propio']; ?>
-                                <tr class="<?= $esDebito ? '' : ($explicadaComoDeposito ? 'fila-propio' : ((int)$m['conciliado'] === 1 ? 'fila-ok' : ((int)$m['recibo_numero'] || $m['recibos_manuales'] ? 'fila-falta' : ''))) ?>">
+                                <tr class="<?= $excluida ? 'fila-excluida' : ($esDebito ? '' : ($explicadaComoDeposito ? 'fila-propio' : ((int)$m['conciliado'] === 1 ? 'fila-ok' : ((int)$m['recibo_numero'] || $m['recibos_manuales'] ? 'fila-falta' : '')))) ?>">
                                     <td><?= htmlspecialchars(DepositosModel::bancoDeCuenta($m['cuenta']) ?? $m['cuenta']) ?></td>
                                     <td><?= date('d/m/Y', strtotime($m['fecha'])) ?></td>
                                     <td><?= $esDebito ? '🔴 Débito' : '🟢 Crédito' ?></td>
@@ -886,7 +899,13 @@ class ConciliacionView {
                                     <td><?= $m['referencia'] ? htmlspecialchars($m['referencia']) : '<span style="color:var(--sin-datos);">—</span>' ?></td>
                                     <td><?= $m['descripcion'] ? htmlspecialchars($m['descripcion']) : '<span style="color:var(--sin-datos);">—</span>' ?></td>
                                     <td>
-                                        <?php if ($esDebito): ?>
+                                        <?php if ($excluida): ?>
+                                            <span class="pill falta">🚫 Excluida</span>
+                                            <div class="numeros">
+                                                <?= htmlspecialchars($m['motivo_exclusion']) ?><br>
+                                                <?= htmlspecialchars($m['excluido_por']) ?>, <?= date('d/m/Y', strtotime($m['fecha_exclusion'])) ?>
+                                            </div>
+                                        <?php elseif ($esDebito): ?>
                                             <span style="color:var(--sin-datos);">— gasto —</span>
                                         <?php elseif ((int)$m['conciliado'] === 1): ?>
                                             <span class="pill ok">✓ Marcada</span>
@@ -918,11 +937,152 @@ class ConciliacionView {
                                             <span style="color:var(--sin-datos);">—</span>
                                         <?php endif; ?>
                                     </td>
+                                    <?php if (Auth::esAdministrador()): ?>
+                                        <td>
+                                            <?php if ($excluida): ?>
+                                                <a href="conciliacion.php?action=reactivarLinea&amp;id=<?= (int)$m['id'] ?>" style="color:var(--acento);font-weight:bold;text-decoration:none;font-size:12px;">Reactivar</a>
+                                            <?php else: ?>
+                                                <a href="conciliacion.php?action=excluirLinea&amp;id=<?= (int)$m['id'] ?>" style="color:var(--estado-falta-texto);font-weight:bold;text-decoration:none;font-size:12px;">Excluir</a>
+                                            <?php endif; ?>
+                                        </td>
+                                    <?php endif; ?>
                                 </tr>
                             <?php endforeach; ?>
                         </tbody>
                     </table>
                     </div>
+                <?php endif; ?>
+            </div>
+            <?php Tema::script(); ?>
+        </body>
+        </html>
+        <?php
+    }
+
+    public static function mostrarExcluirLinea(?array $linea, array $errores): void {
+        ?>
+        <!DOCTYPE html>
+        <html lang="es">
+        <head>
+            <meta charset="UTF-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1">
+            <title>Excluir línea — CETECPRO</title>
+            <?php Tema::scriptInicial(); ?>
+            <?php self::estilos(); ?>
+        </head>
+        <body>
+            <?php self::barra(); ?>
+            <h1>Excluir línea del estado de cuenta</h1>
+
+            <div class="card">
+                <a href="conciliacion.php?action=movimientos" style="font-size:13px;color:var(--acento);font-weight:bold;">← Volver a Movimientos</a>
+
+                <?php if (!empty($errores)): ?>
+                    <div class="errores" style="margin-top:14px;">
+                        ⚠️ <ul>
+                            <?php foreach ($errores as $e): ?>
+                                <li><?= htmlspecialchars($e) ?></li>
+                            <?php endforeach; ?>
+                        </ul>
+                    </div>
+                <?php endif; ?>
+
+                <?php if ($linea): ?>
+                    <p style="font-size:13px;color:var(--texto-muted,var(--sin-datos));margin:14px 0;">
+                        Esto marca la línea como un error del banco — ya no contará en Comparativo, Consolidado ni
+                        Gastos, pero el monto/fecha/referencia originales quedan intactos y la línea sigue visible
+                        (tachada) en Movimientos, con el motivo a la vista.
+                    </p>
+                    <div class="resumen-recibo" style="margin:14px 0;">
+                        <div><b>Banco:</b> <?= htmlspecialchars(DepositosModel::bancoDeCuenta($linea['cuenta']) ?? $linea['cuenta']) ?></div>
+                        <div><b>Fecha:</b> <?= date('d/m/Y', strtotime($linea['fecha'])) ?></div>
+                        <div><b>Tipo:</b> <?= $linea['tipo'] === 'debito' ? 'Débito' : 'Crédito' ?></div>
+                        <div><b>Monto:</b> Q <?= number_format((float)$linea['monto'], 2) ?></div>
+                        <div><b>Referencia:</b> <?= htmlspecialchars($linea['referencia'] ?? '—') ?></div>
+                        <div><b>Descripción:</b> <?= htmlspecialchars($linea['descripcion'] ?? '—') ?></div>
+                    </div>
+
+                    <form method="POST" action="conciliacion.php?action=excluirConfirmar">
+                        <input type="hidden" name="id" value="<?= (int)$linea['id'] ?>">
+                        <fieldset>
+                            <legend>Confirmar exclusión</legend>
+                            <div class="fila">
+                                <div class="campo">
+                                    <label for="password_actual">Tu contraseña</label>
+                                    <input type="password" id="password_actual" name="password_actual" required>
+                                </div>
+                            </div>
+                            <div class="fila">
+                                <div class="campo">
+                                    <label for="motivo">Motivo de la exclusión</label>
+                                    <input type="text" id="motivo" name="motivo" maxlength="200" placeholder="ej. crédito aplicado por error, retirado por el banco el ..." required>
+                                </div>
+                            </div>
+                        </fieldset>
+                        <button type="submit" class="peligro">Excluir esta línea</button>
+                    </form>
+                <?php endif; ?>
+            </div>
+            <?php Tema::script(); ?>
+        </body>
+        </html>
+        <?php
+    }
+
+    public static function mostrarReactivarLinea(?array $linea, array $errores): void {
+        ?>
+        <!DOCTYPE html>
+        <html lang="es">
+        <head>
+            <meta charset="UTF-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1">
+            <title>Reactivar línea — CETECPRO</title>
+            <?php Tema::scriptInicial(); ?>
+            <?php self::estilos(); ?>
+        </head>
+        <body>
+            <?php self::barra(); ?>
+            <h1>Reactivar línea del estado de cuenta</h1>
+
+            <div class="card">
+                <a href="conciliacion.php?action=movimientos" style="font-size:13px;color:var(--acento);font-weight:bold;">← Volver a Movimientos</a>
+
+                <?php if (!empty($errores)): ?>
+                    <div class="errores" style="margin-top:14px;">
+                        ⚠️ <ul>
+                            <?php foreach ($errores as $e): ?>
+                                <li><?= htmlspecialchars($e) ?></li>
+                            <?php endforeach; ?>
+                        </ul>
+                    </div>
+                <?php endif; ?>
+
+                <?php if ($linea): ?>
+                    <p style="font-size:13px;color:var(--texto-muted,var(--sin-datos));margin:14px 0;">
+                        Esto deshace la exclusión — la línea vuelve a contar en Comparativo, Consolidado y Gastos.
+                        El motivo original de la exclusión queda registrado, junto con quién y cuándo la reactivó.
+                    </p>
+                    <div class="resumen-recibo" style="margin:14px 0;">
+                        <div><b>Banco:</b> <?= htmlspecialchars(DepositosModel::bancoDeCuenta($linea['cuenta']) ?? $linea['cuenta']) ?></div>
+                        <div><b>Fecha:</b> <?= date('d/m/Y', strtotime($linea['fecha'])) ?></div>
+                        <div><b>Monto:</b> Q <?= number_format((float)$linea['monto'], 2) ?></div>
+                        <div><b>Excluida por:</b> <?= htmlspecialchars($linea['excluido_por']) ?>, <?= date('d/m/Y H:i', strtotime($linea['fecha_exclusion'])) ?></div>
+                        <div><b>Motivo:</b> <?= htmlspecialchars($linea['motivo_exclusion']) ?></div>
+                    </div>
+
+                    <form method="POST" action="conciliacion.php?action=reactivarConfirmar">
+                        <input type="hidden" name="id" value="<?= (int)$linea['id'] ?>">
+                        <fieldset>
+                            <legend>Confirmar reactivación</legend>
+                            <div class="fila">
+                                <div class="campo">
+                                    <label for="password_actual">Tu contraseña</label>
+                                    <input type="password" id="password_actual" name="password_actual" required>
+                                </div>
+                            </div>
+                        </fieldset>
+                        <button type="submit">Reactivar esta línea</button>
+                    </form>
                 <?php endif; ?>
             </div>
             <?php Tema::script(); ?>
