@@ -934,11 +934,29 @@ class ConciliacionController {
         // banco) entre "Mes" y los grupos de cada banco.
         $cierreAnio = RecibosPfsModel::cierreAnioPorMes($db, $anio);
         $efectivoPorMes = array_fill(1, 12, 0.0);
+        $ingresoRecibosPorMes = array_fill(1, 12, 0.0);
         foreach ($cierreAnio as $mes => $fila) {
             $efectivoPorMes[$mes] = (float)$fila['efectivo'];
+            // Todo lo que entra por recibo (efectivo + transferencia +
+            // cheque), sin importar si ya se depositó o no — es el lado
+            // "ingresado" del consolidado, contra lo que de verdad acreditó
+            // el banco en cualquiera de las dos cuentas.
+            $ingresoRecibosPorMes[$mes] = (float)$fila['efectivo'] + (float)$fila['deposito'] + (float)$fila['cheque'];
         }
 
-        ConciliacionView::mostrarComparativo($porBanco, $anio, $efectivoPorMes);
+        // Consolidado BANTRAB+BANRURAL: lo ingresado en recibos (cualquier
+        // forma de pago) vs. lo que de verdad acreditó el banco en
+        // cualquiera de las dos cuentas — a diferencia de "Dep. sistema"
+        // (que es lo que el sistema espera encontrar), esto compara contra
+        // el dato real del estado de cuenta ya importado.
+        $creditoBancoPorMes = array_fill(1, 12, 0.0);
+        foreach ($porBanco as $datos) {
+            foreach ($datos['estadoCuenta'] as $mes => $fila) {
+                $creditoBancoPorMes[$mes] += (float)$fila['credito'];
+            }
+        }
+
+        ConciliacionView::mostrarComparativo($porBanco, $anio, $efectivoPorMes, $ingresoRecibosPorMes, $creditoBancoPorMes);
     }
 
     // Débitos (egresos) del estado de cuenta importado, mes a mes — sin

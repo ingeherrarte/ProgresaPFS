@@ -1211,7 +1211,7 @@ class ConciliacionView {
 
     // $porBanco: [cuenta => ['banco'=>string, 'sistema'=>[mes=>total], 'estadoCuenta'=>[mes=>['credito'=>x,'debito'=>y]]]]
     // (ver ConciliacionController::comparativo).
-    public static function mostrarComparativo(array $porBanco, int $anio, array $efectivoPorMes): void {
+    public static function mostrarComparativo(array $porBanco, int $anio, array $efectivoPorMes, array $ingresoRecibosPorMes, array $creditoBancoPorMes): void {
         ?>
         <!DOCTYPE html>
         <html lang="es">
@@ -1304,6 +1304,52 @@ class ConciliacionView {
                                 <td class="num">Q <?= number_format($totales[$cuenta]['banco'], 2) ?></td>
                                 <td class="num">Q <?= number_format($totales[$cuenta]['banco'] - $totales[$cuenta]['sistema'], 2) ?></td>
                             <?php endforeach; ?>
+                        </tr>
+                    </tfoot>
+                </table>
+                </div>
+            </div>
+
+            <?php
+                $totalIngresoRecibos = array_sum($ingresoRecibosPorMes);
+                $totalCreditoBanco = array_sum($creditoBancoPorMes);
+            ?>
+            <div class="card">
+                <h2>Consolidado BANTRAB + BANRURAL — <?= $anio ?></h2>
+                <p style="font-size:12.5px;color:var(--texto-muted,var(--sin-datos));margin:0 0 12px;">
+                    Todo lo ingresado en recibos (efectivo + transferencia + cheque, sin importar si ya se depositó)
+                    vs. lo que de verdad acreditaron los dos bancos juntos. A fin de año deberían cuadrar — una
+                    diferencia grande sostenida probablemente significa efectivo/cheques cobrados que nunca se
+                    llevaron al banco, o meses sin estado de cuenta importado todavía.
+                </p>
+                <div class="tabla-scroll">
+                <table>
+                    <thead>
+                        <tr><th>Mes</th><th>Ingresado en recibos</th><th>Acreditado en bancos</th><th>Diferencia</th></tr>
+                    </thead>
+                    <tbody>
+                        <?php for ($m = 1; $m <= 12; $m++): ?>
+                            <?php
+                                $ingreso = (float)$ingresoRecibosPorMes[$m];
+                                $credito = (float)$creditoBancoPorMes[$m];
+                                $diferencia = $credito - $ingreso;
+                            ?>
+                            <tr>
+                                <td><?= self::$meses[$m] ?></td>
+                                <td class="num">Q <?= number_format($ingreso, 2) ?></td>
+                                <td class="num">Q <?= number_format($credito, 2) ?></td>
+                                <td class="num" style="<?= abs($diferencia) > 0.01 ? 'color:var(--estado-falta-texto);font-weight:bold;' : 'color:var(--sin-datos);' ?>">
+                                    <?= abs($diferencia) > 0.01 ? ($diferencia > 0 ? '+' : '') . 'Q ' . number_format($diferencia, 2) : '✓' ?>
+                                </td>
+                            </tr>
+                        <?php endfor; ?>
+                    </tbody>
+                    <tfoot>
+                        <tr style="font-weight:bold;">
+                            <td>Total <?= $anio ?></td>
+                            <td class="num">Q <?= number_format($totalIngresoRecibos, 2) ?></td>
+                            <td class="num">Q <?= number_format($totalCreditoBanco, 2) ?></td>
+                            <td class="num">Q <?= number_format($totalCreditoBanco - $totalIngresoRecibos, 2) ?></td>
                         </tr>
                     </tfoot>
                 </table>
