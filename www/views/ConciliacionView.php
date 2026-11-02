@@ -1247,10 +1247,11 @@ class ConciliacionView {
                 // entre dos tablas distintas.
                 $totales = [];
                 foreach ($porBanco as $cuenta => $datos) {
+                    $totalTransferencia = array_sum($datos['transferencia']);
                     $totalSistema = array_sum($datos['sistema']);
                     $totalBanco = 0.0;
                     foreach ($datos['estadoCuenta'] as $m) { $totalBanco += $m['credito']; }
-                    $totales[$cuenta] = ['sistema' => $totalSistema, 'banco' => $totalBanco];
+                    $totales[$cuenta] = ['transferencia' => $totalTransferencia, 'sistema' => $totalSistema, 'banco' => $totalBanco];
                 }
             ?>
             <div class="card">
@@ -1262,12 +1263,12 @@ class ConciliacionView {
                             <th rowspan="2">Mes</th>
                             <th rowspan="2">Efectivo cobrado</th>
                             <?php foreach ($porBanco as $cuenta => $datos): ?>
-                                <th colspan="3"><?= htmlspecialchars($datos['banco']) ?> <span style="font-weight:normal;font-size:11px;color:var(--sin-datos);">(<?= htmlspecialchars($cuenta) ?>)</span></th>
+                                <th colspan="4"><?= htmlspecialchars($datos['banco']) ?> <span style="font-weight:normal;font-size:11px;color:var(--sin-datos);">(<?= htmlspecialchars($cuenta) ?>)</span></th>
                             <?php endforeach; ?>
                         </tr>
                         <tr>
                             <?php foreach ($porBanco as $cuenta => $datos): ?>
-                                <th>Dep. sistema</th><th>Créditos banco</th><th>Diferencia</th>
+                                <th>Transferencia (recibos)</th><th>Dep. sistema</th><th>Créditos banco</th><th>Diferencia</th>
                             <?php endforeach; ?>
                         </tr>
                     </thead>
@@ -1278,10 +1279,12 @@ class ConciliacionView {
                                 <td class="num">Q <?= number_format($efectivoPorMes[$m], 2) ?></td>
                                 <?php foreach ($porBanco as $cuenta => $datos): ?>
                                     <?php
+                                        $transferencia = (float)$datos['transferencia'][$m];
                                         $sistema = (float)$datos['sistema'][$m];
                                         $banco = (float)$datos['estadoCuenta'][$m]['credito'];
                                         $diferencia = $banco - $sistema;
                                     ?>
+                                    <td class="num">Q <?= number_format($transferencia, 2) ?></td>
                                     <td class="num">Q <?= number_format($sistema, 2) ?></td>
                                     <td class="num">Q <?= number_format($banco, 2) ?></td>
                                     <td class="num" style="<?= abs($diferencia) > 0.01 ? 'color:var(--estado-falta-texto);font-weight:bold;' : 'color:var(--sin-datos);' ?>">
@@ -1296,6 +1299,7 @@ class ConciliacionView {
                             <td>Total <?= $anio ?></td>
                             <td class="num">Q <?= number_format(array_sum($efectivoPorMes), 2) ?></td>
                             <?php foreach ($porBanco as $cuenta => $datos): ?>
+                                <td class="num">Q <?= number_format($totales[$cuenta]['transferencia'], 2) ?></td>
                                 <td class="num">Q <?= number_format($totales[$cuenta]['sistema'], 2) ?></td>
                                 <td class="num">Q <?= number_format($totales[$cuenta]['banco'], 2) ?></td>
                                 <td class="num">Q <?= number_format($totales[$cuenta]['banco'] - $totales[$cuenta]['sistema'], 2) ?></td>

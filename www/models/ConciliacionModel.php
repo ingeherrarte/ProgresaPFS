@@ -429,7 +429,11 @@ class ConciliacionModel {
     // transferencias directas) contra Q54,737 de créditos reales del
     // banco — faltaban Q45,177 de boletas de depósito de efectivo que
     // nunca se sumaban aquí.
-    public static function depositosPorMesYCuenta(PDO $db, string $cuenta, int $anio): array {
+    // Solo la fuente 1 (transferencias que el estudiante hace directo,
+    // recibospfs.deposito por cuenta_destino) — separado de
+    // depositosPorMesYCuenta() para poder mostrarla como columna propia
+    // en "Comparativo Mensual" sin duplicar la consulta.
+    public static function transferenciasPorMesYCuenta(PDO $db, string $cuenta, int $anio): array {
         $stmt = $db->prepare(
             "SELECT MONTH(horaregistro) AS mes, COALESCE(SUM(deposito), 0) AS total
              FROM recibospfs
@@ -442,6 +446,11 @@ class ConciliacionModel {
         foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $fila) {
             $porMes[(int)$fila['mes']] = (float)$fila['total'];
         }
+        return $porMes;
+    }
+
+    public static function depositosPorMesYCuenta(PDO $db, string $cuenta, int $anio): array {
+        $porMes = self::transferenciasPorMesYCuenta($db, $cuenta, $anio);
 
         $stmtBoletas = $db->prepare(
             "SELECT MONTH(fechadep) AS mes, COALESCE(SUM(efectivo + chpropio + chotrobanco), 0) AS total

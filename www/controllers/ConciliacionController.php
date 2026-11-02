@@ -921,6 +921,7 @@ class ConciliacionController {
         foreach (DepositosModel::cuentas() as $cuenta => $banco) {
             $porBanco[$cuenta] = [
                 'banco' => $banco,
+                'transferencia' => ConciliacionModel::transferenciasPorMesYCuenta($db, $cuenta, $anio),
                 'sistema' => ConciliacionModel::depositosPorMesYCuenta($db, $cuenta, $anio),
                 'estadoCuenta' => ConciliacionModel::totalesPorMesYCuenta($db, $cuenta, $anio),
             ];
