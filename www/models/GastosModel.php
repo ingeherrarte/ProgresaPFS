@@ -19,8 +19,25 @@ class GastosModel {
         'Transferencias internas / ahorro' => ['CTA. DESTINO', 'AHORRO', 'CETECPRO DIRECC'],
     ];
 
-    private static function clasificar(?string $descripcion): string {
+    // "DEBITO IFT BL" es un código genérico del banco que cubre varias
+    // cosas distintas (aparece en Q350, Q2,000, Q10,000...) — no se puede
+    // usar como palabra clave sola. Pero el usuario confirmó que ESE monto
+    // específico, bajo esa descripción, siempre es la renta mensual del
+    // local (se repite casi cada mes, mismo día del mes). Por eso es una
+    // excepción por (descripción, monto) exacto, no una palabra clave.
+    private const MONTOS_CONOCIDOS = [
+        ['descripcion' => 'DEBITO IFT BL', 'monto' => 5600.00, 'categoria' => 'Servicios'],
+    ];
+
+    private static function clasificar(?string $descripcion, float $monto): string {
         $texto = mb_strtoupper($descripcion ?? '');
+
+        foreach (self::MONTOS_CONOCIDOS as $regla) {
+            if ($texto === $regla['descripcion'] && abs($monto - $regla['monto']) < 0.01) {
+                return $regla['categoria'];
+            }
+        }
+
         foreach (self::CATEGORIAS as $categoria => $palabras) {
             foreach ($palabras as $palabra) {
                 if (str_contains($texto, $palabra)) {
@@ -58,7 +75,7 @@ class GastosModel {
 
         $porTipo = [];
         foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $linea) {
-            $tipo = self::clasificar($linea['descripcion']);
+            $tipo = self::clasificar($linea['descripcion'], (float)$linea['monto']);
             $porTipo[$tipo]['total'] = ($porTipo[$tipo]['total'] ?? 0.0) + (float)$linea['monto'];
             $porTipo[$tipo]['lineas'][] = $linea;
         }
