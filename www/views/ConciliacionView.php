@@ -1211,7 +1211,7 @@ class ConciliacionView {
 
     // $porBanco: [cuenta => ['banco'=>string, 'sistema'=>[mes=>total], 'estadoCuenta'=>[mes=>['credito'=>x,'debito'=>y]]]]
     // (ver ConciliacionController::comparativo).
-    public static function mostrarComparativo(array $porBanco, int $anio): void {
+    public static function mostrarComparativo(array $porBanco, int $anio, array $efectivoPorMes, array $ingresoRecibosPorMes, array $creditoBancoPorMes): void {
         ?>
         <!DOCTYPE html>
         <html lang="es">
@@ -1233,7 +1233,9 @@ class ConciliacionView {
                     efectivo/cheques, ver Depósitos) vs. créditos del estado de cuenta ya importado para esa cuenta.
                     Una diferencia pequeña es normal — el banco puede acreditar 1-2 días después de hecha la boleta o
                     la transferencia; una diferencia grande probablemente significa que falta importar el estado de
-                    cuenta de ese mes, o que hay boletas/recibos sin registrar todavía.
+                    cuenta de ese mes, o que hay boletas/recibos sin registrar todavía. La columna "Efectivo
+                    cobrado" es dinero en efectivo recibido ese mes que todavía no está en ninguna cuenta bancaria —
+                    se refleja en "Dep. sistema" hasta que se haga la boleta de depósito correspondiente.
                 </p>
                 <?php self::selectorAnio('comparativo', $anio); ?>
             </div>
@@ -1245,10 +1247,11 @@ class ConciliacionView {
                 // entre dos tablas distintas.
                 $totales = [];
                 foreach ($porBanco as $cuenta => $datos) {
+                    $totalTransferencia = array_sum($datos['transferencia']);
                     $totalSistema = array_sum($datos['sistema']);
                     $totalBanco = 0.0;
                     foreach ($datos['estadoCuenta'] as $m) { $totalBanco += $m['credito']; }
-                    $totales[$cuenta] = ['sistema' => $totalSistema, 'banco' => $totalBanco];
+                    $totales[$cuenta] = ['transferencia' => $totalTransferencia, 'sistema' => $totalSistema, 'banco' => $totalBanco];
                 }
             ?>
             <div class="card">
@@ -1258,13 +1261,14 @@ class ConciliacionView {
                     <thead>
                         <tr>
                             <th rowspan="2">Mes</th>
+                            <th rowspan="2">Efectivo cobrado</th>
                             <?php foreach ($porBanco as $cuenta => $datos): ?>
-                                <th colspan="3"><?= htmlspecialchars($datos['banco']) ?> <span style="font-weight:normal;font-size:11px;color:var(--sin-datos);">(<?= htmlspecialchars($cuenta) ?>)</span></th>
+                                <th colspan="4"><?= htmlspecialchars($datos['banco']) ?> <span style="font-weight:normal;font-size:11px;color:var(--sin-datos);">(<?= htmlspecialchars($cuenta) ?>)</span></th>
                             <?php endforeach; ?>
                         </tr>
                         <tr>
                             <?php foreach ($porBanco as $cuenta => $datos): ?>
-                                <th>Dep. sistema</th><th>Créditos banco</th><th>Diferencia</th>
+                                <th>Transferencia (recibos)</th><th>Dep. sistema</th><th>Créditos banco</th><th>Diferencia</th>
                             <?php endforeach; ?>
                         </tr>
                     </thead>
@@ -1272,12 +1276,15 @@ class ConciliacionView {
                         <?php for ($m = 1; $m <= 12; $m++): ?>
                             <tr>
                                 <td><?= self::$meses[$m] ?></td>
+                                <td class="num">Q <?= number_format($efectivoPorMes[$m], 2) ?></td>
                                 <?php foreach ($porBanco as $cuenta => $datos): ?>
                                     <?php
+                                        $transferencia = (float)$datos['transferencia'][$m];
                                         $sistema = (float)$datos['sistema'][$m];
                                         $banco = (float)$datos['estadoCuenta'][$m]['credito'];
                                         $diferencia = $banco - $sistema;
                                     ?>
+                                    <td class="num">Q <?= number_format($transferencia, 2) ?></td>
                                     <td class="num">Q <?= number_format($sistema, 2) ?></td>
                                     <td class="num">Q <?= number_format($banco, 2) ?></td>
                                     <td class="num" style="<?= abs($diferencia) > 0.01 ? 'color:var(--estado-falta-texto);font-weight:bold;' : 'color:var(--sin-datos);' ?>">
@@ -1290,11 +1297,59 @@ class ConciliacionView {
                     <tfoot>
                         <tr style="font-weight:bold;">
                             <td>Total <?= $anio ?></td>
+                            <td class="num">Q <?= number_format(array_sum($efectivoPorMes), 2) ?></td>
                             <?php foreach ($porBanco as $cuenta => $datos): ?>
+                                <td class="num">Q <?= number_format($totales[$cuenta]['transferencia'], 2) ?></td>
                                 <td class="num">Q <?= number_format($totales[$cuenta]['sistema'], 2) ?></td>
                                 <td class="num">Q <?= number_format($totales[$cuenta]['banco'], 2) ?></td>
                                 <td class="num">Q <?= number_format($totales[$cuenta]['banco'] - $totales[$cuenta]['sistema'], 2) ?></td>
                             <?php endforeach; ?>
+                        </tr>
+                    </tfoot>
+                </table>
+                </div>
+            </div>
+
+            <?php
+                $totalIngresoRecibos = array_sum($ingresoRecibosPorMes);
+                $totalCreditoBanco = array_sum($creditoBancoPorMes);
+            ?>
+            <div class="card">
+                <h2>Consolidado BANTRAB + BANRURAL — <?= $anio ?></h2>
+                <p style="font-size:12.5px;color:var(--texto-muted,var(--sin-datos));margin:0 0 12px;">
+                    Todo lo ingresado en recibos (efectivo + transferencia + cheque, sin importar si ya se depositó)
+                    vs. lo que de verdad acreditaron los dos bancos juntos. A fin de año deberían cuadrar — una
+                    diferencia grande sostenida probablemente significa efectivo/cheques cobrados que nunca se
+                    llevaron al banco, o meses sin estado de cuenta importado todavía.
+                </p>
+                <div class="tabla-scroll">
+                <table>
+                    <thead>
+                        <tr><th>Mes</th><th>Ingresado en recibos</th><th>Acreditado en bancos</th><th>Diferencia</th></tr>
+                    </thead>
+                    <tbody>
+                        <?php for ($m = 1; $m <= 12; $m++): ?>
+                            <?php
+                                $ingreso = (float)$ingresoRecibosPorMes[$m];
+                                $credito = (float)$creditoBancoPorMes[$m];
+                                $diferencia = $credito - $ingreso;
+                            ?>
+                            <tr>
+                                <td><?= self::$meses[$m] ?></td>
+                                <td class="num">Q <?= number_format($ingreso, 2) ?></td>
+                                <td class="num">Q <?= number_format($credito, 2) ?></td>
+                                <td class="num" style="<?= abs($diferencia) > 0.01 ? 'color:var(--estado-falta-texto);font-weight:bold;' : 'color:var(--sin-datos);' ?>">
+                                    <?= abs($diferencia) > 0.01 ? ($diferencia > 0 ? '+' : '') . 'Q ' . number_format($diferencia, 2) : '✓' ?>
+                                </td>
+                            </tr>
+                        <?php endfor; ?>
+                    </tbody>
+                    <tfoot>
+                        <tr style="font-weight:bold;">
+                            <td>Total <?= $anio ?></td>
+                            <td class="num">Q <?= number_format($totalIngresoRecibos, 2) ?></td>
+                            <td class="num">Q <?= number_format($totalCreditoBanco, 2) ?></td>
+                            <td class="num">Q <?= number_format($totalCreditoBanco - $totalIngresoRecibos, 2) ?></td>
                         </tr>
                     </tfoot>
                 </table>
