@@ -1008,14 +1008,14 @@ class ConciliacionView {
                             <legend>Confirmar exclusión</legend>
                             <div class="fila">
                                 <div class="campo">
-                                    <label for="password_actual">Tu contraseña</label>
-                                    <input type="password" id="password_actual" name="password_actual" required>
+                                    <label for="motivo">Motivo de la exclusión</label>
+                                    <input type="text" id="motivo" name="motivo" maxlength="200" placeholder="ej. crédito aplicado por error, retirado por el banco el ..." required>
                                 </div>
                             </div>
                             <div class="fila">
                                 <div class="campo">
-                                    <label for="motivo">Motivo de la exclusión</label>
-                                    <input type="text" id="motivo" name="motivo" maxlength="200" placeholder="ej. crédito aplicado por error, retirado por el banco el ..." required>
+                                    <label for="password_actual">Tu contraseña</label>
+                                    <input type="password" id="password_actual" name="password_actual" required>
                                 </div>
                             </div>
                         </fieldset>
