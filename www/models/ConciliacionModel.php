@@ -315,6 +315,7 @@ class ConciliacionModel {
         }
         $stmt = $db->prepare(
             "SELECT ec.id, ec.cuenta, ec.fecha, ec.monto, ec.tipo, ec.saldo, ec.referencia, ec.descripcion, ec.conciliado, ec.recibo_numero,
+                    ec.excluido, ec.motivo_exclusion, ec.excluido_por, ec.fecha_exclusion,
                     r.carne AS carne_automatico,
                     (SELECT GROUP_CONCAT(cv.recibo_numero SEPARATOR ', ') FROM conciliacion_vinculos cv WHERE cv.estado_cuenta_id = ec.id) AS recibos_manuales,
                     d.nodeposito AS deposito_propio, d.responsable AS deposito_responsable, d.efectivo AS deposito_efectivo
@@ -418,11 +419,14 @@ class ConciliacionModel {
     // sistema) y de "Gastos" (débitos, sin comparar contra nada). Siempre
     // devuelve los 12 meses, con 0.0 donde no haya líneas importadas
     // todavía, para que la vista no tenga que rellenar huecos.
+    // `excluido = 0`: una línea marcada como error del banco (ver excluir())
+    // no debe contarse en ningún total — Comparativo, Consolidado y Gastos
+    // usan todos este método.
     public static function totalesPorMesYCuenta(PDO $db, string $cuenta, int $anio): array {
         $stmt = $db->prepare(
             "SELECT MONTH(fecha) AS mes, tipo, SUM(monto) AS total
              FROM estados_cuenta
-             WHERE cuenta = ? AND YEAR(fecha) = ?
+             WHERE cuenta = ? AND YEAR(fecha) = ? AND excluido = 0
              GROUP BY MONTH(fecha), tipo"
         );
         $stmt->execute([$cuenta, $anio]);
@@ -435,6 +439,50 @@ class ConciliacionModel {
             $resultado[(int)$fila['mes']][$fila['tipo']] = (float)$fila['total'];
         }
         return $resultado;
+    }
+
+    public static function obtenerLineaPorId(PDO $db, int $id): ?array {
+        $stmt = $db->prepare("SELECT * FROM estados_cuenta WHERE id = ?");
+        $stmt->execute([$id]);
+        $fila = $stmt->fetch(PDO::FETCH_ASSOC);
+        return $fila ?: null;
+    }
+
+    // Marca una línea como excluida de los totales (nunca se borra ni se
+    // altera monto/fecha/referencia — eso sigue siendo exactamente lo que
+    // dice el banco). Devuelve false si el id no existe o ya estaba
+    // excluida.
+    public static function excluir(PDO $db, int $id, string $motivo, string $usuario): bool {
+        $stmt = $db->prepare(
+            "UPDATE estados_cuenta
+             SET excluido = 1, motivo_exclusion = ?, excluido_por = ?, fecha_exclusion = NOW()
+             WHERE id = ? AND excluido = 0"
+        );
+        $stmt->execute([$motivo, $usuario, $id]);
+        return $stmt->rowCount() > 0;
+    }
+
+    // Revierte una exclusión por error. `motivo_exclusion`/`excluido_por`/
+    // `fecha_exclusion` NO se borran — quedan como historia de por qué se
+    // excluyó originalmente; reactivado_por/fecha_reactivacion registran el
+    // segundo evento aparte, sin perder el primero.
+    public static function reactivar(PDO $db, int $id, string $usuario): bool {
+        $stmt = $db->prepare(
+            "UPDATE estados_cuenta
+             SET excluido = 0, reactivado_por = ?, fecha_reactivacion = NOW()
+             WHERE id = ? AND excluido = 1"
+        );
+        $stmt->execute([$usuario, $id]);
+        return $stmt->rowCount() > 0;
+    }
+
+    public static function lineasExcluidasRecientes(PDO $db, int $limite = 50): array {
+        $stmt = $db->prepare(
+            "SELECT * FROM estados_cuenta WHERE excluido = 1 ORDER BY fecha_exclusion DESC LIMIT ?"
+        );
+        $stmt->bindValue(1, $limite, PDO::PARAM_INT);
+        $stmt->execute();
+        return $stmt->fetchAll(PDO::FETCH_ASSOC);
     }
 }
 ?>

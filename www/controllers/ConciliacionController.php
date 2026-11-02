@@ -2,6 +2,7 @@
 require_once "models/ConciliacionModel.php";
 require_once "models/DepositosModel.php";
 require_once "models/RecibosPfsModel.php";
+require_once "models/UsuarioModel.php";
 require_once "views/ConciliacionView.php";
 require_once __DIR__ . "/../helpers/Auth.php";
 require_once __DIR__ . "/../config/Conexion.php";
@@ -92,6 +93,18 @@ class ConciliacionController {
                 break;
             case 'gastos':
                 $this->gastos();
+                break;
+            case 'excluirLinea':
+                $this->excluirLinea();
+                break;
+            case 'excluirConfirmar':
+                $this->excluirConfirmar();
+                break;
+            case 'reactivarLinea':
+                $this->reactivarLinea();
+                break;
+            case 'reactivarConfirmar':
+                $this->reactivarConfirmar();
                 break;
             case 'form':
             default:
@@ -877,7 +890,128 @@ class ConciliacionController {
 
         $db = Conexion::conectar();
         $movimientos = ConciliacionModel::buscarMovimientos($db, $cuenta, $desde, $hasta, $texto, $tipo);
-        ConciliacionView::mostrarMovimientos($movimientos, $desde, $hasta, $cuenta, $texto, $tipo);
+        $msg = trim($_GET['msg'] ?? '');
+        ConciliacionView::mostrarMovimientos($movimientos, $desde, $hasta, $cuenta, $texto, $tipo, $msg);
+    }
+
+    // Excluir una línea (ej. un crédito que el banco aplicó por error y
+    // luego retiró) es solo de administrador — a diferencia de anular un
+    // recibo, esto cambia directamente los totales de conciliación
+    // bancaria que ya se reportaron, así que se restringe más.
+    private function excluirLinea() {
+        if (!Auth::esAdministrador()) {
+            header("Location: inicio.php?error=permiso");
+            exit;
+        }
+        $id = (int)($_GET['id'] ?? 0);
+        $db = Conexion::conectar();
+        $linea = $id > 0 ? ConciliacionModel::obtenerLineaPorId($db, $id) : null;
+        $errores = [];
+        if ($id > 0 && !$linea) {
+            $errores[] = "No existe ninguna línea con ese id.";
+        } elseif ($linea && (int)$linea['excluido'] === 1) {
+            $errores[] = "Esta línea ya está excluida desde el "
+                . date('d/m/Y H:i', strtotime($linea['fecha_exclusion'])) . ".";
+            $linea = null;
+        }
+        ConciliacionView::mostrarExcluirLinea($linea, $errores);
+    }
+
+    // La contraseña se vuelve a pedir aquí (re-autenticación), igual que al
+    // anular un recibo — para que excluir una línea no sea posible con
+    // solo dejar la sesión abierta.
+    private function excluirConfirmar() {
+        if (!Auth::esAdministrador()) {
+            header("Location: inicio.php?error=permiso");
+            exit;
+        }
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+            header("Location: conciliacion.php?action=movimientos");
+            exit;
+        }
+
+        $id = (int)($_POST['id'] ?? 0);
+        $motivo = trim($_POST['motivo'] ?? '');
+        $password = $_POST['password_actual'] ?? '';
+
+        $db = Conexion::conectar();
+        $linea = ConciliacionModel::obtenerLineaPorId($db, $id);
+
+        $errores = [];
+        if (!$linea) {
+            $errores[] = "No existe ninguna línea con ese id.";
+        } elseif ((int)$linea['excluido'] === 1) {
+            $errores[] = "Esta línea ya está excluida.";
+        }
+        if ($motivo === '') {
+            $errores[] = "Debe indicar el motivo de la exclusión.";
+        }
+        if (!UsuarioModel::verificar(Auth::usuarioActual(), $password)) {
+            $errores[] = "La contraseña no es correcta.";
+        }
+
+        if (!empty($errores)) {
+            ConciliacionView::mostrarExcluirLinea($linea, $errores);
+            return;
+        }
+
+        ConciliacionModel::excluir($db, $id, $motivo, Auth::usuarioActual());
+        header("Location: conciliacion.php?action=movimientos&msg=excluida");
+        exit;
+    }
+
+    private function reactivarLinea() {
+        if (!Auth::esAdministrador()) {
+            header("Location: inicio.php?error=permiso");
+            exit;
+        }
+        $id = (int)($_GET['id'] ?? 0);
+        $db = Conexion::conectar();
+        $linea = $id > 0 ? ConciliacionModel::obtenerLineaPorId($db, $id) : null;
+        $errores = [];
+        if ($id > 0 && !$linea) {
+            $errores[] = "No existe ninguna línea con ese id.";
+        } elseif ($linea && (int)$linea['excluido'] === 0) {
+            $errores[] = "Esta línea no está excluida.";
+            $linea = null;
+        }
+        ConciliacionView::mostrarReactivarLinea($linea, $errores);
+    }
+
+    private function reactivarConfirmar() {
+        if (!Auth::esAdministrador()) {
+            header("Location: inicio.php?error=permiso");
+            exit;
+        }
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+            header("Location: conciliacion.php?action=movimientos");
+            exit;
+        }
+
+        $id = (int)($_POST['id'] ?? 0);
+        $password = $_POST['password_actual'] ?? '';
+
+        $db = Conexion::conectar();
+        $linea = ConciliacionModel::obtenerLineaPorId($db, $id);
+
+        $errores = [];
+        if (!$linea) {
+            $errores[] = "No existe ninguna línea con ese id.";
+        } elseif ((int)$linea['excluido'] === 0) {
+            $errores[] = "Esta línea no está excluida.";
+        }
+        if (!UsuarioModel::verificar(Auth::usuarioActual(), $password)) {
+            $errores[] = "La contraseña no es correcta.";
+        }
+
+        if (!empty($errores)) {
+            ConciliacionView::mostrarReactivarLinea($linea, $errores);
+            return;
+        }
+
+        ConciliacionModel::reactivar($db, $id, Auth::usuarioActual());
+        header("Location: conciliacion.php?action=movimientos&msg=reactivada");
+        exit;
     }
 
     // Reporte de avance: qué se ha verificado y cuándo — filtra por la
