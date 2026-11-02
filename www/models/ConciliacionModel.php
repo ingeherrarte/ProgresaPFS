@@ -413,59 +413,6 @@ class ConciliacionModel {
         return $stmt->fetchAll(PDO::FETCH_ASSOC);
     }
 
-    // Depósitos registrados en el sistema por mes y banco destino — DOS
-    // fuentes, no una, porque son dos formas distintas de que entre dinero
-    // a la cuenta:
-    // 1. Transferencias que el estudiante hace directo (recibospfs.
-    //    deposito, por cuenta_destino) — mismo criterio que
-    //    RecibosPfsModel::cierreAnioPorMes (horaregistro, no anulados).
-    // 2. Boletas de depósito que el centro hace al banco con el efectivo/
-    //    cheques recolectados (tabla `depositos`, por fechadep) — esto NO
-    //    está en "Totales por mes" de Cierre del Año (ese solo ve recibos),
-    //    así que el comparativo ya NO es exactamente esa misma cifra, es
-    //    el total real de dinero que debería entrar al banco.
-    //
-    // Encontrado con un caso real: octubre solo mostraba Q2,100 (puras
-    // transferencias directas) contra Q54,737 de créditos reales del
-    // banco — faltaban Q45,177 de boletas de depósito de efectivo que
-    // nunca se sumaban aquí.
-    // Solo la fuente 1 (transferencias que el estudiante hace directo,
-    // recibospfs.deposito por cuenta_destino) — separado de
-    // depositosPorMesYCuenta() para poder mostrarla como columna propia
-    // en "Comparativo Mensual" sin duplicar la consulta.
-    public static function transferenciasPorMesYCuenta(PDO $db, string $cuenta, int $anio): array {
-        $stmt = $db->prepare(
-            "SELECT MONTH(horaregistro) AS mes, COALESCE(SUM(deposito), 0) AS total
-             FROM recibospfs
-             WHERE cuenta_destino = ? AND YEAR(horaregistro) = ? AND anulado = 0 AND deposito > 0
-             GROUP BY MONTH(horaregistro)"
-        );
-        $stmt->execute([$cuenta, $anio]);
-
-        $porMes = array_fill(1, 12, 0.0);
-        foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $fila) {
-            $porMes[(int)$fila['mes']] = (float)$fila['total'];
-        }
-        return $porMes;
-    }
-
-    public static function depositosPorMesYCuenta(PDO $db, string $cuenta, int $anio): array {
-        $porMes = self::transferenciasPorMesYCuenta($db, $cuenta, $anio);
-
-        $stmtBoletas = $db->prepare(
-            "SELECT MONTH(fechadep) AS mes, COALESCE(SUM(efectivo + chpropio + chotrobanco), 0) AS total
-             FROM depositos
-             WHERE cuenta = ? AND YEAR(fechadep) = ?
-             GROUP BY MONTH(fechadep)"
-        );
-        $stmtBoletas->execute([$cuenta, $anio]);
-        foreach ($stmtBoletas->fetchAll(PDO::FETCH_ASSOC) as $fila) {
-            $porMes[(int)$fila['mes']] += (float)$fila['total'];
-        }
-
-        return $porMes;
-    }
-
     // Totales de créditos y débitos por mes de un año, para UNA cuenta
     // bancaria — base de "Comparativo Mensual" (créditos vs. depósitos del
     // sistema) y de "Gastos" (débitos, sin comparar contra nada). Siempre

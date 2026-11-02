@@ -907,54 +907,35 @@ class ConciliacionController {
         return ($anio >= 2020 && $anio <= (int)date('Y') + 1) ? $anio : (int)date('Y');
     }
 
-    // Depósitos del sistema vs. créditos del banco, mes a mes, UNA cuenta a
-    // la vez (no tiene sentido sumar BANTRAB+BANRURAL en una sola fila: son
-    // depósitos a cuentas distintas). La diferencia es solo informativa —
-    // un desfase de días entre fechadep/horaregistro y cuándo el banco
-    // acredita de verdad es normal (ver TOLERANCIA_DIAS_ACH), esto no
-    // reemplaza la verificación línea por línea de Conciliación.
+    // Consolidado BANTRAB+BANRURAL: mismas columnas que "Cierre de Año —
+    // Resumen Mensual" (Efectivo/Depósitos/Cheques/Total de recibos) contra
+    // los créditos reales de cada banco — a fin de año deberían cuadrar
+    // (todo lo que entra por recibo, en efectivo o transferencia, termina
+    // en el banco: la transferencia directa, y el efectivo cuando se hace
+    // la boleta de depósito). La diferencia es solo informativa — un
+    // desfase de días entre el recibo y cuándo el banco acredita de verdad
+    // es normal, esto no reemplaza la verificación línea por línea de
+    // Conciliación.
     private function comparativo() {
         $anio = $this->anioValido($_GET['anio'] ?? null);
         $db = Conexion::conectar();
 
-        $porBanco = [];
-        foreach (DepositosModel::cuentas() as $cuenta => $banco) {
-            $porBanco[$cuenta] = [
-                'banco' => $banco,
-                'transferencia' => ConciliacionModel::transferenciasPorMesYCuenta($db, $cuenta, $anio),
-                'sistema' => ConciliacionModel::depositosPorMesYCuenta($db, $cuenta, $anio),
-                'estadoCuenta' => ConciliacionModel::totalesPorMesYCuenta($db, $cuenta, $anio),
-            ];
-        }
-
-        // Efectivo cobrado en recibos (recibospfs.efectivo) que todavía no
-        // tiene cuenta destino — es dinero que el centro va a llevar al
-        // banco en una boleta de depósito más adelante, no está atado a
-        // BANTRAB ni BANRURAL todavía, así que es una sola columna (no por
-        // banco) entre "Mes" y los grupos de cada banco.
         $cierreAnio = RecibosPfsModel::cierreAnioPorMes($db, $anio);
-        $efectivoPorMes = array_fill(1, 12, 0.0);
-        foreach ($cierreAnio as $mes => $fila) {
-            $efectivoPorMes[$mes] = (float)$fila['efectivo'];
-        }
 
-        // Consolidado BANTRAB+BANRURAL: mismas columnas que "Cierre de Año
-        // — Resumen Mensual" (Efectivo/Depósitos/Cheques/Total de
-        // $cierreAnio) contra los créditos reales de cada banco — a fin de
-        // año deberían cuadrar.
         $creditoBanrural = array_fill(1, 12, 0.0);
         $creditoBantrab = array_fill(1, 12, 0.0);
-        foreach ($porBanco as $datos) {
-            foreach ($datos['estadoCuenta'] as $mes => $fila) {
-                if ($datos['banco'] === 'BANRURAL') {
+        foreach (DepositosModel::cuentas() as $cuenta => $banco) {
+            $estadoCuenta = ConciliacionModel::totalesPorMesYCuenta($db, $cuenta, $anio);
+            foreach ($estadoCuenta as $mes => $fila) {
+                if ($banco === 'BANRURAL') {
                     $creditoBanrural[$mes] = (float)$fila['credito'];
-                } elseif ($datos['banco'] === 'BANTRAB') {
+                } elseif ($banco === 'BANTRAB') {
                     $creditoBantrab[$mes] = (float)$fila['credito'];
                 }
             }
         }
 
-        ConciliacionView::mostrarComparativo($porBanco, $anio, $efectivoPorMes, $cierreAnio, $creditoBanrural, $creditoBantrab);
+        ConciliacionView::mostrarComparativo($anio, $cierreAnio, $creditoBanrural, $creditoBantrab);
     }
 
     // Débitos (egresos) del estado de cuenta importado, mes a mes — sin
