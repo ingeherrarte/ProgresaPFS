@@ -176,7 +176,6 @@ class InicioView {
         ['icono' => '📊', 'titulo' => 'Cierre de Año', 'href' => 'cierres.php?tipo=anio'],
         ['icono' => '🏦', 'titulo' => 'Depósitos', 'href' => 'depositos.php'],
         ['icono' => '🔗', 'titulo' => 'Conciliación de Transferencias', 'href' => 'conciliacion.php'],
-        ['icono' => '📒', 'titulo' => 'Contabilidad', 'href' => 'contabilidad.php'],
         ['icono' => '📋', 'titulo' => 'Asistencia', 'href' => 'asistencia.php'],
         ['icono' => '📝', 'titulo' => 'Notas', 'href' => 'notas.php'],
         ['icono' => '⚙️', 'titulo' => 'Administración', 'href' => 'admin.php'],
