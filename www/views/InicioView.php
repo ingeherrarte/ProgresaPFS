@@ -112,10 +112,6 @@ class InicioView {
                 <div class="icono">🔗</div>
                 <div class="titulo">Conciliación de Transferencias</div>
             </a>
-            <a class="acceso" href="contabilidad.php">
-                <div class="icono">📒</div>
-                <div class="titulo">Contabilidad</div>
-            </a>
             <a class="acceso" href="asistencia.php">
                 <div class="icono">📋</div>
                 <div class="titulo">Asistencia</div>
