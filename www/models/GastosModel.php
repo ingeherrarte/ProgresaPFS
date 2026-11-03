@@ -31,30 +31,17 @@ class GastosModel {
         return 'Sin categorizar';
     }
 
-    // Débitos del año (opcionalmente un mes, y/o un texto libre sobre
-    // referencia/descripción) agrupados por tipo estimado — base del
-    // reporte de "Gastos" en Contabilidad. excluido=0: una línea marcada
-    // como error del banco (ver ConciliacionModel::excluir) tampoco debe
-    // contar aquí.
-    public static function reportePorTipo(PDO $db, int $anio, ?int $mes = null, string $texto = ''): array {
-        $condiciones = ["tipo = 'debito'", "YEAR(fecha) = ?", "excluido = 0"];
-        $params = [$anio];
-        if ($mes !== null) {
-            $condiciones[] = "MONTH(fecha) = ?";
-            $params[] = $mes;
-        }
-        if ($texto !== '') {
-            $condiciones[] = "(referencia LIKE ? OR descripcion LIKE ?)";
-            $params[] = '%' . $texto . '%';
-            $params[] = '%' . $texto . '%';
-        }
+    // Débitos del año agrupados por tipo estimado — base del reporte de
+    // "Gastos" en Contabilidad. excluido=0: una línea marcada como error
+    // del banco (ver ConciliacionModel::excluir) tampoco debe contar aquí.
+    public static function reportePorTipo(PDO $db, int $anio): array {
         $stmt = $db->prepare(
             "SELECT id, cuenta, fecha, monto, referencia, descripcion
              FROM estados_cuenta
-             WHERE " . implode(' AND ', $condiciones) . "
+             WHERE tipo = 'debito' AND YEAR(fecha) = ? AND excluido = 0
              ORDER BY fecha"
         );
-        $stmt->execute($params);
+        $stmt->execute([$anio]);
 
         $porTipo = [];
         foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $linea) {

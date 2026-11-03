@@ -5,11 +5,6 @@ require_once __DIR__ . "/../models/DepositosModel.php";
 
 class ContabilidadView {
 
-    private static array $meses = [
-        1 => 'Enero', 2 => 'Febrero', 3 => 'Marzo', 4 => 'Abril', 5 => 'Mayo', 6 => 'Junio',
-        7 => 'Julio', 8 => 'Agosto', 9 => 'Septiembre', 10 => 'Octubre', 11 => 'Noviembre', 12 => 'Diciembre',
-    ];
-
     private static function estilos(): void {
         ?>
         <style>
@@ -30,12 +25,11 @@ class ContabilidadView {
                 border-radius: 6px; padding: 24px 28px; box-shadow: 0 1px 4px var(--sombra-tarjeta);
             }
             label { display: block; font-size: 13px; font-weight: bold; color: var(--texto); margin-bottom: 5px; }
-            input, select {
+            select {
                 width: 100%; padding: 10px; font-size: 14px;
                 border: 1px solid var(--borde-input); border-radius: 4px; margin-bottom: 0;
                 background: var(--bg-tarjeta); color: var(--texto);
             }
-            input:focus, select:focus { outline: none; border-color: var(--acento); }
             .fila { display: flex; gap: 14px; flex-wrap: wrap; align-items: flex-end; }
             .campo { flex: 1; min-width: 180px; }
             button { padding: 11px 18px; font-size: 14px; font-weight: bold;
@@ -79,10 +73,9 @@ class ContabilidadView {
     // (ver GastosModel::reportePorTipo). "Gastos" aquí es SOLO lo que ya
     // está en el estado de cuenta importado (débitos) — todavía no hay
     // registro manual de gastos en efectivo o con comprobante propio.
-    public static function mostrarReporteGastos(array $porTipo, int $anio, ?int $mes, string $texto): void {
+    public static function mostrarReporteGastos(array $porTipo, int $anio): void {
         $totalGeneral = array_sum(array_column($porTipo, 'total'));
         $lineasGeneral = array_sum(array_map(fn($t) => count($t['lineas']), $porTipo));
-        $periodo = ($mes !== null ? self::$meses[$mes] . ' ' : '') . $anio;
         ?>
         <!DOCTYPE html>
         <html lang="es">
@@ -115,30 +108,14 @@ class ContabilidadView {
                                 <?php endfor; ?>
                             </select>
                         </div>
-                        <div class="campo" style="max-width:160px;">
-                            <label for="mes">Mes</label>
-                            <select id="mes" name="mes" onchange="this.form.submit()">
-                                <option value="">-- Todos --</option>
-                                <?php foreach (self::$meses as $num => $nombre): ?>
-                                    <option value="<?= $num ?>" <?= $mes === $num ? 'selected' : '' ?>><?= $nombre ?></option>
-                                <?php endforeach; ?>
-                            </select>
-                        </div>
-                        <div class="campo">
-                            <label for="texto">Buscar en referencia/descripción</label>
-                            <input type="text" id="texto" name="texto" value="<?= htmlspecialchars($texto) ?>" style="margin-bottom:0;" placeholder="ej. TIGO, CHEQUE, IGSS">
-                        </div>
-                        <div class="campo" style="flex:0 0 auto;">
-                            <button type="submit">Buscar</button>
-                        </div>
                     </div>
                 </form>
             </div>
 
             <div class="card">
-                <h2>Resumen por tipo — <?= $periodo ?></h2>
+                <h2>Resumen por tipo — <?= $anio ?></h2>
                 <?php if (empty($porTipo)): ?>
-                    <p class="sin-datos">No hay débitos importados para <?= $periodo ?><?= $texto !== '' ? ' con "' . htmlspecialchars($texto) . '"' : '' ?>.</p>
+                    <p class="sin-datos">No hay débitos importados para <?= $anio ?>.</p>
                 <?php else: ?>
                     <div class="tabla-scroll">
                     <table>
@@ -154,7 +131,7 @@ class ContabilidadView {
                         </tbody>
                         <tfoot>
                             <tr style="font-weight:bold;">
-                                <td>Total <?= $periodo ?></td>
+                                <td>Total <?= $anio ?></td>
                                 <td class="num"><?= $lineasGeneral ?></td>
                                 <td class="num">Q <?= number_format($totalGeneral, 2) ?></td>
                             </tr>
