@@ -5,7 +5,7 @@ require_once __DIR__ . "/../helpers/Tema.php";
 
 class DepositosView {
 
-    public static function mostrarFormulario(array $errores, array $data, array $recientes, ?string $mensaje = null, ?array $aviso = null): void {
+    public static function mostrarFormulario(array $errores, array $data, array $recientes, ?string $mensaje = null, ?array $aviso = null, array $filtro = ['mes' => '', 'dia' => '', 'por' => 'fechadep']): void {
         $v = fn($campo, $default = '') => htmlspecialchars($data[$campo] ?? $default);
         $cuentaSel = $data['cuenta'] ?? '';
         ?>
@@ -95,6 +95,16 @@ class DepositosView {
                 .cuadre-sobra { color: #b71c1c; }
                 td.cuadre-falta, td.cuadre-sobra { font-weight: bold; }
                 .nota { font-size: 12px; color: var(--texto-muted); margin-bottom: 10px; }
+                .filtro-lista { display: flex; flex-wrap: wrap; gap: 12px; align-items: flex-end; margin-bottom: 14px; }
+                .filtro-lista .campo { flex: 1 1 160px; }
+                .filtro-lista input, .filtro-lista select { padding: 9px 10px; }
+                .filtro-lista .acciones { display: flex; align-items: center; gap: 14px; }
+                .filtro-lista button {
+                    padding: 10px 22px; font-size: 15px; font-weight: bold;
+                    background: var(--acento); color: #fff; border: none; border-radius: 4px; cursor: pointer;
+                }
+                .filtro-lista a { font-size: 13px; color: var(--acento); font-weight: bold; white-space: nowrap; }
+                tfoot td { background: var(--tabla-header-bg); color: var(--tabla-header-texto); font-weight: bold; }
             </style>
         </head>
         <body>
@@ -199,10 +209,44 @@ class DepositosView {
             </div>
             <?php endif; ?>
 
-            <div class="card card-ancha">
-                <h2>Últimos depósitos registrados</h2>
+            <?php
+                $filtrado = $filtro['dia'] !== '' || $filtro['mes'] !== '';
+                $nombreCampo = $filtro['por'] === 'correspondiente' ? '"Correspondiente a"' : 'fecha de depósito';
+                if ($filtro['dia'] !== '') {
+                    $tituloLista = 'Depósitos del ' . date('d/m/Y', strtotime($filtro['dia'])) . " (por $nombreCampo)";
+                } elseif ($filtro['mes'] !== '') {
+                    $mesesNombre = [1 => 'enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'];
+                    [$a, $m] = explode('-', $filtro['mes']);
+                    $tituloLista = 'Depósitos de ' . $mesesNombre[(int)$m] . " $a (por $nombreCampo)";
+                } else {
+                    $tituloLista = 'Últimos depósitos registrados';
+                }
+            ?>
+            <div class="card card-ancha" id="lista">
+                <h2><?= htmlspecialchars($tituloLista) ?></h2>
+                <form method="GET" action="depositos.php#lista" class="filtro-lista">
+                    <div class="campo">
+                        <label for="f_mes">Mes</label>
+                        <input type="month" id="f_mes" name="mes" value="<?= htmlspecialchars($filtro['mes']) ?>">
+                    </div>
+                    <div class="campo">
+                        <label for="f_dia">o un día</label>
+                        <input type="date" id="f_dia" name="dia" value="<?= htmlspecialchars($filtro['dia']) ?>">
+                    </div>
+                    <div class="campo">
+                        <label for="f_por">Buscar por</label>
+                        <select id="f_por" name="por">
+                            <option value="fechadep" <?= $filtro['por'] === 'fechadep' ? 'selected' : '' ?>>Fecha de depósito</option>
+                            <option value="correspondiente" <?= $filtro['por'] === 'correspondiente' ? 'selected' : '' ?>>Correspondiente a</option>
+                        </select>
+                    </div>
+                    <div class="acciones">
+                        <button type="submit">Ver</button>
+                        <?php if ($filtrado): ?><a href="depositos.php#lista">Quitar filtro</a><?php endif; ?>
+                    </div>
+                </form>
                 <?php if (empty($recientes)): ?>
-                    <p class="sin-datos">No hay depósitos registrados.</p>
+                    <p class="sin-datos"><?= $filtrado ? 'No hay depósitos en ese período.' : 'No hay depósitos registrados.' ?></p>
                 <?php else: ?>
                     <div class="tabla-scroll">
                     <table>
@@ -244,6 +288,21 @@ class DepositosView {
                                 </tr>
                             <?php endforeach; ?>
                         </tbody>
+                        <?php if ($filtrado):
+                            $sumEf = array_sum(array_column($recientes, 'efectivo'));
+                            $sumCp = array_sum(array_column($recientes, 'chpropio'));
+                            $sumCo = array_sum(array_column($recientes, 'chotrobanco'));
+                        ?>
+                            <tfoot>
+                                <tr>
+                                    <td colspan="5"><?= count($recientes) ?> boleta(s) · Total Q <?= number_format($sumEf + $sumCp + $sumCo, 2) ?></td>
+                                    <td class="num">Q <?= number_format($sumEf, 2) ?></td>
+                                    <td class="num">Q <?= number_format($sumCp, 2) ?></td>
+                                    <td class="num">Q <?= number_format($sumCo, 2) ?></td>
+                                    <td colspan="3"></td>
+                                </tr>
+                            </tfoot>
+                        <?php endif; ?>
                     </table>
                     </div>
                 <?php endif; ?>
@@ -295,6 +354,14 @@ class DepositosView {
                     fecha.addEventListener('change', cargar);
                     montos.forEach(el => el.addEventListener('input', pintar));
                     cargar();
+                })();
+
+                // Filtro de la lista: mes y día son excluyentes (el día manda
+                // en el servidor); al llenar uno se limpia el otro.
+                (function () {
+                    const mes = document.getElementById('f_mes'), dia = document.getElementById('f_dia');
+                    mes.addEventListener('input', () => { if (mes.value) dia.value = ''; });
+                    dia.addEventListener('input', () => { if (dia.value) mes.value = ''; });
                 })();
 
                 if ('serviceWorker' in navigator) {

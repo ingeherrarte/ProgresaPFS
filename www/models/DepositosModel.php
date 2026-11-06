@@ -50,6 +50,18 @@ class DepositosModel {
         return $stmt->fetchAll(PDO::FETCH_ASSOC);
     }
 
+    // Depósitos de un rango de fechas, por fecha de depósito o por
+    // "Correspondiente a". $campo viene de una lista blanca, nunca del
+    // request tal cual (se interpola en el SQL).
+    public static function listarPorRango(PDO $db, string $desde, string $hasta, string $campo): array {
+        $campo = $campo === 'correspondiente' ? 'correspondiente' : 'fechadep';
+        $stmt = $db->prepare(
+            "SELECT * FROM depositos WHERE $campo BETWEEN ? AND ? ORDER BY $campo DESC, horaregistro DESC"
+        );
+        $stmt->execute([$desde, $hasta]);
+        return $stmt->fetchAll(PDO::FETCH_ASSOC);
+    }
+
     public static function obtenerPorNumero(PDO $db, string $nodeposito): ?array {
         $stmt = $db->prepare("SELECT * FROM depositos WHERE nodeposito = ?");
         $stmt->execute([$nodeposito]);
