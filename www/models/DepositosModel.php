@@ -348,6 +348,32 @@ class DepositosModel {
         return $filas;
     }
 
+    // Para la gráfica del Dashboard: por cada fecha "Correspondiente a",
+    // la suma de las boletas registradas en el sistema (varias boletas de
+    // un mismo día se agrupan y suman) contra la suma de lo que el estado
+    // de cuenta registra para esas mismas boletas. `pendientes` = boletas
+    // de ese día cuyo estado de cuenta todavía no se ha importado: ahí el
+    // lado del banco está incompleto, no descuadrado.
+    public static function sistemaVsBancoPorDia(PDO $db, string $desde, string $hasta): array {
+        $porDia = [];
+        foreach (self::boletasConBanco($db, $desde, $hasta) as $b) {
+            $d = $b['correspondiente'];
+            $porDia[$d] ??= ['dia' => $d, 'sistema' => 0.0, 'banco' => 0.0, 'boletas' => 0, 'pendientes' => 0, 'no_aparece' => 0, 'monto_distinto' => 0];
+            $porDia[$d]['sistema'] += $b['monto'];
+            $porDia[$d]['banco'] += (float)($b['banco_monto'] ?? 0);
+            $porDia[$d]['boletas']++;
+            if ($b['banco_estado'] === 'sin_importar') {
+                $porDia[$d]['pendientes']++;
+            } elseif ($b['banco_estado'] === 'no_aparece') {
+                $porDia[$d]['no_aparece']++;
+            } elseif ($b['banco_estado'] === 'monto_distinto') {
+                $porDia[$d]['monto_distinto']++;
+            }
+        }
+        ksort($porDia);
+        return array_values($porDia);
+    }
+
     // Boletas con su línea del estado de cuenta (mismo cruce que usa
     // Conciliación: referencia del banco = número de boleta, misma cuenta).
     // banco_estado: ok | monto_distinto | no_aparece | sin_importar.

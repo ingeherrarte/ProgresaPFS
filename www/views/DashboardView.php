@@ -1,6 +1,7 @@
 <?php
 require_once __DIR__ . "/../helpers/Auth.php";
 require_once __DIR__ . "/../helpers/Tema.php";
+require_once __DIR__ . "/../models/DepositosModel.php";
 
 class DashboardView {
 
@@ -11,6 +12,13 @@ class DashboardView {
     private const SERIE_EFECTIVO = '#2a78d6';
     private const SERIE_DEPOSITO = '#eb6834';
     private const SERIE_CHEQUE   = '#1baf7a';
+
+    // "Depósitos: sistema vs. banco" — dos series nuevas que NO pueden
+    // reusar azul/naranja/verde (ya significan efectivo/depósito/cheque en
+    // esta página). Par validado con validate_palette.js en claro (#fcfcfb)
+    // y oscuro (#1b1e24): CVD ΔE 15.2, visión normal ΔE 23.8, contraste ≥3:1.
+    private const SERIE_SISTEMA = '#8456ce';
+    private const SERIE_BANCO   = '#1b9e9e';
 
     // Paleta categórica para "Ingresos por diplomado" e "Ingresos por
     // Graduación/Libros/Batas" — cada barra su propio color, por posición
@@ -399,7 +407,102 @@ class DashboardView {
         return $svg;
     }
 
-    public static function mostrar(int $anio, int $anioActual, array $porMes, array $meses, array $porDiplomado, array $porConceptos): void {
+    // Barra vertical con solo el extremo superior redondeado (anclada a la
+    // base, que queda cuadrada).
+    private static function pathBarraVertical(float $x, float $y, float $w, float $h, float $r): string {
+        if ($h < $r * 2 || $w < $r * 2) {
+            return "M $x $y h $w v $h h -$w Z";
+        }
+        $xw = $x + $w; $yh = $y + $h; $yr = $y + $r; $xr = $x + $r; $xwr = $xw - $r;
+        return "M $x $yh L $x $yr Q $x $y $xr $y L $xwr $y Q $xw $y $xw $yr L $xw $yh Z";
+    }
+
+    // Barras agrupadas por fecha "Correspondiente a": Sistema (suma de las
+    // boletas de ese día) junto a Banco (suma de lo que el estado de cuenta
+    // registra para esas boletas). Magnitud por categoría → barras; un
+    // solo eje Y en quetzales para ambas series. Solo fechas con boletas
+    // (eje categórico ordenado por fecha). Cuando el estado de cuenta de
+    // alguna boleta del día aún no se importa, la barra Banco va solo con
+    // contorno: está incompleta, no descuadrada. Un ▲ sobre el grupo marca
+    // los días con diferencia ya importada (codificación secundaria, no
+    // solo color).
+    private static function graficaSistemaVsBanco(array $dias): string {
+        $ancho = 960; $alto = 340;
+        $margenIzq = 58; $margenDer = 12; $margenArriba = 22; $margenAbajo = 30;
+        $anchoPlot = $ancho - $margenIzq - $margenDer;
+        $altoPlot = $alto - $margenArriba - $margenAbajo;
+
+        $max = 0;
+        foreach ($dias as $d) {
+            $max = max($max, $d['sistema'], $d['banco']);
+        }
+        $escala = self::escalaMaxima($max);
+        $n = count($dias);
+        $banda = $anchoPlot / max($n, 1);
+        $hueco = 2;                                   // 2px de superficie entre barras
+        $anchoBarra = max(2, min(22, ($banda * 0.8 - $hueco) / 2));
+        $base = $margenArriba + $altoPlot;
+        $cadaCuanto = max(1, (int)ceil($n / 14));     // etiquetas del eje sin encimarse
+
+        $svg = '<svg viewBox="0 0 ' . $ancho . ' ' . $alto . '" role="img" aria-label="Depósitos por fecha Correspondiente a: registrado en sistema contra registrado en banco" style="width:100%; height:auto; font-family:inherit;">';
+        $svg .= '<rect x="0" y="0" width="' . $ancho . '" height="' . $alto . '" fill="' . self::SUPERFICIE . '"/>';
+        for ($i = 0; $i <= 4; $i++) {
+            $y = $margenArriba + $altoPlot - ($altoPlot * $i / 4);
+            $svg .= '<line x1="' . $margenIzq . '" y1="' . round($y, 1) . '" x2="' . ($ancho - $margenDer) . '" y2="' . round($y, 1) . '" stroke="' . ($i === 0 ? self::LINEA_BASE : self::LINEA_REJILLA) . '" stroke-width="1"/>';
+            $svg .= '<text x="' . ($margenIzq - 8) . '" y="' . round($y + 3, 1) . '" text-anchor="end" font-size="10.5" fill="' . self::TINTA_MUTED . '">' . self::formatoCompacto($escala * $i / 4) . '</text>';
+        }
+
+        foreach ($dias as $i => $d) {
+            $centro = $margenIzq + $banda * ($i + 0.5);
+            $xSis = $centro - $anchoBarra - $hueco / 2;
+            $xBan = $centro + $hueco / 2;
+            $hSis = $d['sistema'] / $escala * $altoPlot;
+            $hBan = $d['banco'] / $escala * $altoPlot;
+            $svg .= '<path d="' . self::pathBarraVertical(round($xSis, 1), round($base - $hSis, 1), round($anchoBarra, 1), round($hSis, 1), 4) . '" fill="' . self::SERIE_SISTEMA . '"/>';
+            if ($d['pendientes'] > 0) {
+                // Incompleta: contorno a la altura del sistema + relleno solo de lo ya confirmado.
+                if ($hBan > 0) {
+                    $svg .= '<path d="' . self::pathBarraVertical(round($xBan, 1), round($base - $hBan, 1), round($anchoBarra, 1), round($hBan, 1), 4) . '" fill="' . self::SERIE_BANCO . '"/>';
+                }
+                $svg .= '<path d="' . self::pathBarraVertical(round($xBan + 1, 1), round($base - $hSis + 1, 1), round($anchoBarra - 2, 1), round(max($hSis - 1, 0), 1), 4) . '" fill="none" stroke="' . self::SERIE_BANCO . '" stroke-width="1.5" stroke-dasharray="3 2"/>';
+            } elseif ($hBan > 0) {
+                $svg .= '<path d="' . self::pathBarraVertical(round($xBan, 1), round($base - $hBan, 1), round($anchoBarra, 1), round($hBan, 1), 4) . '" fill="' . self::SERIE_BANCO . '"/>';
+            }
+
+            $dif = round($d['sistema'] - $d['banco'], 2);
+            if ($d['pendientes'] === 0 && abs($dif) >= 0.005) {
+                $yMarca = $base - max($hSis, $hBan) - 6;
+                $svg .= '<path d="M ' . round($centro - 4, 1) . ' ' . round($yMarca, 1) . ' l 4 -7 l 4 7 Z" fill="' . self::TINTA_SECUNDARIA . '"/>';
+            }
+
+            if ($i % $cadaCuanto === 0) {
+                $svg .= '<text x="' . round($centro, 1) . '" y="' . ($alto - 10) . '" text-anchor="middle" font-size="10.5" fill="' . self::TINTA_MUTED . '">' . date('d/m', strtotime($d['dia'])) . '</text>';
+            }
+
+            $filas = [
+                ['etiqueta' => 'Sistema (' . $d['boletas'] . ' boleta' . ($d['boletas'] === 1 ? '' : 's') . ')', 'valor' => self::formatoQ($d['sistema']), 'color' => self::SERIE_SISTEMA],
+                ['etiqueta' => 'Banco', 'valor' => self::formatoQ($d['banco']), 'color' => self::SERIE_BANCO],
+            ];
+            if ($d['pendientes'] > 0) {
+                $filas[] = ['etiqueta' => $d['pendientes'] . ' boleta(s) sin importar del estado de cuenta', 'valor' => '🕒', 'color' => 'transparent'];
+            } elseif (abs($dif) >= 0.005) {
+                $filas[] = ['etiqueta' => 'diferencia (sistema − banco)', 'valor' => '▲ ' . self::formatoQ($dif), 'color' => 'transparent'];
+            }
+            if ($d['no_aparece'] > 0) {
+                $filas[] = ['etiqueta' => 'boleta(s) que no aparecen en el banco', 'valor' => (string)$d['no_aparece'], 'color' => 'transparent'];
+            }
+            if ($d['monto_distinto'] > 0) {
+                $filas[] = ['etiqueta' => 'boleta(s) con monto distinto al banco', 'valor' => (string)$d['monto_distinto'], 'color' => 'transparent'];
+            }
+            $payload = htmlspecialchars(json_encode(['titulo' => 'Correspondiente a ' . date('d/m/Y', strtotime($d['dia'])), 'filas' => $filas]), ENT_QUOTES);
+            $svg .= '<rect x="' . round($margenIzq + $banda * $i, 1) . '" y="' . $margenArriba . '" width="' . round($banda, 1) . '" height="' . $altoPlot . '" fill="transparent" class="viz-col" tabindex="0" data-x="' . round($centro, 1) . '" data-tooltip-json="' . $payload . '"/>';
+        }
+        $svg .= '<line class="viz-crosshair" x1="0" y1="' . $margenArriba . '" x2="0" y2="' . $base . '" stroke="' . self::LINEA_BASE . '" stroke-width="1" style="display:none"/>';
+        $svg .= '</svg>';
+        return $svg;
+    }
+
+    public static function mostrar(int $anio, int $anioActual, array $porMes, array $meses, array $porDiplomado, array $porConceptos, ?array $depositos = null): void {
         $totalEfectivo = array_sum(array_column($porMes, 'efectivo'));
         $totalDeposito = array_sum(array_column($porMes, 'deposito'));
         $totalCheque = array_sum(array_column($porMes, 'cheque'));
@@ -479,6 +582,58 @@ class DashboardView {
                     </tbody>
                 </table>
             </div>
+
+            <?php if ($depositos !== null): ?>
+            <div class="card">
+                <h2>Depósitos: sistema vs. banco por "Correspondiente a" — <?= $anio ?></h2>
+                <?php if (empty($depositos)): ?>
+                    <p class="sin-datos">No hay boletas registradas para este año (el cuadre se lleva desde el <?= date('d/m/Y', strtotime(DepositosModel::INICIO_CUADRE)) ?>).</p>
+                <?php else:
+                    $totSis = array_sum(array_column($depositos, 'sistema'));
+                    $totBan = array_sum(array_column($depositos, 'banco'));
+                    $conDif = count(array_filter($depositos, fn($d) => $d['pendientes'] === 0 && abs($d['sistema'] - $d['banco']) >= 0.005));
+                    $conPend = count(array_filter($depositos, fn($d) => $d['pendientes'] > 0));
+                ?>
+                    <p style="font-size:12.5px;color:var(--viz-leyenda-texto);margin:-6px 0 12px;">
+                        Boletas del mismo día agrupadas y sumadas. Sistema <b><?= self::formatoQ($totSis) ?></b> ·
+                        Banco <b><?= self::formatoQ($totBan) ?></b> ·
+                        <?= $conDif ?> día(s) con diferencia · <?= $conPend ?> día(s) con estado de cuenta sin importar.
+                    </p>
+                    <?= self::graficaSistemaVsBanco($depositos) ?>
+                    <div class="viz-leyenda">
+                        <span class="item"><span class="cuadro" style="background:<?= self::SERIE_SISTEMA ?>"></span>Registrado en sistema (boletas)</span>
+                        <span class="item"><span class="cuadro" style="background:<?= self::SERIE_BANCO ?>"></span>Registrado en banco (estado de cuenta)</span>
+                        <span class="item"><span class="cuadro" style="border:1.5px dashed <?= self::SERIE_BANCO ?>"></span>Estado de cuenta aún sin importar</span>
+                        <span class="item">▲ Diferencia sistema − banco</span>
+                    </div>
+                    <button type="button" class="tabla-toggle" onclick="document.getElementById('tablaDepositos').hidden = !document.getElementById('tablaDepositos').hidden">Ver tabla de datos</button>
+                    <a href="cuadre_depositos.php" style="font-size:12.5px;font-weight:bold;color:var(--acento);margin-left:14px;">Ir a Cuadre de Depósitos →</a>
+                    <div style="overflow-x:auto;">
+                    <table class="datos" id="tablaDepositos" hidden>
+                        <thead><tr><th>Correspondiente a</th><th>Boletas</th><th>Sistema</th><th>Banco</th><th>Diferencia</th><th>Nota</th></tr></thead>
+                        <tbody>
+                            <?php foreach (array_reverse($depositos) as $d): $dif = round($d['sistema'] - $d['banco'], 2); ?>
+                                <tr>
+                                    <td><?= date('d/m/Y', strtotime($d['dia'])) ?></td>
+                                    <td class="num"><?= (int)$d['boletas'] ?></td>
+                                    <td class="num"><?= self::formatoQ($d['sistema']) ?></td>
+                                    <td class="num"><?= self::formatoQ($d['banco']) ?></td>
+                                    <td class="num"><?= abs($dif) < 0.005 ? '—' : self::formatoQ($dif) ?></td>
+                                    <td><?php
+                                        $notas = [];
+                                        if ($d['pendientes']) $notas[] = $d['pendientes'] . ' sin importar';
+                                        if ($d['no_aparece']) $notas[] = $d['no_aparece'] . ' no aparece(n) en banco';
+                                        if ($d['monto_distinto']) $notas[] = $d['monto_distinto'] . ' con monto distinto';
+                                        echo htmlspecialchars(implode(' · ', $notas) ?: '—');
+                                    ?></td>
+                                </tr>
+                            <?php endforeach; ?>
+                        </tbody>
+                    </table>
+                    </div>
+                <?php endif; ?>
+            </div>
+            <?php endif; ?>
 
             <div class="card">
                 <h2>Ingresos por diplomado — <?= $anio ?></h2>
