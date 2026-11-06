@@ -229,6 +229,10 @@ class ConciliacionView {
                     <div class="icono">💸</div>
                     <div class="titulo">Gastos</div>
                 </a>
+                <a class="acceso-mini" href="cuadre_depositos.php">
+                    <div class="icono">🧮</div>
+                    <div class="titulo">Cuadre de Depósitos</div>
+                </a>
                 <?php if ($esAdmin): ?>
                     <a class="acceso-mini" href="conciliacion.php?action=reporte">
                         <div class="icono">📈</div>

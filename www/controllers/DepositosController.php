@@ -30,12 +30,15 @@ class DepositosController {
         $db = Conexion::conectar();
         $recientes = DepositosModel::obtenerRecientes($db);
         $mensaje = (empty($errores) && ($_GET['msg'] ?? '') === 'creado') ? 'Depósito guardado correctamente.' : null;
-        $hoy = date('Y-m-d');
-        $descuadrados = DepositosModel::diasDescuadrados($db, date('Y-m-d', strtotime('-30 days')), $hoy);
-        // El día de hoy normalmente aún no se ha depositado: no es un
-        // descuadre todavía, solo algo pendiente.
-        $descuadrados = array_values(array_filter($descuadrados, fn($f) => $f['dia'] !== $hoy));
-        DepositosView::mostrarFormulario($errores, $data, $recientes, $mensaje, $descuadrados);
+        // Aviso corto con el pendiente acumulado; el detalle vive en
+        // cuadre_depositos.php (solo editor/administrador, como Conciliación).
+        $dias = DepositosModel::cuadrePorDias($db, date('Y-m-d'));
+        $aviso = [
+            'pendiente' => empty($dias) ? 0.0 : end($dias)['acumulado'],
+            'por_revisar' => count(array_filter($dias, fn($f) => $f['estado'] === 'falta' || $f['estado'] === 'sobra')),
+            'puede_ver' => in_array(Auth::rolActual(), [Auth::ROL_EDITOR, Auth::ROL_ADMINISTRADOR], true),
+        ];
+        DepositosView::mostrarFormulario($errores, $data, $recientes, $mensaje, $aviso);
     }
 
     // Lo consulta el formulario al cambiar "Correspondiente a", para

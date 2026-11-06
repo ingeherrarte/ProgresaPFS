@@ -260,43 +260,140 @@ class DepositosModel {
         ];
     }
 
-    // Días del rango donde caja y boletas no coinciden. Incluye días con
-    // boletas pero sin cierre (típico de un "Correspondiente a" mal puesto).
-    // MySQL no tiene FULL OUTER JOIN: se arma la lista de días con UNION y
-    // se suma cada lado por separado.
-    public static function diasDescuadrados(PDO $db, string $desde, string $hasta): array {
+    // ── Reporte "Cuadre de Depósitos" ─────────────────────────────────
+    // Desde esta fecha las boletas se registran de forma constante en el
+    // sistema (antes de eso hay días con caja y sin ninguna boleta, que
+    // inflarían el pendiente con dinero que sí se depositó).
+    public const INICIO_CUADRE = '2026-08-12';
+
+    // Un faltante de un día que se cancela con un sobrante igual en los
+    // días siguientes es casi siempre una boleta con el "Correspondiente a"
+    // del día del depósito en vez del día del ingreso (p. ej. ingresos
+    // fuera de horario depositados al día siguiente). Se marca como
+    // "compensado", no como error. Tolerancia de Q0.05 para centavos.
+    public const DIAS_COMPENSACION = 7;
+    private const TOLERANCIA_COMPENSACION = 0.05;
+
+    // Un día por fila (ascendente) desde INICIO_CUADRE hasta $hasta, con
+    // caja, boletas, diferencia del día, pendiente acumulado y estado. El
+    // acumulado siempre arranca en INICIO_CUADRE aunque la vista filtre un
+    // rango menor, para que el saldo arrastrado sea el real.
+    public static function cuadrePorDias(PDO $db, string $hasta): array {
+        $inicio = self::INICIO_CUADRE;
+        $hoy = date('Y-m-d');
+
         $stmt = $db->prepare(
-            "SELECT d.dia,
-                    COALESCE(c.total, 0) AS cierre_total,
-                    COALESCE(b.total, 0) AS depositado,
-                    COALESCE(b.cantidad, 0) AS boletas
-             FROM (
-                SELECT DATE(horaregistro) AS dia FROM recibospfs
-                 WHERE anulado = 0 AND horaregistro >= ? AND horaregistro < DATE_ADD(?, INTERVAL 1 DAY)
-                UNION
-                SELECT correspondiente FROM depositos WHERE correspondiente BETWEEN ? AND ?
-             ) d
-             LEFT JOIN (
-                SELECT DATE(horaregistro) AS dia, SUM(efectivo + cheque) AS total
-                  FROM recibospfs
-                 WHERE anulado = 0 AND horaregistro >= ? AND horaregistro < DATE_ADD(?, INTERVAL 1 DAY)
-                 GROUP BY DATE(horaregistro)
-             ) c ON c.dia = d.dia
-             LEFT JOIN (
-                SELECT correspondiente AS dia, SUM(efectivo + chpropio + chotrobanco) AS total, COUNT(*) AS cantidad
-                  FROM depositos WHERE correspondiente BETWEEN ? AND ?
-                 GROUP BY correspondiente
-             ) b ON b.dia = d.dia
-             WHERE ABS(COALESCE(c.total, 0) - COALESCE(b.total, 0)) >= ?
-             ORDER BY d.dia DESC"
+            "SELECT DATE(horaregistro) AS dia, SUM(efectivo) AS efectivo, SUM(cheque) AS cheque, COUNT(*) AS recibos
+             FROM recibospfs
+             WHERE anulado = 0 AND horaregistro >= ? AND horaregistro < DATE_ADD(?, INTERVAL 1 DAY)
+             GROUP BY DATE(horaregistro)"
         );
-        $stmt->execute([$desde, $hasta, $desde, $hasta, $desde, $hasta, $desde, $hasta, self::TOLERANCIA_CUADRE]);
-        $filas = $stmt->fetchAll(PDO::FETCH_ASSOC);
+        $stmt->execute([$inicio, $hasta]);
+        $caja = [];
+        foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $r) {
+            $caja[$r['dia']] = $r;
+        }
+
+        foreach (self::boletasConBanco($db, $inicio, $hasta) as $b) {
+            $boletasPorDia[$b['correspondiente']][] = $b;
+        }
+        $boletasPorDia ??= [];
+
+        $dias = array_unique(array_merge(array_keys($caja), array_keys($boletasPorDia)));
+        sort($dias);
+
+        $filas = [];
+        $acumulado = 0.0;
+        foreach ($dias as $dia) {
+            $ef = (float)($caja[$dia]['efectivo'] ?? 0);
+            $ch = (float)($caja[$dia]['cheque'] ?? 0);
+            $boletas = $boletasPorDia[$dia] ?? [];
+            $depositado = array_sum(array_column($boletas, 'monto'));
+            if ($ef + $ch == 0 && $depositado == 0) {
+                continue; // solo transferencias ese día: nada que depositar
+            }
+            $dif = round($ef + $ch - $depositado, 2);
+            $acumulado = round($acumulado + $dif, 2);
+            $filas[] = [
+                'dia' => $dia,
+                'efectivo' => $ef,
+                'cheque' => $ch,
+                'caja' => $ef + $ch,
+                'depositado' => $depositado,
+                'diferencia' => $dif,
+                'acumulado' => $acumulado,
+                'boletas' => $boletas,
+                'estado' => abs($dif) < self::TOLERANCIA_CUADRE ? 'cuadra' : null,
+                'pareja' => null,
+            ];
+        }
+
+        // Emparejar faltante/sobrante opuestos dentro de DIAS_COMPENSACION.
+        $n = count($filas);
+        for ($i = 0; $i < $n; $i++) {
+            if ($filas[$i]['estado'] !== null) {
+                continue;
+            }
+            $limite = date('Y-m-d', strtotime($filas[$i]['dia'] . ' +' . self::DIAS_COMPENSACION . ' days'));
+            for ($j = $i + 1; $j < $n && $filas[$j]['dia'] <= $limite; $j++) {
+                if ($filas[$j]['estado'] === null
+                    && abs($filas[$i]['diferencia'] + $filas[$j]['diferencia']) < self::TOLERANCIA_COMPENSACION) {
+                    $filas[$i]['estado'] = $filas[$j]['estado'] = 'compensado';
+                    $filas[$i]['pareja'] = $filas[$j]['dia'];
+                    $filas[$j]['pareja'] = $filas[$i]['dia'];
+                    break;
+                }
+            }
+        }
         foreach ($filas as &$f) {
-            $f['diferencia'] = round((float)$f['cierre_total'] - (float)$f['depositado'], 2);
+            if ($f['estado'] === null) {
+                $f['estado'] = $f['diferencia'] < 0 ? 'sobra' : ($f['dia'] === $hoy ? 'hoy' : 'falta');
+            }
         }
         unset($f);
+
         return $filas;
+    }
+
+    // Boletas con su línea del estado de cuenta (mismo cruce que usa
+    // Conciliación: referencia del banco = número de boleta, misma cuenta).
+    // banco_estado: ok | monto_distinto | no_aparece | sin_importar.
+    // "sin_importar" = la boleta es posterior a la última línea importada
+    // de esa cuenta, así que todavía no se puede saber si entró.
+    public static function boletasConBanco(PDO $db, string $desde, string $hasta): array {
+        $ultimas = [];
+        foreach ($db->query("SELECT cuenta, MAX(fecha) AS ultima FROM estados_cuenta GROUP BY cuenta") as $r) {
+            $ultimas[$r['cuenta']] = $r['ultima'];
+        }
+
+        $stmt = $db->prepare(
+            "SELECT d.nodeposito, d.fechadep, d.correspondiente, d.cuenta, d.banco, d.efectivo, d.chpropio, d.chotrobanco,
+                    d.responsable, d.foto_boleta,
+                    (SELECT ec.fecha FROM estados_cuenta ec
+                      WHERE ec.referencia = d.nodeposito AND ec.cuenta = d.cuenta AND ec.tipo = 'credito' AND ec.excluido = 0
+                      ORDER BY ec.fecha LIMIT 1) AS banco_fecha,
+                    (SELECT ec.monto FROM estados_cuenta ec
+                      WHERE ec.referencia = d.nodeposito AND ec.cuenta = d.cuenta AND ec.tipo = 'credito' AND ec.excluido = 0
+                      ORDER BY ec.fecha LIMIT 1) AS banco_monto
+             FROM depositos d
+             WHERE d.correspondiente BETWEEN ? AND ?
+             ORDER BY d.correspondiente, d.fechadep, d.horaregistro"
+        );
+        $stmt->execute([$desde, $hasta]);
+        $boletas = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+        foreach ($boletas as &$b) {
+            $b['monto'] = (float)$b['efectivo'] + (float)$b['chpropio'] + (float)$b['chotrobanco'];
+            if ($b['banco_fecha'] !== null) {
+                $b['banco_estado'] = abs((float)$b['banco_monto'] - $b['monto']) < self::TOLERANCIA_CUADRE ? 'ok' : 'monto_distinto';
+            } else {
+                $ultima = $ultimas[$b['cuenta']] ?? null;
+                $b['banco_estado'] = ($ultima !== null && $b['fechadep'] <= $ultima) ? 'no_aparece' : 'sin_importar';
+            }
+            $b['ultima_importada'] = $ultimas[$b['cuenta']] ?? null;
+        }
+        unset($b);
+        return $boletas;
     }
 }
 ?>
