@@ -1,5 +1,6 @@
 <?php
 require_once "models/RecibosPfsModel.php";
+require_once "models/DepositosModel.php";
 require_once "views/CierresView.php";
 require_once __DIR__ . "/../helpers/Auth.php";
 require_once __DIR__ . "/../config/Conexion.php";
@@ -31,7 +32,8 @@ class CierresController {
         }
 
         $resultado = RecibosPfsModel::cierreDia($db, $fecha);
-        CierresView::mostrarCierreDia($fecha, $resultado['detalle'], $resultado['resumen'], $resultado['anulados']);
+        $cuadre = DepositosModel::cuadreDia($db, $fecha);
+        CierresView::mostrarCierreDia($fecha, $resultado['detalle'], $resultado['resumen'], $resultado['anulados'], $cuadre);
     }
 
     private function cierreAnio(PDO $db) {

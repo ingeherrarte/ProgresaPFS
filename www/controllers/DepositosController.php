@@ -15,6 +15,10 @@ class DepositosController {
                 $this->guardar();
                 break;
 
+            case 'cuadre':
+                $this->cuadreJson();
+                break;
+
             case 'form':
             default:
                 $this->form();
@@ -26,7 +30,32 @@ class DepositosController {
         $db = Conexion::conectar();
         $recientes = DepositosModel::obtenerRecientes($db);
         $mensaje = (empty($errores) && ($_GET['msg'] ?? '') === 'creado') ? 'Depósito guardado correctamente.' : null;
-        DepositosView::mostrarFormulario($errores, $data, $recientes, $mensaje);
+        $hoy = date('Y-m-d');
+        $descuadrados = DepositosModel::diasDescuadrados($db, date('Y-m-d', strtotime('-30 days')), $hoy);
+        // El día de hoy normalmente aún no se ha depositado: no es un
+        // descuadre todavía, solo algo pendiente.
+        $descuadrados = array_values(array_filter($descuadrados, fn($f) => $f['dia'] !== $hoy));
+        DepositosView::mostrarFormulario($errores, $data, $recientes, $mensaje, $descuadrados);
+    }
+
+    // Lo consulta el formulario al cambiar "Correspondiente a", para
+    // mostrar cuánto hay en caja ese día y cuánto falta por depositar.
+    private function cuadreJson() {
+        header('Content-Type: application/json; charset=utf-8');
+        $fecha = $_GET['fecha'] ?? '';
+        if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $fecha)) {
+            http_response_code(400);
+            echo json_encode(['error' => 'Fecha no válida']);
+            return;
+        }
+        $c = DepositosModel::cuadreDia(Conexion::conectar(), $fecha);
+        echo json_encode([
+            'cierre_efectivo' => $c['cierre_efectivo'],
+            'cierre_cheque' => $c['cierre_cheque'],
+            'cierre_total' => $c['cierre_total'],
+            'depositado' => $c['depositado'],
+            'boletas' => count($c['boletas']),
+        ]);
     }
 
     // Reemplaza a procesadeposito.php, que estaba completamente roto: llamaba

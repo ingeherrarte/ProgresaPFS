@@ -47,6 +47,11 @@ class CierresView {
             .fila-anulada td.estado { text-decoration: none; }
             .estado-anulado { color: #b71c1c; font-weight: bold; text-decoration: none !important; }
             .estado-activo { color: #2e7d32; }
+            .cuadre-estado { padding: 10px 14px; border-radius: 4px; font-size: 14px; font-weight: bold; margin-bottom: 14px; }
+            .cuadre-ok { background: #e8f5e9; color: #2e7d32; border: 1px solid #81c784; }
+            .cuadre-falta { background: #fff8e1; color: #8d6e00; border: 1px solid #ffd54f; }
+            .cuadre-sobra { background: #ffebee; color: #b71c1c; border: 1px solid #e57373; }
+            .cuadre-nota { font-size: 12px; color: var(--texto-muted); margin-top: 10px; }
             .nota-anulados {
                 background: #fff8e1; color: #8d6e00; padding: 10px 14px; border-radius: 4px;
                 font-size: 13px; margin-top: 14px;
@@ -68,7 +73,7 @@ class CierresView {
         <?php
     }
 
-    public static function mostrarCierreDia(string $fecha, array $detalle, array $resumen, array $anulados): void {
+    public static function mostrarCierreDia(string $fecha, array $detalle, array $resumen, array $anulados, ?array $cuadre = null): void {
         ?>
         <!DOCTYPE html>
         <html lang="es">
@@ -175,6 +180,70 @@ class CierresView {
                     </div>
                 <?php endif; ?>
             </div>
+
+            <?php if ($cuadre !== null): ?>
+            <div class="card">
+                <h2>Cuadre con Boletas de Depósito</h2>
+                <?php
+                    $dif = $cuadre['diferencia'];
+                    if ($cuadre['cuadra']) {
+                        $clase = 'cuadre-ok';
+                        $texto = $cuadre['cierre_total'] > 0 ? '✅ Cuadra: todo el efectivo del día está depositado.' : '✅ No hubo efectivo ni cheques que depositar este día.';
+                    } elseif ($dif > 0) {
+                        $clase = 'cuadre-falta';
+                        $texto = '⏳ Falta depositar Q ' . number_format($dif, 2);
+                    } else {
+                        $clase = 'cuadre-sobra';
+                        $texto = '⚠ Las boletas suman Q ' . number_format(-$dif, 2) . ' más que la caja del día — revisar el "Correspondiente a".';
+                    }
+                ?>
+                <div class="cuadre-estado <?= $clase ?>"><?= htmlspecialchars($texto) ?></div>
+                <table>
+                    <tbody>
+                        <tr><td>Efectivo del día</td><td class="num">Q <?= number_format($cuadre['cierre_efectivo'], 2) ?></td></tr>
+                        <tr><td>Cheques del día</td><td class="num">Q <?= number_format($cuadre['cierre_cheque'], 2) ?></td></tr>
+                        <tr><td><b>Total a depositar</b></td><td class="num"><b>Q <?= number_format($cuadre['cierre_total'], 2) ?></b></td></tr>
+                        <tr><td>Depositado (boletas "correspondiente a" este día)</td><td class="num">Q <?= number_format($cuadre['depositado'], 2) ?></td></tr>
+                    </tbody>
+                    <tfoot>
+                        <tr><td>DIFERENCIA</td><td class="num">Q <?= number_format($dif, 2) ?></td></tr>
+                    </tfoot>
+                </table>
+
+                <?php if (!empty($cuadre['boletas'])): ?>
+                    <h2 style="margin-top:18px;">Boletas</h2>
+                    <table>
+                        <thead>
+                            <tr><th>No. Depósito</th><th>Fecha Dep.</th><th>Banco</th><th>Efectivo</th><th>Cheques</th><th>Responsable</th><th>Boleta</th></tr>
+                        </thead>
+                        <tbody>
+                            <?php foreach ($cuadre['boletas'] as $b): ?>
+                                <tr>
+                                    <td><?= htmlspecialchars($b['nodeposito']) ?></td>
+                                    <td><?= date('d/m/Y', strtotime($b['fechadep'])) ?></td>
+                                    <td><?= htmlspecialchars((string)$b['banco']) ?></td>
+                                    <td class="num">Q <?= number_format($b['efectivo'], 2) ?></td>
+                                    <td class="num">Q <?= number_format($b['chpropio'] + $b['chotrobanco'], 2) ?></td>
+                                    <td><?= htmlspecialchars($b['responsable']) ?></td>
+                                    <td>
+                                        <?php if (!empty($b['foto_boleta'])): ?>
+                                            <a href="uploads/depositos/<?= urlencode($b['foto_boleta']) ?>" target="_blank" rel="noopener">Ver</a>
+                                        <?php else: ?>—<?php endif; ?>
+                                    </td>
+                                </tr>
+                            <?php endforeach; ?>
+                        </tbody>
+                    </table>
+                <?php else: ?>
+                    <p class="sin-datos">No hay boletas registradas como correspondientes a este día.</p>
+                <?php endif; ?>
+                <p class="cuadre-nota">
+                    Se compara efectivo + cheques de los recibos (sin anulados) contra el total de las boletas
+                    cuyo "Correspondiente a" es esta fecha. Los depósitos/transferencias directas de los
+                    recibos no entran porque ya están en el banco.
+                </p>
+            </div>
+            <?php endif; ?>
             <?php Tema::script(); ?>
         </body>
         </html>
