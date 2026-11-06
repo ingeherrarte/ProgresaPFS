@@ -5,7 +5,7 @@ require_once __DIR__ . "/../helpers/Tema.php";
 
 class DepositosView {
 
-    public static function mostrarFormulario(array $errores, array $data, array $recientes, ?string $mensaje = null): void {
+    public static function mostrarFormulario(array $errores, array $data, array $recientes, ?string $mensaje = null, array $descuadrados = []): void {
         $v = fn($campo, $default = '') => htmlspecialchars($data[$campo] ?? $default);
         $cuentaSel = $data['cuenta'] ?? '';
         ?>
@@ -83,6 +83,18 @@ class DepositosView {
                 tbody tr:nth-child(even) { background: var(--fila-alterna); }
                 .sin-datos { color: var(--sin-datos); font-style: italic; padding: 12px 0; }
                 h2 { font-size: 15px; color: var(--acento); margin: 0 0 12px; }
+                .cuadre-panel {
+                    margin-top: 8px; padding: 10px 12px; border-radius: 4px; font-size: 13px; line-height: 1.5;
+                    background: var(--fila-alterna); border: 1px solid var(--borde-input);
+                }
+                .cuadre-panel .linea { display: flex; justify-content: space-between; gap: 10px; }
+                .cuadre-panel .num { font-family: 'Courier New', monospace; }
+                .cuadre-panel .resultado { margin-top: 6px; font-weight: bold; }
+                .cuadre-ok { color: #2e7d32; }
+                .cuadre-falta { color: #8d6e00; }
+                .cuadre-sobra { color: #b71c1c; }
+                td.cuadre-falta, td.cuadre-sobra { font-weight: bold; }
+                .nota { font-size: 12px; color: var(--texto-muted); margin-bottom: 10px; }
             </style>
         </head>
         <body>
@@ -154,6 +166,7 @@ class DepositosView {
                             <div class="campo">
                                 <label for="correspondiente">Correspondiente a</label>
                                 <input type="date" id="correspondiente" name="correspondiente" value="<?= $v('correspondiente', date('Y-m-d')) ?>" required>
+                                <div id="cuadre-panel" class="cuadre-panel" hidden aria-live="polite"></div>
                             </div>
                             <div class="campo">
                                 <label for="responsable">Responsable</label>
@@ -171,6 +184,34 @@ class DepositosView {
                     <button type="submit">Guardar depósito</button>
                 </form>
             </div>
+
+            <?php if (!empty($descuadrados)): ?>
+            <div class="card">
+                <h2>Días sin cuadrar con el Cierre del Día (últimos 30 días)</h2>
+                <p class="nota">Caja = efectivo + cheques de los recibos del día. Depositado = boletas con ese "Correspondiente a". Hoy no se incluye.</p>
+                <div class="tabla-scroll">
+                <table>
+                    <thead>
+                        <tr><th>Día</th><th>Caja</th><th>Depositado</th><th>Boletas</th><th>Diferencia</th><th></th></tr>
+                    </thead>
+                    <tbody>
+                        <?php foreach ($descuadrados as $f): ?>
+                            <tr>
+                                <td><?= date('d/m/Y', strtotime($f['dia'])) ?></td>
+                                <td class="num">Q <?= number_format($f['cierre_total'], 2) ?></td>
+                                <td class="num">Q <?= number_format($f['depositado'], 2) ?></td>
+                                <td class="num"><?= (int)$f['boletas'] ?></td>
+                                <td class="num <?= $f['diferencia'] > 0 ? 'cuadre-falta' : 'cuadre-sobra' ?>">
+                                    <?= $f['diferencia'] > 0 ? 'Falta' : 'Sobra' ?> Q <?= number_format(abs($f['diferencia']), 2) ?>
+                                </td>
+                                <td><a href="cierres.php?tipo=dia&amp;fecha=<?= urlencode($f['dia']) ?>">Ver cierre</a></td>
+                            </tr>
+                        <?php endforeach; ?>
+                    </tbody>
+                </table>
+                </div>
+            </div>
+            <?php endif; ?>
 
             <div class="card card-ancha">
                 <h2>Últimos depósitos registrados</h2>
@@ -240,6 +281,54 @@ class DepositosView {
             })();
             </script>
             <script>
+                // Panel de cuadre: muestra cuánto entró en caja el día elegido en
+                // "Correspondiente a", cuánto ya se depositó, y cómo quedaría con
+                // esta boleta. Solo informa; no bloquea el guardado.
+                (function () {
+                    const fecha = document.getElementById('correspondiente');
+                    const panel = document.getElementById('cuadre-panel');
+                    const montos = ['efectivo', 'chpropio', 'chotrobanco'].map(id => document.getElementById(id));
+                    const q = n => 'Q ' + n.toLocaleString('es-GT', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+                    let datos = null, pedido = 0;
+
+                    function pintar() {
+                        if (!datos) { panel.hidden = true; return; }
+                        const boleta = montos.reduce((t, el) => t + (parseFloat(el.value) || 0), 0);
+                        const pendiente = Math.round((datos.cierre_total - datos.depositado) * 100) / 100;
+                        const quedaria = Math.round((pendiente - boleta) * 100) / 100;
+                        let res;
+                        if (Math.abs(quedaria) < 0.005) {
+                            res = '<span class="cuadre-ok">✅ Con esta boleta el día queda cuadrado.</span>';
+                        } else if (quedaria > 0) {
+                            res = '<span class="cuadre-falta">⏳ Con esta boleta aún faltaría ' + q(quedaria) + '.</span>';
+                        } else {
+                            res = '<span class="cuadre-sobra">⚠ Con esta boleta se depositaría ' + q(-quedaria) +
+                                  ' más de lo que entró en caja ese día. ¿La fecha de "Correspondiente a" es correcta?</span>';
+                        }
+                        panel.innerHTML =
+                            '<div class="linea"><span>Caja del día (efectivo ' + q(datos.cierre_efectivo) +
+                            (datos.cierre_cheque > 0 ? ' + cheques ' + q(datos.cierre_cheque) : '') + ')</span><span class="num">' + q(datos.cierre_total) + '</span></div>' +
+                            '<div class="linea"><span>Ya depositado (' + datos.boletas + ' boleta' + (datos.boletas === 1 ? '' : 's') + ')</span><span class="num">' + q(datos.depositado) + '</span></div>' +
+                            '<div class="linea"><span>Pendiente antes de esta boleta</span><span class="num">' + q(pendiente) + '</span></div>' +
+                            '<div class="resultado">' + res + '</div>';
+                        panel.hidden = false;
+                    }
+
+                    function cargar() {
+                        const f = fecha.value;
+                        if (!/^\d{4}-\d{2}-\d{2}$/.test(f)) { datos = null; pintar(); return; }
+                        const mio = ++pedido;
+                        fetch('depositos.php?action=cuadre&fecha=' + encodeURIComponent(f), { credentials: 'same-origin' })
+                            .then(r => r.ok ? r.json() : null)
+                            .then(j => { if (mio === pedido) { datos = j && !j.error ? j : null; pintar(); } })
+                            .catch(() => { if (mio === pedido) { datos = null; pintar(); } });
+                    }
+
+                    fecha.addEventListener('change', cargar);
+                    montos.forEach(el => el.addEventListener('input', pintar));
+                    cargar();
+                })();
+
                 if ('serviceWorker' in navigator) {
                     window.addEventListener('load', () => navigator.serviceWorker.register('sw.js'));
                 }

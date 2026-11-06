@@ -214,5 +214,89 @@ class DepositosModel {
 
         return $errores;
     }
+
+    // ── Cuadre boletas ↔ Cierre del Día ───────────────────────────────
+    // Lo que entró en caja un día (efectivo + cheques de los recibos no
+    // anulados) debe salir al banco en boletas cuyo "Correspondiente a"
+    // sea ese mismo día. Se comparan efectivo + cheques juntos porque en la
+    // práctica los cheques recibidos se depositan en la misma boleta y a
+    // veces se anotan como efectivo; comparar solo efectivo marcaría
+    // descuadres que no existen.
+
+    public const TOLERANCIA_CUADRE = 0.005;
+
+    public static function cuadreDia(PDO $db, string $fecha): array {
+        $stmt = $db->prepare(
+            "SELECT COALESCE(SUM(efectivo), 0) AS efectivo, COALESCE(SUM(cheque), 0) AS cheque
+             FROM recibospfs WHERE DATE(horaregistro) = ? AND anulado = 0"
+        );
+        $stmt->execute([$fecha]);
+        $cierre = $stmt->fetch(PDO::FETCH_ASSOC);
+
+        $stmt = $db->prepare(
+            "SELECT nodeposito, fechadep, banco, efectivo, chpropio, chotrobanco, responsable, foto_boleta
+             FROM depositos WHERE correspondiente = ? ORDER BY fechadep, horaregistro"
+        );
+        $stmt->execute([$fecha]);
+        $boletas = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+        $cierreTotal = (float)$cierre['efectivo'] + (float)$cierre['cheque'];
+        $depositado = 0.0;
+        foreach ($boletas as $b) {
+            $depositado += (float)$b['efectivo'] + (float)$b['chpropio'] + (float)$b['chotrobanco'];
+        }
+        $diferencia = round($cierreTotal - $depositado, 2);
+
+        return [
+            'fecha' => $fecha,
+            'cierre_efectivo' => (float)$cierre['efectivo'],
+            'cierre_cheque' => (float)$cierre['cheque'],
+            'cierre_total' => $cierreTotal,
+            'depositado' => $depositado,
+            // > 0: falta depositar; < 0: se depositó de más (o la fecha está mal)
+            'diferencia' => $diferencia,
+            'cuadra' => abs($diferencia) < self::TOLERANCIA_CUADRE,
+            'boletas' => $boletas,
+        ];
+    }
+
+    // Días del rango donde caja y boletas no coinciden. Incluye días con
+    // boletas pero sin cierre (típico de un "Correspondiente a" mal puesto).
+    // MySQL no tiene FULL OUTER JOIN: se arma la lista de días con UNION y
+    // se suma cada lado por separado.
+    public static function diasDescuadrados(PDO $db, string $desde, string $hasta): array {
+        $stmt = $db->prepare(
+            "SELECT d.dia,
+                    COALESCE(c.total, 0) AS cierre_total,
+                    COALESCE(b.total, 0) AS depositado,
+                    COALESCE(b.cantidad, 0) AS boletas
+             FROM (
+                SELECT DATE(horaregistro) AS dia FROM recibospfs
+                 WHERE anulado = 0 AND horaregistro >= ? AND horaregistro < DATE_ADD(?, INTERVAL 1 DAY)
+                UNION
+                SELECT correspondiente FROM depositos WHERE correspondiente BETWEEN ? AND ?
+             ) d
+             LEFT JOIN (
+                SELECT DATE(horaregistro) AS dia, SUM(efectivo + cheque) AS total
+                  FROM recibospfs
+                 WHERE anulado = 0 AND horaregistro >= ? AND horaregistro < DATE_ADD(?, INTERVAL 1 DAY)
+                 GROUP BY DATE(horaregistro)
+             ) c ON c.dia = d.dia
+             LEFT JOIN (
+                SELECT correspondiente AS dia, SUM(efectivo + chpropio + chotrobanco) AS total, COUNT(*) AS cantidad
+                  FROM depositos WHERE correspondiente BETWEEN ? AND ?
+                 GROUP BY correspondiente
+             ) b ON b.dia = d.dia
+             WHERE ABS(COALESCE(c.total, 0) - COALESCE(b.total, 0)) >= ?
+             ORDER BY d.dia DESC"
+        );
+        $stmt->execute([$desde, $hasta, $desde, $hasta, $desde, $hasta, $desde, $hasta, self::TOLERANCIA_CUADRE]);
+        $filas = $stmt->fetchAll(PDO::FETCH_ASSOC);
+        foreach ($filas as &$f) {
+            $f['diferencia'] = round((float)$f['cierre_total'] - (float)$f['depositado'], 2);
+        }
+        unset($f);
+        return $filas;
+    }
 }
 ?>
