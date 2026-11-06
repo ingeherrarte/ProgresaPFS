@@ -1,5 +1,6 @@
 <?php
 require_once "models/RecibosPfsModel.php";
+require_once "models/DepositosModel.php";
 require_once "views/DashboardView.php";
 require_once __DIR__ . "/../helpers/Auth.php";
 require_once __DIR__ . "/../config/Conexion.php";
@@ -29,7 +30,16 @@ class DashboardController {
         $porDiplomado = RecibosPfsModel::ingresosPorDiplomado($db, $anio);
         $porConceptos = RecibosPfsModel::ingresosPorConceptosEspeciales($db, $anio);
 
-        DashboardView::mostrar($anio, $anioActual, $porMes, $this->meses, $porDiplomado, $porConceptos);
+        // Boletas vs. estado de cuenta: datos del banco, así que solo para
+        // los mismos roles que Conciliación (null = la tarjeta no se muestra).
+        $depositos = null;
+        if (in_array(Auth::rolActual(), [Auth::ROL_EDITOR, Auth::ROL_ADMINISTRADOR], true)) {
+            $desde = max("$anio-01-01", DepositosModel::INICIO_CUADRE);
+            $hasta = min("$anio-12-31", date('Y-m-d'));
+            $depositos = $desde <= $hasta ? DepositosModel::sistemaVsBancoPorDia($db, $desde, $hasta) : [];
+        }
+
+        DashboardView::mostrar($anio, $anioActual, $porMes, $this->meses, $porDiplomado, $porConceptos, $depositos);
     }
 }
 ?>
