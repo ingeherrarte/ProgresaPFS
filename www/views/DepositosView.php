@@ -5,7 +5,7 @@ require_once __DIR__ . "/../helpers/Tema.php";
 
 class DepositosView {
 
-    public static function mostrarFormulario(array $errores, array $data, array $recientes, ?string $mensaje = null, array $descuadrados = []): void {
+    public static function mostrarFormulario(array $errores, array $data, array $recientes, ?string $mensaje = null, ?array $aviso = null): void {
         $v = fn($campo, $default = '') => htmlspecialchars($data[$campo] ?? $default);
         $cuentaSel = $data['cuenta'] ?? '';
         ?>
@@ -185,31 +185,17 @@ class DepositosView {
                 </form>
             </div>
 
-            <?php if (!empty($descuadrados)): ?>
+            <?php if ($aviso !== null && (abs($aviso['pendiente']) >= 0.005 || $aviso['por_revisar'] > 0)): ?>
             <div class="card">
-                <h2>Días sin cuadrar con el Cierre del Día (últimos 30 días)</h2>
-                <p class="nota">Caja = efectivo + cheques de los recibos del día. Depositado = boletas con ese "Correspondiente a". Hoy no se incluye.</p>
-                <div class="tabla-scroll">
-                <table>
-                    <thead>
-                        <tr><th>Día</th><th>Caja</th><th>Depositado</th><th>Boletas</th><th>Diferencia</th><th></th></tr>
-                    </thead>
-                    <tbody>
-                        <?php foreach ($descuadrados as $f): ?>
-                            <tr>
-                                <td><?= date('d/m/Y', strtotime($f['dia'])) ?></td>
-                                <td class="num">Q <?= number_format($f['cierre_total'], 2) ?></td>
-                                <td class="num">Q <?= number_format($f['depositado'], 2) ?></td>
-                                <td class="num"><?= (int)$f['boletas'] ?></td>
-                                <td class="num <?= $f['diferencia'] > 0 ? 'cuadre-falta' : 'cuadre-sobra' ?>">
-                                    <?= $f['diferencia'] > 0 ? 'Falta' : 'Sobra' ?> Q <?= number_format(abs($f['diferencia']), 2) ?>
-                                </td>
-                                <td><a href="cierres.php?tipo=dia&amp;fecha=<?= urlencode($f['dia']) ?>">Ver cierre</a></td>
-                            </tr>
-                        <?php endforeach; ?>
-                    </tbody>
-                </table>
-                </div>
+                <h2>Cuadre con el Cierre del Día</h2>
+                <p>
+                    Pendiente de depositar acumulado: <b class="<?= $aviso['pendiente'] > 0 ? 'cuadre-falta' : 'cuadre-sobra' ?>">Q <?= number_format($aviso['pendiente'], 2) ?></b>
+                    · Días por revisar: <b><?= (int)$aviso['por_revisar'] ?></b>
+                    (desde el <?= date('d/m/Y', strtotime(DepositosModel::INICIO_CUADRE)) ?>, incluye lo de hoy).
+                </p>
+                <?php if ($aviso['puede_ver']): ?>
+                    <p class="nota" style="margin:8px 0 0;"><a href="cuadre_depositos.php?ver=problemas">Ver el detalle en Cuadre de Depósitos →</a></p>
+                <?php endif; ?>
             </div>
             <?php endif; ?>
 

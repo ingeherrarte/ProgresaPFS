@@ -108,6 +108,10 @@ class InicioView {
                 <div class="icono">🏦</div>
                 <div class="titulo">Depósitos</div>
             </a>
+            <a class="acceso" href="cuadre_depositos.php">
+                <div class="icono">🧮</div>
+                <div class="titulo">Cuadre de Depósitos</div>
+            </a>
             <a class="acceso" href="conciliacion.php">
                 <div class="icono">🔗</div>
                 <div class="titulo">Conciliación de Transferencias</div>
@@ -175,6 +179,7 @@ class InicioView {
         ['icono' => '📈', 'titulo' => 'Cierre del Mes', 'href' => 'reporte_recibospfs.php'],
         ['icono' => '📊', 'titulo' => 'Cierre de Año', 'href' => 'cierres.php?tipo=anio'],
         ['icono' => '🏦', 'titulo' => 'Depósitos', 'href' => 'depositos.php'],
+        ['icono' => '🧮', 'titulo' => 'Cuadre de Depósitos', 'href' => 'cuadre_depositos.php'],
         ['icono' => '🔗', 'titulo' => 'Conciliación de Transferencias', 'href' => 'conciliacion.php'],
         ['icono' => '📋', 'titulo' => 'Asistencia', 'href' => 'asistencia.php'],
         ['icono' => '📝', 'titulo' => 'Notas', 'href' => 'notas.php'],
