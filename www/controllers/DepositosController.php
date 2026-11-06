@@ -28,7 +28,23 @@ class DepositosController {
 
     private function form(array $errores = [], array $data = []) {
         $db = Conexion::conectar();
-        $recientes = DepositosModel::obtenerRecientes($db);
+        // Filtro de la lista: un día (tiene prioridad) o un mes completo,
+        // por fecha de depósito o por "Correspondiente a". Sin filtro, los
+        // 30 últimos registrados, como antes.
+        $filtro = [
+            'mes' => preg_match('/^\d{4}-(0[1-9]|1[0-2])$/', $_GET['mes'] ?? '') ? $_GET['mes'] : '',
+            'dia' => preg_match('/^\d{4}-\d{2}-\d{2}$/', $_GET['dia'] ?? '') ? $_GET['dia'] : '',
+            'por' => ($_GET['por'] ?? '') === 'correspondiente' ? 'correspondiente' : 'fechadep',
+        ];
+        if ($filtro['dia'] !== '') {
+            $filtro['mes'] = '';
+            $recientes = DepositosModel::listarPorRango($db, $filtro['dia'], $filtro['dia'], $filtro['por']);
+        } elseif ($filtro['mes'] !== '') {
+            $inicioMes = $filtro['mes'] . '-01';
+            $recientes = DepositosModel::listarPorRango($db, $inicioMes, date('Y-m-t', strtotime($inicioMes)), $filtro['por']);
+        } else {
+            $recientes = DepositosModel::obtenerRecientes($db);
+        }
         $mensaje = (empty($errores) && ($_GET['msg'] ?? '') === 'creado') ? 'Depósito guardado correctamente.' : null;
         // Aviso corto con el pendiente acumulado; el detalle vive en
         // cuadre_depositos.php (solo editor/administrador, como Conciliación).
@@ -38,7 +54,7 @@ class DepositosController {
             'por_revisar' => count(array_filter($dias, fn($f) => $f['estado'] === 'falta' || $f['estado'] === 'sobra')),
             'puede_ver' => in_array(Auth::rolActual(), [Auth::ROL_EDITOR, Auth::ROL_ADMINISTRADOR], true),
         ];
-        DepositosView::mostrarFormulario($errores, $data, $recientes, $mensaje, $aviso);
+        DepositosView::mostrarFormulario($errores, $data, $recientes, $mensaje, $aviso, $filtro);
     }
 
     // Lo consulta el formulario al cambiar "Correspondiente a", para
