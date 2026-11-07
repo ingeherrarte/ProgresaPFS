@@ -46,7 +46,8 @@ class CuadreDepositosController {
                 || array_filter($f['boletas'], fn($b) => $b['banco_estado'] === 'monto_distinto' || $b['banco_estado'] === 'no_aparece')))
             : $enRango;
 
-        CuadreDepositosView::mostrar(array_reverse($filas), $resumen, $pendiente, $desde, $hasta, $soloProblemas, count($enRango));
+        CuadreDepositosView::mostrar(array_reverse($filas), $resumen, $pendiente, $desde, $hasta, $soloProblemas, count($enRango),
+            DepositosModel::fechasMalIngresadas($db), Auth::rolActual() === Auth::ROL_ADMINISTRADOR);
     }
 }
 ?>

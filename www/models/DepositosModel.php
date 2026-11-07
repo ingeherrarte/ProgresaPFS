@@ -53,6 +53,20 @@ class DepositosModel {
     // Depósitos de un rango de fechas, por fecha de depósito o por
     // "Correspondiente a". $campo viene de una lista blanca, nunca del
     // request tal cual (se interpola en el SQL).
+    // Boletas con "Correspondiente a" posterior a la fecha de depósito: no
+    // pueden ser correctas (no se deposita dinero antes de recibirlo) y
+    // descuadran dos días a la vez. Desde el 07/11/2026 el formulario ya
+    // no lo permite; esto deja ver las que se registraron antes.
+    public static function fechasMalIngresadas(PDO $db): array {
+        return $db->query(
+            "SELECT nodeposito, fechadep, correspondiente, cuenta, banco, responsable, usuario, horaregistro,
+                    efectivo + chpropio + chotrobanco AS monto
+               FROM depositos
+              WHERE correspondiente > fechadep
+              ORDER BY fechadep DESC, nodeposito"
+        )->fetchAll(PDO::FETCH_ASSOC);
+    }
+
     public static function listarPorRango(PDO $db, string $desde, string $hasta, string $campo): array {
         $campo = $campo === 'correspondiente' ? 'correspondiente' : 'fechadep';
         $stmt = $db->prepare(

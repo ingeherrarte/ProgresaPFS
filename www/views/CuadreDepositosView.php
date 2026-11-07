@@ -28,7 +28,7 @@ class CuadreDepositosView {
         return date('d/m/Y', strtotime($fecha));
     }
 
-    public static function mostrar(array $filas, array $resumen, float $pendiente, string $desde, string $hasta, bool $soloProblemas, int $diasEnRango): void {
+    public static function mostrar(array $filas, array $resumen, float $pendiente, string $desde, string $hasta, bool $soloProblemas, int $diasEnRango, array $fechasMal = [], bool $puedeEditar = false): void {
         $h = fn($s) => htmlspecialchars((string)$s);
         ?>
         <!DOCTYPE html>
@@ -50,6 +50,10 @@ class CuadreDepositosView {
                 td.dep { color: var(--col-dep); font-weight: bold; }
                 td.dif-falta { color: var(--dif-falta); font-weight: bold; }
                 td.dif-sobra { color: var(--dif-sobra); font-weight: bold; }
+                .card.fechas-mal { border-left: 4px solid var(--dif-falta); }
+                .card.fechas-mal h2 { font-size: 16px; margin-bottom: 6px; }
+                .card.fechas-mal .mal { color: var(--dif-falta); font-weight: bold; }
+                .card.fechas-mal a { color: var(--acento); font-weight: bold; text-decoration: none; white-space: nowrap; }
                 * { box-sizing: border-box; margin: 0; padding: 0; }
                 body { font-family: Arial, sans-serif; background: var(--bg-pagina); padding: 24px 16px; color: var(--texto); }
                 .barra { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px; max-width: 1200px; margin: 0 auto 16px; }
@@ -143,6 +147,41 @@ class CuadreDepositosView {
                     </div>
                 </div>
             </div>
+
+            <?php if (!empty($fechasMal)): ?>
+            <div class="card fechas-mal">
+                <h2>⚠ Boletas con fecha mal ingresada (<?= count($fechasMal) ?>)</h2>
+                <p class="nota" style="margin:0 0 10px;">
+                    "Correspondiente a" quedó <b>después</b> de la fecha de depósito, lo que no puede ser: el dinero se deposita el mismo día o después de recibirlo.
+                    Cada una descuadra dos días: el que en realidad cubre (sale faltante) y el que tiene registrado (sale sobrante).
+                    Al corregirla, los dos días se recalculan solos.
+                </p>
+                <div class="tabla-scroll">
+                <table>
+                    <thead><tr><th>No. Boleta</th><th>Fecha dep.</th><th>Correspondiente a (registrado)</th><th>Banco</th><th>Monto</th><th>Registró</th><th>Registrado el</th><?php if ($puedeEditar): ?><th></th><?php endif; ?></tr></thead>
+                    <tbody>
+                        <?php foreach ($fechasMal as $m): ?>
+                            <tr>
+                                <td><?= $h($m['nodeposito']) ?></td>
+                                <td><?= self::f($m['fechadep']) ?></td>
+                                <td class="mal"><?= self::f($m['correspondiente']) ?></td>
+                                <td><?= $h($m['banco']) ?></td>
+                                <td class="num"><?= self::q((float)$m['monto']) ?></td>
+                                <td><?= $h($m['usuario']) ?></td>
+                                <td><?= $h(date('d/m/Y H:i', strtotime($m['horaregistro']))) ?></td>
+                                <?php if ($puedeEditar): ?>
+                                    <td><a href="admin.php?action=editar_deposito&amp;nodeposito=<?= urlencode($m['nodeposito']) ?>">Corregir →</a></td>
+                                <?php endif; ?>
+                            </tr>
+                        <?php endforeach; ?>
+                    </tbody>
+                </table>
+                </div>
+                <?php if (!$puedeEditar): ?>
+                    <p class="nota">Para corregirlas, pide a un administrador que las edite en Administración → Editar depósito.</p>
+                <?php endif; ?>
+            </div>
+            <?php endif; ?>
 
             <div class="card">
                 <?php if (empty($filas)): ?>
