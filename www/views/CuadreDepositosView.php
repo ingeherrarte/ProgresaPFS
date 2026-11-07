@@ -40,6 +40,16 @@ class CuadreDepositosView {
             <?php Tema::scriptInicial(); ?>
             <style>
                 <?php Tema::tokensBase(); ?>
+                /* Colores propios de la tabla: Caja, Depositado y el signo de la diferencia. */
+                :root { --col-caja: #6a3fb5; --col-dep: #00786b; --dif-falta: #c62828; --dif-sobra: #1565c0; }
+                @media (prefers-color-scheme: dark) {
+                    :root:not([data-theme="light"]) { --col-caja: #b39ddb; --col-dep: #4dd9cb; --dif-falta: #ff8a80; --dif-sobra: #82b1ff; }
+                }
+                :root[data-theme="dark"] { --col-caja: #b39ddb; --col-dep: #4dd9cb; --dif-falta: #ff8a80; --dif-sobra: #82b1ff; }
+                td.caja { color: var(--col-caja); }
+                td.dep { color: var(--col-dep); font-weight: bold; }
+                td.dif-falta { color: var(--dif-falta); font-weight: bold; }
+                td.dif-sobra { color: var(--dif-sobra); font-weight: bold; }
                 * { box-sizing: border-box; margin: 0; padding: 0; }
                 body { font-family: Arial, sans-serif; background: var(--bg-pagina); padding: 24px 16px; color: var(--texto); }
                 .barra { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px; max-width: 1200px; margin: 0 auto 16px; }
@@ -156,10 +166,16 @@ class CuadreDepositosView {
                                     <td><?= self::f($f['dia']) ?></td>
                                     <td class="num"><?= self::q($f['efectivo']) ?></td>
                                     <td class="num"><?= self::q($f['cheque']) ?></td>
-                                    <td class="num"><b><?= self::q($f['caja']) ?></b></td>
-                                    <td class="num"><?= self::q($f['depositado']) ?></td>
+                                    <td class="num caja"><b><?= self::q($f['caja']) ?></b></td>
+                                    <td class="num dep"><?= self::q($f['depositado']) ?></td>
                                     <td class="num"><?= count($f['boletas']) ?></td>
-                                    <td class="num"><?= abs($f['diferencia']) < 0.005 ? '—' : self::q($f['diferencia']) ?></td>
+                                    <?php
+                                    // Se muestra como Depositado − Caja: negativo (rojo) = faltó
+                                    // depositar; positivo (azul) = se depositó de más.
+                                    $difVista = -$f['diferencia'];
+                                    $claseDif = abs($difVista) < 0.005 ? '' : ($difVista < 0 ? 'dif-falta' : 'dif-sobra');
+                                    ?>
+                                    <td class="num <?= $claseDif ?>"><?= $claseDif === '' ? '—' : ($difVista > 0 ? '+' : '') . self::q($difVista) ?></td>
                                     <td class="num"><?= self::q($f['acumulado']) ?></td>
                                     <td>
                                         <span class="chip <?= $clsEstado ?>"><?= $txtEstado ?></span>
@@ -227,6 +243,7 @@ class CuadreDepositosView {
                 <p class="nota">
                     <b>Caja</b> = efectivo + cheques de los recibos del día (sin anulados); las transferencias no entran porque ya están en el banco.
                     <b>Depositado</b> = boletas cuyo "Correspondiente a" es ese día.
+                    <b>Dif. del día</b> = Depositado − Caja: <span style="color:var(--dif-falta);font-weight:bold;">en rojo y negativo</span> si faltó depositar, <span style="color:var(--dif-sobra);font-weight:bold;">en azul y con +</span> si se depositó de más.
                     <b>Compensado</b> = el faltante de un día se cubrió con un sobrante igual en los <?= DepositosModel::DIAS_COMPENSACION ?> días siguientes (boleta con la fecha del depósito en vez de la del ingreso).
                     <b>Pendiente acum.</b> = lo que entró en caja y todavía no aparece en ninguna boleta, contado desde el <?= self::f(DepositosModel::INICIO_CUADRE) ?>.
                     Recomendación: en "Correspondiente a" poner siempre el día en que entró el dinero, aunque se deposite después.
