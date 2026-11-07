@@ -308,6 +308,24 @@ class DepositosView {
                 <?php endif; ?>
             </div>
             <script>
+            // "Correspondiente a" no puede ser posterior a la fecha de depósito
+            // (el servidor también lo valida).
+            (function () {
+                const dep = document.getElementById('fechadep');
+                const cor = document.getElementById('correspondiente');
+                if (!dep || !cor) return;
+                function revisar() {
+                    cor.max = dep.value || '';
+                    cor.setCustomValidity(dep.value && cor.value && cor.value > dep.value
+                        ? '"Correspondiente a" no puede ser posterior a la fecha de depósito.' : '');
+                }
+                dep.addEventListener('change', revisar);
+                cor.addEventListener('change', revisar);
+                cor.addEventListener('input', revisar);
+                revisar();
+            })();
+            </script>
+            <script>
                 // Panel de cuadre: muestra cuánto entró en caja el día elegido en
                 // "Correspondiente a", cuánto ya se depositó, y cómo quedaría con
                 // esta boleta. Solo informa; no bloquea el guardado.

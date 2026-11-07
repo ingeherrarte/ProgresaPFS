@@ -95,6 +95,13 @@ class DepositosController {
         if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $post['correspondiente'] ?? '')) {
             $errores[] = "La fecha a la que corresponde el depósito no es válida.";
         }
+        // Un depósito solo puede cubrir ingresos de ese día o de días
+        // anteriores: el dinero no se puede depositar antes de recibirlo.
+        if (preg_match('/^\d{4}-\d{2}-\d{2}$/', $post['fechadep'] ?? '')
+            && preg_match('/^\d{4}-\d{2}-\d{2}$/', $post['correspondiente'] ?? '')
+            && $post['correspondiente'] > $post['fechadep']) {
+            $errores[] = "\"Correspondiente a\" no puede ser posterior a la fecha de depósito: el depósito cubre ingresos de ese día o de días anteriores.";
+        }
 
         $cuenta = trim($post['cuenta'] ?? '');
         if (!array_key_exists($cuenta, DepositosModel::cuentas())) {
