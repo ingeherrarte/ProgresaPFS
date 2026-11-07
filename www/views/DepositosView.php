@@ -222,6 +222,24 @@ class DepositosView {
                 <?php endif; ?>
             </div>
             <script>
+            // "Correspondiente a" no puede ser posterior a la fecha de depósito
+            // (el servidor también lo valida).
+            (function () {
+                const dep = document.getElementById('fechadep');
+                const cor = document.getElementById('correspondiente');
+                if (!dep || !cor) return;
+                function revisar() {
+                    cor.max = dep.value || '';
+                    cor.setCustomValidity(dep.value && cor.value && cor.value > dep.value
+                        ? '"Correspondiente a" no puede ser posterior a la fecha de depósito.' : '');
+                }
+                dep.addEventListener('change', revisar);
+                cor.addEventListener('change', revisar);
+                cor.addEventListener('input', revisar);
+                revisar();
+            })();
+            </script>
+            <script>
                 if ('serviceWorker' in navigator) {
                     window.addEventListener('load', () => navigator.serviceWorker.register('sw.js'));
                 }
