@@ -334,7 +334,17 @@ class EstudiantesPfsView {
                     <div class="grid">
                         <div class="dato"><b>Fecha de nacimiento</b><?= $fecha($e['nacimiento']) ?></div>
                         <div class="dato"><b>Estado</b><?= (int)$e['activo'] === 1 ? 'Activo' : '<span class="estado-inactivo">Inactivo</span>' ?></div>
-                        <div class="dato"><b>Fecha de inscripción</b><?= $fecha($e['fechainscripcion']) ?></div>
+                        <?php
+                        // La inscripción es cuando quedó registrado en el sistema
+                        // (horaregistro, con hora). fechainscripcion viene en
+                        // 0000-00-00 en casi todos los registros antiguos, así que
+                        // solo se usa si horaregistro no tiene valor.
+                        $registro = $e['horaregistro'] ?? '';
+                        $inscripcion = $registro && strpos($registro, '0000-00-00') !== 0
+                            ? date('d/m/Y H:i', strtotime($registro))
+                            : $fecha($e['fechainscripcion'] ?? '');
+                        ?>
+                        <div class="dato"><b>Fecha de inscripción</b><?= $inscripcion ?></div>
                         <div class="dato"><b>Último año cursado</b><?= $dato($e['ultimoanio']) ?></div>
                         <div class="dato"><b>Establecimiento</b><?= $dato($e['establecimiento']) ?></div>
                     </div>
