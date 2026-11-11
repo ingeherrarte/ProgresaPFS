@@ -82,6 +82,12 @@ class ConciliacionController {
             case 'vincularManual':
                 $this->vincularManualAccion();
                 break;
+            case 'desvincular':
+                $this->desvincular();
+                break;
+            case 'desvincularConfirmar':
+                $this->desvincularConfirmar();
+                break;
             case 'movimientos':
                 $this->movimientos();
                 break;
@@ -805,8 +811,18 @@ class ConciliacionController {
         }
 
         $db = Conexion::conectar();
-        $resultado = ConciliacionModel::vincularManual($db, $estadoCuentaId, [$numeroRecibo], Auth::usuarioActual());
+        $ignorarAdvertencias = !empty($_POST['ignorar_advertencias']);
+        $resultado = ConciliacionModel::vincularManual($db, $estadoCuentaId, [$numeroRecibo], Auth::usuarioActual(), $ignorarAdvertencias);
 
+        if (!$resultado['ok'] && !empty($resultado['advertencias'])) {
+            ConciliacionView::mostrarConfirmarAdvertencias(
+                $resultado['advertencias'],
+                'verificar',
+                ['numero_recibo' => $numeroRecibo, 'estado_cuenta_id' => $estadoCuentaId, 'desde' => $desde, 'hasta' => $hasta],
+                'conciliacion.php?' . http_build_query(['desde' => $desde, 'hasta' => $hasta])
+            );
+            return;
+        }
         if (!$resultado['ok']) {
             $this->form(null, $resultado['error'], $desde, $hasta);
             return;
@@ -865,8 +881,20 @@ class ConciliacionController {
         }
 
         $db = Conexion::conectar();
-        $resultado = ConciliacionModel::vincularManual($db, $estadoCuentaId, $numerosRecibo, Auth::usuarioActual());
+        $ignorarAdvertencias = !empty($_POST['ignorar_advertencias']);
+        $resultado = ConciliacionModel::vincularManual($db, $estadoCuentaId, $numerosRecibo, Auth::usuarioActual(), $ignorarAdvertencias);
 
+        if (!$resultado['ok'] && !empty($resultado['advertencias'])) {
+            ConciliacionView::mostrarConfirmarAdvertencias(
+                $resultado['advertencias'],
+                'vincularManual',
+                ['carne' => $carne, 'monto_recibo' => $montoRecibo, 'cuenta_linea' => $cuentaLinea,
+                 'monto_linea' => $montoLinea, 'estado_cuenta_id' => $estadoCuentaId, 'recibos' => $numerosRecibo],
+                'conciliacion.php?' . http_build_query(['action' => 'buscarManual', 'carne' => $carne, 'monto_recibo' => $montoRecibo,
+                    'cuenta_linea' => $cuentaLinea, 'monto_linea' => $montoLinea])
+            );
+            return;
+        }
         if (!$resultado['ok']) {
             $this->buscarManual(null, $resultado['error'], $carne, $montoRecibo, $cuentaLinea, $montoLinea);
             return;
@@ -874,6 +902,82 @@ class ConciliacionController {
 
         $mensaje = count($numerosRecibo) . " recibo(s) vinculado(s) correctamente por Q" . number_format($resultado['asignado'], 2) . ".";
         $this->buscarManual($mensaje, null, $carne, $montoRecibo, $cuentaLinea, $montoLinea);
+    }
+
+    // Desvincular un recibo de su línea del banco (para corregir un vínculo
+    // equivocado). Solo administrador y con contraseña + motivo, igual que
+    // excluir una línea: deshace una verificación ya hecha.
+    private function desvincular() {
+        if (!Auth::esAdministrador()) {
+            header("Location: inicio.php?error=permiso");
+            exit;
+        }
+        $numero = (int)($_GET['recibo'] ?? 0);
+        $db = Conexion::conectar();
+        $vinculo = $numero > 0 ? ConciliacionModel::obtenerVinculoDeRecibo($db, $numero) : null;
+        $errores = [];
+        if ($numero > 0 && !$vinculo) {
+            $errores[] = "No existe el recibo #$numero.";
+        } elseif ($vinculo && !$vinculo['linea_id']) {
+            $errores[] = "El recibo #$numero no está vinculado con ninguna línea del banco.";
+            $vinculo = null;
+        }
+        ConciliacionView::mostrarDesvincular($vinculo, $errores);
+    }
+
+    private function desvincularConfirmar() {
+        if (!Auth::esAdministrador()) {
+            header("Location: inicio.php?error=permiso");
+            exit;
+        }
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+            header("Location: conciliacion.php");
+            exit;
+        }
+
+        $numero = (int)($_POST['numero'] ?? 0);
+        $motivo = trim($_POST['motivo'] ?? '');
+        $password = $_POST['password_actual'] ?? '';
+
+        $db = Conexion::conectar();
+        $vinculo = ConciliacionModel::obtenerVinculoDeRecibo($db, $numero);
+
+        $errores = [];
+        if (!$vinculo || !$vinculo['linea_id']) {
+            $errores[] = "El recibo #$numero no está vinculado con ninguna línea del banco.";
+            $vinculo = null;
+        }
+        if ($motivo === '') {
+            $errores[] = "Debe indicar el motivo.";
+        } elseif (mb_strlen($motivo) > 200) {
+            $errores[] = "El motivo no puede pasar de 200 caracteres.";
+        }
+        if (!UsuarioModel::verificar(Auth::usuarioActual(), $password)) {
+            $errores[] = "La contraseña no es correcta.";
+        }
+        if (!empty($errores)) {
+            ConciliacionView::mostrarDesvincular($vinculo, $errores);
+            return;
+        }
+
+        $resultado = ConciliacionModel::desvincular($db, $numero, $motivo, Auth::usuarioActual());
+        if (!$resultado['ok']) {
+            ConciliacionView::mostrarDesvincular(null, [$resultado['error']]);
+            return;
+        }
+
+        // Directo a la vinculación manual, ya buscando el recibo y las
+        // líneas disponibles de su cuenta y monto, para volver a vincularlo
+        // con la línea correcta sin pasos extra.
+        $montoTexto = (string)(float)$vinculo['deposito'];
+        $this->buscarManual(
+            "Recibo #$numero desvinculado y de nuevo pendiente. Ahora vincúlalo con la línea correcta.",
+            null,
+            $vinculo['carne'],
+            $montoTexto,
+            $vinculo['cuenta_destino'] ?: $vinculo['linea_cuenta'],
+            $montoTexto
+        );
     }
 
     // Navegador libre de todo lo importado — responde "¿esta transferencia
