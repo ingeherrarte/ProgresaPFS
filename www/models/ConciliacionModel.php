@@ -1,5 +1,6 @@
 <?php
 require_once __DIR__ . "/../config/Conexion.php";
+require_once __DIR__ . "/DepositosModel.php";
 
 class ConciliacionModel {
 
@@ -41,7 +42,7 @@ class ConciliacionModel {
         // filas legacy con typos de digitación (años tipo 2052, 2041) que
         // sin este filtro contaminan la lista.
         $stmt = $db->prepare(
-            "SELECT numero, carne, fechadep AS fecha, deposito AS monto, cuenta_destino
+            "SELECT numero, carne, fechadep AS fecha, deposito AS monto, cuenta_destino, nodeposito
              FROM recibospfs
              WHERE deposito > 0 AND estado_transferencia = 'pendiente' AND anulado = 0
                    AND fechadep >= ? AND fechadep <= ? AND fechadep <= CURDATE()
@@ -138,7 +139,7 @@ class ConciliacionModel {
             $params[] = $monto;
         }
         $stmt = $db->prepare(
-            "SELECT numero, carne, fechadep, deposito AS monto, cuenta_destino
+            "SELECT numero, carne, fechadep, deposito AS monto, cuenta_destino, nodeposito
              FROM recibospfs
              WHERE " . implode(' AND ', $condiciones) . "
              ORDER BY fechadep DESC
@@ -189,10 +190,15 @@ class ConciliacionModel {
     // se asigna más de lo que la línea realmente tiene disponible, aunque
     // dos administradores intenten vincular al mismo tiempo.
     // Devuelve ['ok' => true, 'asignado' => float] o ['ok' => false, 'error' => string].
-    public static function vincularManual(PDO $db, int $estadoCuentaId, array $numerosRecibo, string $usuario): array {
+    //
+    // $ignorarAdvertencias: si el vínculo dispara alguna advertencia (ver
+    // advertenciasVinculo()), NO se vincula y se devuelve
+    // ['ok' => false, 'advertencias' => [...]] para que el admin confirme
+    // explícitamente; solo con true se vincula de todos modos.
+    public static function vincularManual(PDO $db, int $estadoCuentaId, array $numerosRecibo, string $usuario, bool $ignorarAdvertencias = false): array {
         $db->beginTransaction();
         try {
-            $stmtLinea = $db->prepare("SELECT id, cuenta, monto, recibo_numero FROM estados_cuenta WHERE id = ? FOR UPDATE");
+            $stmtLinea = $db->prepare("SELECT id, cuenta, fecha, monto, referencia, recibo_numero FROM estados_cuenta WHERE id = ? FOR UPDATE");
             $stmtLinea->execute([$estadoCuentaId]);
             $linea = $stmtLinea->fetch(PDO::FETCH_ASSOC);
             if (!$linea) {
@@ -215,7 +221,7 @@ class ConciliacionModel {
 
             $marcadores = implode(',', array_fill(0, count($numerosRecibo), '?'));
             $stmtRecibos = $db->prepare(
-                "SELECT numero, deposito, cuenta_destino FROM recibospfs
+                "SELECT numero, deposito, cuenta_destino, nodeposito FROM recibospfs
                  WHERE numero IN ($marcadores) AND estado_transferencia = 'pendiente' AND anulado = 0
                  FOR UPDATE"
             );
@@ -225,6 +231,14 @@ class ConciliacionModel {
             if (count($recibos) !== count($numerosRecibo)) {
                 $db->rollBack();
                 return ['ok' => false, 'error' => 'Uno o más recibos ya no están pendientes (puede que alguien más los haya verificado).'];
+            }
+
+            if (!$ignorarAdvertencias) {
+                $advertencias = self::advertenciasVinculo($db, $linea, $recibos);
+                if (!empty($advertencias)) {
+                    $db->rollBack();
+                    return ['ok' => false, 'error' => 'Revisa las advertencias antes de vincular.', 'advertencias' => $advertencias];
+                }
             }
 
             $sumaRecibos = array_sum(array_column($recibos, 'deposito'));
@@ -257,6 +271,168 @@ class ConciliacionModel {
 
             $db->commit();
             return ['ok' => true, 'asignado' => $sumaRecibos];
+        } catch (Throwable $e) {
+            $db->rollBack();
+            throw $e;
+        }
+    }
+
+    // Normaliza un número de boleta/referencia para compararlo: los bancos
+    // a veces lo exportan con ceros a la izquierda y nodeposito es BIGINT.
+    private static function normalizarReferencia($valor): string {
+        $v = ltrim(trim((string)$valor), '0');
+        return ctype_digit($v) ? $v : '';
+    }
+
+    // Señales de que un vínculo probablemente está mal, detectadas a partir
+    // de los dos errores reales del 2026-11-10:
+    //   1) La cuenta destino del recibo es distinta a la cuenta de la línea
+    //      (42787, cuenta BANTRAB, terminó en una línea de BANRURAL).
+    //   2) El No. de boleta del recibo coincide EXACTO con la referencia de
+    //      OTRA línea del banco (42785 tenía la boleta 776757721 = línea
+    //      #285, pero se vinculó a la #284).
+    //   3) La referencia de la línea elegida coincide exacto con la boleta
+    //      de OTRO recibo (la #285 se le dio al 42786, cuando era del 42785).
+    // Solo advierte, no bloquea: puede haber casos legítimos (ej. el cajero
+    // digitó mal la cuenta destino). El admin confirma y queda vinculado.
+    private static function advertenciasVinculo(PDO $db, array $linea, array $recibos): array {
+        $advertencias = [];
+        $bancoLinea = DepositosModel::bancoDeCuenta($linea['cuenta']) ?? $linea['cuenta'];
+        $refLinea = self::normalizarReferencia($linea['referencia']);
+        $numerosSeleccionados = array_map('intval', array_column($recibos, 'numero'));
+
+        $stmtOtraLinea = $db->prepare(
+            "SELECT id, cuenta, fecha, monto, referencia FROM estados_cuenta
+             WHERE tipo = 'credito' AND id <> ? AND TRIM(LEADING '0' FROM referencia) = ?
+             LIMIT 1"
+        );
+
+        foreach ($recibos as $r) {
+            $num = (int)$r['numero'];
+            if (!empty($r['cuenta_destino']) && $r['cuenta_destino'] !== $linea['cuenta']) {
+                $bancoRecibo = DepositosModel::bancoDeCuenta($r['cuenta_destino']) ?? $r['cuenta_destino'];
+                $advertencias[] = "El recibo #$num indica que se depositó en $bancoRecibo ({$r['cuenta_destino']}), "
+                    . "pero la línea elegida es de $bancoLinea ({$linea['cuenta']}).";
+            }
+
+            $boleta = self::normalizarReferencia($r['nodeposito'] ?? '');
+            if ($boleta !== '' && $boleta !== $refLinea) {
+                $stmtOtraLinea->execute([$linea['id'], $boleta]);
+                $otra = $stmtOtraLinea->fetch(PDO::FETCH_ASSOC);
+                if ($otra) {
+                    $bancoOtra = DepositosModel::bancoDeCuenta($otra['cuenta']) ?? $otra['cuenta'];
+                    $advertencias[] = "La boleta del recibo #$num (No. {$r['nodeposito']}) coincide exacto con OTRA línea: "
+                        . "$bancoOtra del " . date('d/m/Y', strtotime($otra['fecha']))
+                        . ", Q " . number_format((float)$otra['monto'], 2) . ", ref {$otra['referencia']} (línea #{$otra['id']}).";
+                }
+            }
+        }
+
+        if ($refLinea !== '') {
+            $marcadores = implode(',', array_fill(0, count($numerosSeleccionados), '?'));
+            $stmtOtroRecibo = $db->prepare(
+                "SELECT numero, carne FROM recibospfs
+                 WHERE nodeposito = ? AND anulado = 0 AND numero NOT IN ($marcadores)
+                 LIMIT 1"
+            );
+            $stmtOtroRecibo->execute(array_merge([$refLinea], $numerosSeleccionados));
+            $otroRecibo = $stmtOtroRecibo->fetch(PDO::FETCH_ASSOC);
+            if ($otroRecibo) {
+                $advertencias[] = "La referencia de la línea elegida ({$linea['referencia']}) coincide exacto con la boleta "
+                    . "del recibo #{$otroRecibo['numero']} (carné {$otroRecibo['carne']}), no con el recibo que estás vinculando.";
+            }
+        }
+
+        return $advertencias;
+    }
+
+    // Vínculo actual de un recibo con su línea del banco (manual vía
+    // conciliacion_vinculos, o automático/histórico vía
+    // estados_cuenta.recibo_numero), junto con los datos del recibo y de
+    // la línea — para la pantalla de confirmación de Desvincular.
+    public static function obtenerVinculoDeRecibo(PDO $db, int $numero): ?array {
+        $stmt = $db->prepare(
+            "SELECT r.numero, r.carne, r.fechadep, r.deposito, r.nodeposito, r.cuenta_destino,
+                    r.estado_transferencia, r.verificado_por, r.fecha_verificacion,
+                    ec.id AS linea_id, ec.cuenta AS linea_cuenta, ec.fecha AS linea_fecha,
+                    ec.monto AS linea_monto, ec.referencia AS linea_referencia, ec.descripcion AS linea_descripcion,
+                    cv.id AS vinculo_id, cv.monto_asignado, cv.vinculado_por, cv.vinculado_en
+             FROM recibospfs r
+             LEFT JOIN conciliacion_vinculos cv ON cv.recibo_numero = r.numero
+             LEFT JOIN estados_cuenta ec ON ec.id = cv.estado_cuenta_id OR (cv.id IS NULL AND ec.recibo_numero = r.numero)
+             WHERE r.numero = ?
+             LIMIT 1"
+        );
+        $stmt->execute([$numero]);
+        $fila = $stmt->fetch(PDO::FETCH_ASSOC);
+        return $fila ?: null;
+    }
+
+    // Deshace el vínculo de UN recibo con su línea del banco: el recibo
+    // regresa a 'pendiente' y la línea a no conciliada (si era un pago
+    // dividido entre varios recibos, los demás vínculos de esa línea se
+    // conservan y queda "Parcial"). Queda registro en
+    // conciliacion_desvinculos — quién lo había vinculado, quién lo deshizo
+    // y por qué. Luego se vuelve a vincular con el flujo normal.
+    // Devuelve ['ok' => true, 'linea_id' => int] o ['ok' => false, 'error' => string].
+    public static function desvincular(PDO $db, int $numero, string $motivo, string $usuario): array {
+        $db->beginTransaction();
+        try {
+            $stmtVinculo = $db->prepare(
+                "SELECT id, estado_cuenta_id, monto_asignado, vinculado_por, vinculado_en
+                 FROM conciliacion_vinculos WHERE recibo_numero = ? FOR UPDATE"
+            );
+            $stmtVinculo->execute([$numero]);
+            $vinculo = $stmtVinculo->fetch(PDO::FETCH_ASSOC);
+
+            if ($vinculo) {
+                $mecanismo = 'manual';
+                $lineaId = (int)$vinculo['estado_cuenta_id'];
+                $monto = $vinculo['monto_asignado'];
+            } else {
+                $stmtAuto = $db->prepare("SELECT id, monto FROM estados_cuenta WHERE recibo_numero = ? FOR UPDATE");
+                $stmtAuto->execute([$numero]);
+                $auto = $stmtAuto->fetch(PDO::FETCH_ASSOC);
+                if (!$auto) {
+                    $db->rollBack();
+                    return ['ok' => false, 'error' => "El recibo #$numero no está vinculado con ninguna línea del banco."];
+                }
+                $mecanismo = 'automatico';
+                $lineaId = (int)$auto['id'];
+                $monto = $auto['monto'];
+            }
+
+            $stmtRecibo = $db->prepare("SELECT verificado_por, fecha_verificacion FROM recibospfs WHERE numero = ?");
+            $stmtRecibo->execute([$numero]);
+            $recibo = $stmtRecibo->fetch(PDO::FETCH_ASSOC);
+
+            $db->prepare(
+                "INSERT INTO conciliacion_desvinculos
+                    (recibo_numero, estado_cuenta_id, monto_asignado, mecanismo, vinculado_por, vinculado_en, desvinculado_por, motivo)
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?)"
+            )->execute([
+                $numero, $lineaId, $monto, $mecanismo,
+                $vinculo['vinculado_por'] ?? $recibo['verificado_por'] ?? null,
+                $vinculo['vinculado_en'] ?? $recibo['fecha_verificacion'] ?? null,
+                $usuario, $motivo,
+            ]);
+
+            if ($mecanismo === 'manual') {
+                $db->prepare("DELETE FROM conciliacion_vinculos WHERE id = ?")->execute([$vinculo['id']]);
+                $db->prepare("UPDATE estados_cuenta SET conciliado = 0 WHERE id = ?")->execute([$lineaId]);
+            } else {
+                $db->prepare("UPDATE estados_cuenta SET recibo_numero = NULL, conciliado = 0 WHERE id = ?")->execute([$lineaId]);
+            }
+
+            // cuenta_destino se conserva: es lo que el cajero digitó en el
+            // recibo, no algo que dependa del vínculo.
+            $db->prepare(
+                "UPDATE recibospfs SET estado_transferencia = 'pendiente', verificado_por = NULL, fecha_verificacion = NULL
+                 WHERE numero = ?"
+            )->execute([$numero]);
+
+            $db->commit();
+            return ['ok' => true, 'linea_id' => $lineaId];
         } catch (Throwable $e) {
             $db->rollBack();
             throw $e;

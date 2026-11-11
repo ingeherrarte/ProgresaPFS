@@ -299,17 +299,33 @@ class ConciliacionView {
                                         <?php elseif (count($candidatos) === 1): ?>
                                             <?php $c = $candidatos[0]; ?>
                                             <span class="pill ok">✓</span>
+                                            <?php if (ltrim((string)$c['referencia'], '0') !== '' && ltrim((string)$c['referencia'], '0') === ltrim((string)$r['nodeposito'], '0')): ?>
+                                                <span class="pill ok" title="La referencia del banco es igual al No. de boleta del recibo">✔ coincide con boleta</span>
+                                            <?php endif; ?>
                                             <b><?= htmlspecialchars(DepositosModel::bancoDeCuenta($c['cuenta']) ?? $c['cuenta']) ?></b>
                                             · <?= date('d/m/Y', strtotime($c['fecha'])) ?>
                                             <?php if ($c['referencia']): ?>· ref <?= htmlspecialchars($c['referencia']) ?><?php endif; ?>
                                             <?php if ($c['descripcion']): ?>· <?= htmlspecialchars($c['descripcion']) ?><?php endif; ?>
                                             · Q <?= number_format((float)$c['monto'], 2) ?>
                                         <?php else: ?>
+                                            <?php
+                                            // Si alguna candidata tiene como referencia exacta el No. de
+                                            // boleta del recibo, es casi seguro la correcta: se marca y se
+                                            // preselecciona (el admin igual puede cambiarla).
+                                            $boleta = ltrim((string)$r['nodeposito'], '0');
+                                            $idCoincide = null;
+                                            foreach ($candidatos as $c) {
+                                                if ($boleta !== '' && ltrim((string)$c['referencia'], '0') === $boleta) { $idCoincide = (int)$c['id']; break; }
+                                            }
+                                            ?>
                                             <span class="pill falta">⚠ <?= count($candidatos) ?> candidatas — elige una</span>
+                                            <?php if ($idCoincide): ?><span class="pill ok">✔ una coincide con la boleta</span><?php endif; ?>
+                                            <div class="numeros">boleta del recibo: <?= htmlspecialchars((string)$r['nodeposito']) ?></div>
                                             <select name="estado_cuenta_id" form="form_verificar_<?= (int)$r['numero'] ?>" style="margin:4px 0 0;" required>
-                                                <option value="" selected disabled>-- Elige la línea --</option>
+                                                <option value="" <?= $idCoincide ? '' : 'selected' ?> disabled>-- Elige la línea --</option>
                                                 <?php foreach ($candidatos as $c): ?>
-                                                    <option value="<?= (int)$c['id'] ?>">
+                                                    <option value="<?= (int)$c['id'] ?>" <?= $idCoincide === (int)$c['id'] ? 'selected' : '' ?>>
+                                                        <?= $idCoincide === (int)$c['id'] ? '✔ COINCIDE CON BOLETA ·' : '' ?>
                                                         <?= htmlspecialchars(DepositosModel::bancoDeCuenta($c['cuenta']) ?? $c['cuenta']) ?>
                                                         · <?= date('d/m/Y', strtotime($c['fecha'])) ?>
                                                         <?= $c['referencia'] ? '· ref ' . htmlspecialchars($c['referencia']) : '' ?>
@@ -418,6 +434,7 @@ class ConciliacionView {
                                                 <td>
                                                     <?php if ($l['recibo_numero']): ?>
                                                         <a href="recibospfs.php?action=ver&amp;numero=<?= (int)$l['recibo_numero'] ?>" style="color:var(--acento);font-weight:bold;text-decoration:none;">#<?= (int)$l['recibo_numero'] ?></a>
+                                                        <?php if ($esAdmin): ?><?= self::enlaceDesvincular((int)$l['recibo_numero']) ?><?php endif; ?>
                                                         <?php if ($l['carne_automatico']): ?>
                                                             <div class="numeros">carné <?= htmlspecialchars($l['carne_automatico']) ?></div>
                                                         <?php endif; ?>
@@ -426,6 +443,7 @@ class ConciliacionView {
                                                             <div>
                                                                 <a href="recibospfs.php?action=ver&amp;numero=<?= (int)$numRecibo ?>" style="color:var(--acento);font-weight:bold;text-decoration:none;">#<?= (int)$numRecibo ?></a>
                                                                 <span class="numeros">Q <?= number_format((float)$montoAsignado, 2) ?> (manual)</span>
+                                                                <?php if ($esAdmin): ?><?= self::enlaceDesvincular((int)$numRecibo) ?><?php endif; ?>
                                                             </div>
                                                         <?php endforeach; ?>
                                                     <?php else: ?>
@@ -764,7 +782,7 @@ class ConciliacionView {
                     <?php else: ?>
                         <div class="tabla-scroll">
                         <table>
-                            <thead><tr><th></th><th>Recibo</th><th>Carné</th><th>Fecha depósito</th><th>Monto</th><th>Cuenta destino</th></tr></thead>
+                            <thead><tr><th></th><th>Recibo</th><th>Carné</th><th>Fecha depósito</th><th>Monto</th><th>Cuenta destino</th><th>No. boleta</th></tr></thead>
                             <tbody>
                                 <?php foreach ($recibos as $r): ?>
                                     <tr>
@@ -774,6 +792,7 @@ class ConciliacionView {
                                         <td><?= date('d/m/Y', strtotime($r['fechadep'])) ?></td>
                                         <td class="num">Q <?= number_format((float)$r['monto'], 2) ?></td>
                                         <td><?= $r['cuenta_destino'] ? htmlspecialchars(DepositosModel::bancoDeCuenta($r['cuenta_destino']) ?? $r['cuenta_destino']) : '<span style="color:var(--sin-datos);">(sin dato)</span>' ?></td>
+                                        <td><?= htmlspecialchars((string)$r['nodeposito']) ?></td>
                                     </tr>
                                 <?php endforeach; ?>
                             </tbody>
@@ -961,10 +980,14 @@ class ConciliacionView {
                                     <td>
                                         <?php if ($m['recibo_numero']): ?>
                                             <a href="recibospfs.php?action=ver&amp;numero=<?= (int)$m['recibo_numero'] ?>" style="color:var(--acento);font-weight:bold;text-decoration:none;">#<?= (int)$m['recibo_numero'] ?></a>
+                                            <?php if (Auth::esAdministrador()): ?><?= self::enlaceDesvincular((int)$m['recibo_numero']) ?><?php endif; ?>
                                             <?php if ($m['carne_automatico']): ?><div class="numeros">carné <?= htmlspecialchars($m['carne_automatico']) ?></div><?php endif; ?>
                                         <?php elseif ($m['recibos_manuales']): ?>
                                             <?php foreach (explode(', ', $m['recibos_manuales']) as $numRecibo): ?>
-                                                <a href="recibospfs.php?action=ver&amp;numero=<?= (int)$numRecibo ?>" style="color:var(--acento);font-weight:bold;text-decoration:none;">#<?= (int)$numRecibo ?></a>
+                                                <div>
+                                                    <a href="recibospfs.php?action=ver&amp;numero=<?= (int)$numRecibo ?>" style="color:var(--acento);font-weight:bold;text-decoration:none;">#<?= (int)$numRecibo ?></a>
+                                                    <?php if (Auth::esAdministrador()): ?><?= self::enlaceDesvincular((int)$numRecibo) ?><?php endif; ?>
+                                                </div>
                                             <?php endforeach; ?>
                                         <?php elseif ($explicadaComoDeposito): ?>
                                             <div class="numeros">
@@ -993,6 +1016,146 @@ class ConciliacionView {
                     </table>
                     </div>
                 <?php endif; ?>
+            </div>
+            <?php Tema::script(); ?>
+        </body>
+        </html>
+        <?php
+    }
+
+    private static function enlaceDesvincular(int $numero): string {
+        return ' <a href="conciliacion.php?action=desvincular&amp;recibo=' . $numero . '"'
+            . ' style="color:var(--estado-falta-texto);font-size:11.5px;font-weight:bold;text-decoration:none;"'
+            . ' title="Deshacer este vínculo para volver a vincular el recibo con la línea correcta">Desvincular</a>';
+    }
+
+    // Confirmación de Desvincular: muestra el recibo y la línea a la que
+    // está unido, pide motivo y contraseña (igual que Excluir línea).
+    public static function mostrarDesvincular(?array $v, array $errores): void {
+        ?>
+        <!DOCTYPE html>
+        <html lang="es">
+        <head>
+            <meta charset="UTF-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1">
+            <title>Desvincular recibo — CETECPRO</title>
+            <?php Tema::scriptInicial(); ?>
+            <?php self::estilos(); ?>
+        </head>
+        <body>
+            <?php self::barra(); ?>
+            <h1>Desvincular recibo de la línea del banco</h1>
+
+            <div class="card">
+                <a href="conciliacion.php" style="font-size:13px;color:var(--acento);font-weight:bold;">← Volver a Conciliación</a>
+
+                <?php if (!empty($errores)): ?>
+                    <div class="errores" style="margin-top:14px;">
+                        ⚠️ <ul>
+                            <?php foreach ($errores as $e): ?>
+                                <li><?= htmlspecialchars($e) ?></li>
+                            <?php endforeach; ?>
+                        </ul>
+                    </div>
+                <?php endif; ?>
+
+                <?php if ($v): ?>
+                    <p style="font-size:13px;color:var(--texto-muted,var(--sin-datos));margin:14px 0;">
+                        El recibo regresa a <b>pendiente</b> y la línea del banco a <b>sin marcar</b>. Después te llevará
+                        directo a la vinculación manual para unirlo con la línea correcta. Queda registro de quién lo
+                        desvinculó, cuándo y por qué.
+                    </p>
+                    <div class="fila">
+                        <div class="campo resumen-recibo">
+                            <div><b>Recibo:</b> #<?= (int)$v['numero'] ?> · carné <?= htmlspecialchars($v['carne']) ?></div>
+                            <div><b>Fecha depósito:</b> <?= date('d/m/Y', strtotime($v['fechadep'])) ?></div>
+                            <div><b>Monto:</b> Q <?= number_format((float)$v['deposito'], 2) ?></div>
+                            <div><b>No. boleta:</b> <?= htmlspecialchars((string)$v['nodeposito']) ?></div>
+                            <div><b>Cuenta destino:</b> <?= $v['cuenta_destino'] ? htmlspecialchars(DepositosModel::bancoDeCuenta($v['cuenta_destino']) ?? $v['cuenta_destino']) : '(sin dato)' ?></div>
+                        </div>
+                        <div class="campo resumen-recibo">
+                            <div><b>Línea del banco:</b> #<?= (int)$v['linea_id'] ?></div>
+                            <div><b>Banco:</b> <?= htmlspecialchars(DepositosModel::bancoDeCuenta($v['linea_cuenta']) ?? $v['linea_cuenta']) ?></div>
+                            <div><b>Fecha:</b> <?= date('d/m/Y', strtotime($v['linea_fecha'])) ?></div>
+                            <div><b>Monto:</b> Q <?= number_format((float)$v['linea_monto'], 2) ?></div>
+                            <div><b>Referencia:</b> <?= htmlspecialchars($v['linea_referencia'] ?? '—') ?></div>
+                            <div><b>Vinculado por:</b> <?= htmlspecialchars($v['vinculado_por'] ?? $v['verificado_por'] ?? '—') ?>
+                                <?php $cuando = $v['vinculado_en'] ?? $v['fecha_verificacion']; ?>
+                                <?= $cuando ? ', ' . date('d/m/Y H:i', strtotime($cuando)) : '' ?></div>
+                        </div>
+                    </div>
+
+                    <form method="POST" action="conciliacion.php?action=desvincularConfirmar">
+                        <input type="hidden" name="numero" value="<?= (int)$v['numero'] ?>">
+                        <fieldset>
+                            <legend>Confirmar desvinculación</legend>
+                            <div class="fila">
+                                <div class="campo">
+                                    <label for="motivo">Motivo</label>
+                                    <input type="text" id="motivo" name="motivo" maxlength="200" placeholder="ej. vinculado a la línea equivocada; la correcta es Bantrab 01/11 ref 76633241" required>
+                                </div>
+                            </div>
+                            <div class="fila">
+                                <div class="campo">
+                                    <label for="password_actual">Tu contraseña</label>
+                                    <input type="password" id="password_actual" name="password_actual" required>
+                                </div>
+                            </div>
+                        </fieldset>
+                        <button type="submit" class="peligro">Desvincular</button>
+                    </form>
+                <?php endif; ?>
+            </div>
+            <?php Tema::script(); ?>
+        </body>
+        </html>
+        <?php
+    }
+
+    // Se muestra cuando un vínculo dispara advertencias (cuenta distinta,
+    // boleta que coincide con otra línea, etc.). Reenvía exactamente los
+    // mismos campos con ignorar_advertencias=1 si el admin confirma.
+    public static function mostrarConfirmarAdvertencias(array $advertencias, string $action, array $campos, string $volverUrl): void {
+        ?>
+        <!DOCTYPE html>
+        <html lang="es">
+        <head>
+            <meta charset="UTF-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1">
+            <title>Revisar vínculo — CETECPRO</title>
+            <?php Tema::scriptInicial(); ?>
+            <?php self::estilos(); ?>
+        </head>
+        <body>
+            <?php self::barra(); ?>
+            <h1>Revisa antes de vincular</h1>
+
+            <div class="card">
+                <div class="errores">
+                    ⚠️ Este vínculo probablemente está equivocado:
+                    <ul>
+                        <?php foreach ($advertencias as $a): ?>
+                            <li><?= htmlspecialchars($a) ?></li>
+                        <?php endforeach; ?>
+                    </ul>
+                </div>
+                <p style="font-size:13px;margin:14px 0;">Todavía <b>no se vinculó nada</b>. Regresa y elige otra línea, o confirma si estás seguro de que es correcto.</p>
+                <div class="fila" style="align-items:center;">
+                    <a href="<?= htmlspecialchars($volverUrl) ?>" style="font-size:14px;color:var(--acento);font-weight:bold;">← Regresar y elegir otra línea</a>
+                    <form method="POST" action="conciliacion.php?action=<?= htmlspecialchars($action) ?>" style="margin-left:auto;">
+                        <?php foreach ($campos as $nombre => $valor): ?>
+                            <?php if (is_array($valor)): ?>
+                                <?php foreach ($valor as $item): ?>
+                                    <input type="hidden" name="<?= htmlspecialchars($nombre) ?>[]" value="<?= htmlspecialchars((string)$item) ?>">
+                                <?php endforeach; ?>
+                            <?php else: ?>
+                                <input type="hidden" name="<?= htmlspecialchars($nombre) ?>" value="<?= htmlspecialchars((string)$valor) ?>">
+                            <?php endif; ?>
+                        <?php endforeach; ?>
+                        <input type="hidden" name="ignorar_advertencias" value="1">
+                        <button type="submit" class="peligro">Vincular de todos modos</button>
+                    </form>
+                </div>
             </div>
             <?php Tema::script(); ?>
         </body>
